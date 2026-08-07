@@ -1,0 +1,290 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+/* The SDPC design system. Imported after Tailwind so its element-level rules
+   (body, h1-h6) win over preflight; its tokens are scoped to [data-mod] and so
+   never collide with the shadcn tokens declared in @theme below. */
+@import './nocturne.css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* SDPC brand ramp — accent scale from the platform design. */
+    --color-brand-100: var(--brand-100);
+    --color-brand-200: var(--brand-200);
+    --color-brand-300: var(--brand-300);
+    --color-brand-400: var(--brand-400);
+    --color-brand-500: var(--brand-500);
+    --color-brand-600: var(--brand-600);
+    --color-brand-700: var(--brand-700);
+    --color-brand-800: var(--brand-800);
+    --color-brand-900: var(--brand-900);
+
+    /* SDPC ink ramp — neutral scale from the platform design. Named `ink`
+       so it does not shadow Tailwind's built-in `neutral-*` palette. */
+    --color-ink-100: var(--ink-100);
+    --color-ink-200: var(--ink-200);
+    --color-ink-300: var(--ink-300);
+    --color-ink-400: var(--ink-400);
+    --color-ink-500: var(--ink-500);
+    --color-ink-600: var(--ink-600);
+    --color-ink-700: var(--ink-700);
+    --color-ink-800: var(--ink-800);
+    --color-ink-900: var(--ink-900);
+
+    --color-surface: var(--surface);
+    --color-divider: var(--divider);
+
+    /* Elevation — the design's .elev-sm / .elev-md / .elev-lg. */
+    --shadow-elev-sm: var(--elev-sm);
+    --shadow-elev-md: var(--elev-md);
+    --shadow-elev-lg: var(--elev-lg);
+}
+
+/*
+ * SDPC light theme — ported from the platform design's [data-mod="user"] block.
+ * The design ships two palettes with different accent hues: olive in light,
+ * teal-green in dark. Both are mapped onto the app's existing semantic tokens
+ * so shared primitives pick the design up without per-component overrides.
+ */
+:root {
+    --brand-100: #2f3928;
+    --brand-200: #46543a;
+    --brand-300: #64764f;
+    --brand-400: #7f9366;
+    --brand-500: #9cb080;
+    --brand-600: #b4c99a;
+    --brand-700: #ccdcb7;
+    --brand-800: #dfe8d2;
+    --brand-900: #eef3e6;
+
+    --ink-100: #23291f;
+    --ink-200: #333a2e;
+    --ink-300: #55604c;
+    --ink-400: #7c8573;
+    --ink-500: #9aa294;
+    --ink-600: #b6bcb0;
+    --ink-700: #cdd1c8;
+    --ink-800: #dedfd9;
+    --ink-900: #f2f2f0;
+
+    --surface: #f2f2f0;
+    --divider: #cdcfc8;
+
+    --elev-sm: 0 0 0 1px #d3d5cd;
+    --elev-md: 0 0 0 1px #cdcfc8, 0 6px 18px rgb(35 41 31 / 0.1);
+    --elev-lg: 0 0 0 1px #c2c5bc, 0 16px 40px rgb(35 41 31 / 0.16);
+
+    --background: #e3e3e3;
+    --foreground: #23291f;
+    --card: #f2f2f0;
+    --card-foreground: #23291f;
+    --popover: #f2f2f0;
+    --popover-foreground: #23291f;
+    --primary: #64764f;
+    --primary-foreground: #f2f2f0;
+    --secondary: #dedfd9;
+    --secondary-foreground: #23291f;
+    --muted: #dedfd9;
+    --muted-foreground: #7c8573;
+    --accent: #dfe8d2;
+    --accent-foreground: #2f3928;
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: #cdcfc8;
+    --input: #cdcfc8;
+    --ring: #64764f;
+    --chart-1: #64764f;
+    --chart-2: #64906b;
+    --chart-3: #87ac8c;
+    --chart-4: #9cb080;
+    --chart-5: #b4c99a;
+    --radius: 0.75rem;
+    --sidebar: #f2f2f0;
+    --sidebar-foreground: #23291f;
+    --sidebar-primary: #64764f;
+    --sidebar-primary-foreground: #f2f2f0;
+    --sidebar-accent: #dfe8d2;
+    --sidebar-accent-foreground: #2f3928;
+    --sidebar-border: #cdcfc8;
+    --sidebar-ring: #64764f;
+}
+
+/*
+ * SDPC dark theme — ported from the platform design's :root block.
+ */
+.dark {
+    --brand-100: #eaf8f1;
+    --brand-200: #cbeddd;
+    --brand-300: #ade2c8;
+    --brand-400: #6fb894;
+    --brand-500: #3f8f70;
+    --brand-600: #347a5f;
+    --brand-700: #2b6a51;
+    --brand-800: #275943;
+    --brand-900: #17392c;
+
+    --ink-100: #eef5f2;
+    --ink-200: #dbe7e2;
+    --ink-300: #c2d3cc;
+    --ink-400: #9db3ab;
+    --ink-500: #7d938c;
+    --ink-600: #5d716a;
+    --ink-700: #3d554c;
+    --ink-800: #2a3d36;
+    --ink-900: #16221e;
+
+    --surface: #1b2f28;
+    --divider: #2a3d36;
+
+    --elev-sm: 0 0 0 1px #2a3d36;
+    --elev-md: 0 0 0 1px #3d554c, 0 6px 18px rgb(0 0 0 / 0.55);
+    --elev-lg: 0 0 0 1px #7d938c, 0 16px 40px rgb(0 0 0 / 0.65);
+
+    --background: #0c1614;
+    --foreground: #e6efea;
+    --card: #1b2f28;
+    --card-foreground: #e6efea;
+    --popover: #1b2f28;
+    --popover-foreground: #e6efea;
+    --primary: #3f8f70;
+    --primary-foreground: #0c1614;
+    --secondary: #2a3d36;
+    --secondary-foreground: #e6efea;
+    --muted: #2a3d36;
+    --muted-foreground: #9db3ab;
+    --accent: #275943;
+    --accent-foreground: #cbeddd;
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: #2a3d36;
+    --input: #2a3d36;
+    --ring: #3f8f70;
+    --chart-1: #3f8f70;
+    --chart-2: #6fb894;
+    --chart-3: #ade2c8;
+    --chart-4: #347a5f;
+    --chart-5: #275943;
+    --sidebar: #1b2f28;
+    --sidebar-foreground: #e6efea;
+    --sidebar-primary: #3f8f70;
+    --sidebar-primary-foreground: #0c1614;
+    --sidebar-accent: #275943;
+    --sidebar-accent-foreground: #cbeddd;
+    --sidebar-border: #2a3d36;
+    --sidebar-ring: #3f8f70;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+
+    /* Heading rhythm from the SDPC design: tight tracking, heavier optical
+       weight, sizes matching the h1/h3/h6 usage across the screens. */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-semibold text-balance;
+    }
+
+    h1 {
+        @apply text-5xl leading-[1.03] tracking-[-0.03em];
+    }
+
+    h2 {
+        @apply text-3xl tracking-[-0.02em];
+    }
+
+    h3 {
+        @apply text-[22px] tracking-[-0.02em];
+    }
+
+    h4 {
+        @apply text-lg tracking-[-0.01em];
+    }
+
+    h5 {
+        @apply text-[15px];
+    }
+
+    h6 {
+        @apply text-[13.5px];
+    }
+
+    /* The design pairs every scroll region with a slim, tinted scrollbar. */
+    *::-webkit-scrollbar {
+        @apply size-2;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        @apply rounded-lg bg-ink-800;
+    }
+
+    *::-webkit-scrollbar-track {
+        @apply bg-transparent;
+    }
+}
