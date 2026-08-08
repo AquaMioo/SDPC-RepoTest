@@ -2,16 +2,20 @@
 
 namespace App\Actions\Auth;
 
+use App\Actions\Teams\CreateTeam;
 use App\Enums\AuthPortal;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 
 class ResolveGoogleUser
 {
+    public function __construct(private CreateTeam $createTeam) {}
+
     /**
      * Resolve the local account for a Google identity.
      *
@@ -87,22 +91,37 @@ class ResolveGoogleUser
 
         $name = $googleUser->getName() ?? $googleUser->getNickname() ?? $email;
 
-        $user = new User;
+        return DB::transaction(function () use ($googleUser, $email, $googleId, $role, $name) {
+            $user = new User;
 
-        $user->forceFill([
-            'name' => $name,
-            'first_name' => Str::before($name, ' ') ?: $name,
-            'last_name' => Str::contains($name, ' ') ? Str::afterLast($name, ' ') : null,
-            'email' => $email,
-            'role' => $role,
-            'status' => UserStatus::default(),
-            'google_id' => $googleId,
-            'avatar' => $googleUser->getAvatar(),
-            'password' => null,
-            'email_verified_at' => now(),
-        ])->save();
+            $user->forceFill([
+                'name' => $name,
+                'first_name' => Str::before($name, ' ') ?: $name,
+                'last_name' => Str::contains($name, ' ') ? Str::afterLast($name, ' ') : null,
+                'email' => $email,
+                'role' => $role,
+                'status' => UserStatus::default(),
+                'google_id' => $googleId,
+                'avatar' => $googleUser->getAvatar(),
+                'password' => null,
+                'email_verified_at' => now(),
+            ])->save();
 
-        return $user;
+            // Every account gets a team, exactly as the password sign up path
+            // does in CreateNewUser: the client module is entirely team scoped,
+            // so an account without one has nowhere to land after signing in.
+            //
+            // Google never tells us a business name, so a client's team is named
+            // after them for now. The profile screen seeds the business profile
+            // from the team name on first visit, and both are theirs to rename.
+            $this->createTeam->handle(
+                $user,
+                $name."'s Team",
+                isPersonal: $role !== UserRole::Client,
+            );
+
+            return $user;
+        });
     }
 
     /**
