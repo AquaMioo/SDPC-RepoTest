@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
@@ -81,17 +82,95 @@ class GoogleAuthenticationTest extends TestCase
         );
     }
 
-    public function test_an_unknown_google_account_is_sent_back_to_the_sign_up_form(): void
+    public function test_an_unknown_google_account_prefills_the_sign_up_form(): void
     {
         $this->startFlowFrom(route('google.redirect', ['intent' => 'register']));
         $this->mockGoogleReturns($this->googleUser());
 
         $response = $this->get(route('google.callback'));
 
-        // Back to the form they still have to fill in, not the login screen.
+        // Back to the form, carrying what Google vouched for. No error: there
+        // is nothing wrong, there is just more to fill in.
         $response->assertRedirect(route('register'));
-        $response->assertSessionHasErrors('google');
+        $response->assertSessionHasNoErrors();
         $this->assertGuest();
+        $this->assertSame(0, User::count());
+
+        $this->get(route('register'))->assertInertia(fn (Assert $page) => $page
+            ->component('auth/register')
+            ->where('googleProfile.email', 'ada@example.com')
+            ->where('googleProfile.first_name', 'Ada')
+            ->where('googleProfile.last_name', 'Lovelace'),
+        );
+    }
+
+    public function test_a_google_identity_becomes_an_account_once_the_form_is_finished(): void
+    {
+        $this->startFlowFrom(route('google.redirect', ['intent' => 'register']));
+        $this->mockGoogleReturns($this->googleUser());
+        $this->get(route('google.callback'));
+
+        $response = $this->post(route('register.store'), [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'role' => 'student',
+            'school_email' => '02000123456@sti.edu.ph',
+            'terms' => 'on',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $user = User::firstWhere('email', 'ada@example.com');
+
+        $this->assertNotNull($user);
+        $this->assertSame(UserRole::Student, $user->role);
+        $this->assertSame('1234567890', $user->google_id);
+
+        // Google is how they sign in, so there is no password, and the address
+        // needs no verification email.
+        $this->assertNull($user->password);
+        $this->assertNotNull($user->email_verified_at);
+
+        // Still unverified as an account: the credential document decides that.
+        $this->assertSame(UserStatus::Pending, $user->status);
+        $this->assertNotNull($user->currentTeam);
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_the_address_comes_from_google_rather_than_the_form(): void
+    {
+        $this->startFlowFrom(route('google.redirect', ['intent' => 'register']));
+        $this->mockGoogleReturns($this->googleUser());
+        $this->get(route('google.callback'));
+
+        // The email input is read only on screen, but nothing stops a crafted
+        // request posting another address. The session wins.
+        $this->post(route('register.store'), [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'email' => 'someone.else@example.com',
+            'role' => 'client',
+            'business_name' => 'Northwind',
+            'terms' => 'on',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, User::count());
+        $this->assertNotNull(User::firstWhere('email', 'ada@example.com'));
+        $this->assertNull(User::firstWhere('email', 'someone.else@example.com'));
+    }
+
+    public function test_registering_without_google_still_needs_a_password(): void
+    {
+        $this->post(route('register.store'), [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'email' => 'ada@example.com',
+            'role' => 'student',
+            'school_email' => '02000123456@sti.edu.ph',
+            'terms' => 'on',
+        ])->assertSessionHasErrors('password');
+
         $this->assertSame(0, User::count());
     }
 

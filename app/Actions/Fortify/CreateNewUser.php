@@ -7,9 +7,11 @@ use App\Concerns\PasswordValidationRules;
 use App\Enums\UserRole;
 use App\Models\ClientProfile;
 use App\Models\User;
+use App\Support\PendingGoogleRegistration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -33,11 +35,19 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
+        // A Google identity waiting in the session supplies the address and
+        // stands in for the password. It is read from the session rather than
+        // the form because it is the one thing on that page nobody may edit —
+        // an email posted from the browser could be anyone's.
+        $pending = PendingGoogleRegistration::get();
+
         Validator::make($input, [
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
-            'password' => $this->passwordRules(),
+            'email' => $pending !== null
+                ? ['nullable']
+                : ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
+            'password' => $pending !== null ? ['nullable'] : $this->passwordRules(),
             'role' => ['required', Rule::in([UserRole::Student->value, UserRole::Client->value])],
             'business_name' => [Rule::requiredIf($this->isClient($input)), 'nullable', 'string', 'max:255'],
             'school_email' => [Rule::requiredIf($this->isStudent($input)), 'nullable', 'string', 'max:255'],
@@ -48,22 +58,43 @@ class CreateNewUser implements CreatesNewUsers
             'school_email.required' => __('Please provide your school email or student number.'),
         ])->validate();
 
+        $email = $pending['email'] ?? $input['email'];
+
+        // The address is unique either way. Checking it here as well covers the
+        // window between Google vouching for it and this form being submitted.
+        if ($pending !== null && User::where('email', $email)->exists()) {
+            PendingGoogleRegistration::forget();
+
+            throw ValidationException::withMessages([
+                'email' => [__('An account already exists for :email. Please log in instead.', ['email' => $email])],
+            ]);
+        }
+
         $firstName = trim($input['first_name']);
         $lastName = trim($input['last_name']);
         $role = UserRole::from($input['role']);
         $name = trim($firstName.' '.$lastName);
 
-        return DB::transaction(function () use ($input, $firstName, $lastName, $role, $name) {
+        return DB::transaction(function () use ($input, $firstName, $lastName, $role, $name, $email, $pending) {
             $user = new User;
 
             $user->forceFill([
                 'name' => $name,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'email' => $input['email'],
-                'password' => $input['password'],
+                'email' => $email,
+                // A Google account never gets a password. They may still set
+                // one later through the password reset flow.
+                'password' => $pending !== null ? null : $input['password'],
                 'role' => $role,
+                'google_id' => $pending['google_id'] ?? null,
+                'avatar' => $pending['avatar'] ?? null,
+                // Google has already proven the address, so there is nothing
+                // for the verification email to add.
+                'email_verified_at' => $pending !== null ? now() : null,
             ])->save();
+
+            PendingGoogleRegistration::forget();
 
             $team = $this->createTeam->handle(
                 $user,

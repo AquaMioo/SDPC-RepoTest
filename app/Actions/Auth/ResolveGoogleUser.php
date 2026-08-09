@@ -20,40 +20,55 @@ class ResolveGoogleUser
      *
      * @throws ValidationException
      */
-    public function handle(
-        SocialiteUser $googleUser,
-        AuthPortal $portal,
-        GoogleAuthIntent $intent = GoogleAuthIntent::Login,
-    ): User {
-        $email = $this->email($googleUser);
-        $googleId = (string) $googleUser->getId();
-
-        $user = User::query()
-            ->where('google_id', $googleId)
-            ->orWhere('email', $email)
-            ->first();
+    public function handle(SocialiteUser $googleUser, AuthPortal $portal): User
+    {
+        $user = $this->findExisting($googleUser);
 
         if ($user === null) {
             throw ValidationException::withMessages([
-                'email' => [$intent->noAccountMessage()],
-            ]);
-        }
-
-        // Reached from the sign up screen, an account that already exists is
-        // the error rather than the goal, so say so instead of quietly logging
-        // them in on a page they went to in order to register.
-        if ($intent === GoogleAuthIntent::Register) {
-            throw ValidationException::withMessages([
-                'email' => [__('This Google account is already registered as a :role. Please log in instead.', [
-                    'role' => $user->role->label(),
-                ])],
+                'email' => [GoogleAuthIntent::Login->noAccountMessage()],
             ]);
         }
 
         $this->ensureAccountIsActive($user);
         $this->ensureUserMayUsePortal($user, $portal);
 
-        return $this->link($user, $googleUser, $googleId);
+        return $this->link($user, $googleUser, (string) $googleUser->getId());
+    }
+
+    /**
+     * Find the account this Google identity already belongs to, if any.
+     *
+     * Matching on either the Google id or the address means someone who
+     * registered with a password is recognised the first time they use the
+     * button, rather than being told to register all over again.
+     *
+     * @throws ValidationException
+     */
+    public function findExisting(SocialiteUser $googleUser): ?User
+    {
+        return User::query()
+            ->where('google_id', (string) $googleUser->getId())
+            ->orWhere('email', $this->email($googleUser))
+            ->first();
+    }
+
+    /**
+     * Get the verified email address from the Google identity.
+     *
+     * @throws ValidationException
+     */
+    public function email(SocialiteUser $googleUser): string
+    {
+        $email = $googleUser->getEmail();
+
+        if (blank($email)) {
+            throw ValidationException::withMessages([
+                'email' => [__('Your Google account did not provide an email address.')],
+            ]);
+        }
+
+        return mb_strtolower($email);
     }
 
     /**
@@ -103,23 +118,5 @@ class ResolveGoogleUser
         throw ValidationException::withMessages([
             'email' => [$portal->rejectionMessage()],
         ]);
-    }
-
-    /**
-     * Get the verified email address from the Google identity.
-     *
-     * @throws ValidationException
-     */
-    private function email(SocialiteUser $googleUser): string
-    {
-        $email = $googleUser->getEmail();
-
-        if (blank($email)) {
-            throw ValidationException::withMessages([
-                'email' => [__('Your Google account did not provide an email address.')],
-            ]);
-        }
-
-        return mb_strtolower($email);
     }
 }

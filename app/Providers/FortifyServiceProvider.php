@@ -12,6 +12,7 @@ use App\Http\Responses\RegisterResponse;
 use App\Http\Responses\TwoFactorLoginResponse;
 use App\Http\Responses\VerifyEmailResponse;
 use App\Models\TeamInvitation;
+use App\Support\PendingGoogleRegistration;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Http\Request;
@@ -109,6 +110,9 @@ class FortifyServiceProvider extends ServiceProvider
             'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
             'roles' => UserRole::selfAssignable(),
             'teamInvitation' => $this->teamInvitation($request),
+            // Set once someone has come back from Google without an account
+            // yet: the form prefills from it and drops the password fields.
+            'googleProfile' => PendingGoogleRegistration::get(),
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));

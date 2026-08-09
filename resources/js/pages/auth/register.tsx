@@ -16,12 +16,21 @@ import type { TeamInvitationContext } from '@/types';
 
 type Role = { value: string; label: string };
 
+/** Set once someone has come back from Google without an account yet. */
+type GoogleProfile = {
+    email: string;
+    first_name: string;
+    last_name: string;
+    avatar: string | null;
+};
+
 type Props = {
     passwordRules: string;
     roles?: Role[];
     canLoginWithGoogle?: boolean;
     googleSetupHint?: boolean;
     teamInvitation?: TeamInvitationContext | null;
+    googleProfile?: GoogleProfile | null;
 };
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
@@ -46,6 +55,7 @@ export default function Register({
     canLoginWithGoogle = false,
     googleSetupHint = false,
     teamInvitation,
+    googleProfile,
 }: Props) {
     const [role, setRole] = useState<string>(roles[0]?.value ?? 'client');
     const isStudent = role === 'student';
@@ -66,6 +76,26 @@ export default function Register({
                 <h4 style={{ margin: 0, textAlign: 'center' }}>Register</h4>
 
                 <GoogleAuthError />
+
+                {googleProfile && (
+                    <div
+                        data-test="google-continuing-as"
+                        className="border border-green-600/40 bg-green-600/10 px-3 py-2 text-center dark:border-green-400/40 dark:bg-green-400/10"
+                        style={{
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: 12,
+                            lineHeight: 1.55,
+                            color: MUTED,
+                        }}
+                    >
+                        Continuing as{' '}
+                        <b style={{ color: 'var(--color-text)' }}>
+                            {googleProfile.email}
+                        </b>
+                        . Pick your role and finish the details below — no
+                        password needed.
+                    </div>
+                )}
 
                 {teamInvitation && (
                     <TeamInvitationAlert
@@ -112,6 +142,7 @@ export default function Register({
                                         tabIndex={1}
                                         autoComplete="family-name"
                                         placeholder="Clemens"
+                                        defaultValue={googleProfile?.last_name}
                                     />
                                     <InputError
                                         message={errors.last_name}
@@ -131,6 +162,7 @@ export default function Register({
                                         tabIndex={2}
                                         autoComplete="given-name"
                                         placeholder="Samuel"
+                                        defaultValue={googleProfile?.first_name}
                                     />
                                     <InputError
                                         message={errors.first_name}
@@ -145,10 +177,23 @@ export default function Register({
                                     id="email"
                                     type="email"
                                     name="email"
-                                    required
+                                    required={!googleProfile}
                                     tabIndex={3}
                                     autoComplete="email"
                                     placeholder="you@email.com"
+                                    // Google vouched for this address, so it is
+                                    // shown but not editable. The server reads
+                                    // it from the session either way.
+                                    defaultValue={googleProfile?.email}
+                                    readOnly={Boolean(googleProfile)}
+                                    style={
+                                        googleProfile
+                                            ? {
+                                                  opacity: 0.75,
+                                                  cursor: 'not-allowed',
+                                              }
+                                            : undefined
+                                    }
                                 />
                                 <InputError
                                     message={errors.email}
@@ -193,47 +238,60 @@ export default function Register({
                                 </div>
                             )}
 
-                            <div style={TWO_UP}>
-                                <div className="field">
-                                    <label htmlFor="password">Password</label>
-                                    <Input
-                                        id="password"
-                                        name="password"
-                                        type="password"
-                                        required
-                                        tabIndex={5}
-                                        autoComplete="new-password"
-                                        placeholder="••••••••"
-                                        {...{ passwordrules: passwordRules }}
-                                    />
-                                    <InputError
-                                        message={errors.password}
-                                        className="mt-1 text-[11px]"
-                                    />
-                                </div>
+                            {/* A Google account never gets a password: Google
+                                is how they sign in. They can still set one
+                                later through the password reset flow. */}
+                            {!googleProfile && (
+                                <div style={TWO_UP}>
+                                    <div className="field">
+                                        <label htmlFor="password">
+                                            Password
+                                        </label>
+                                        <Input
+                                            id="password"
+                                            name="password"
+                                            type="password"
+                                            required
+                                            tabIndex={5}
+                                            autoComplete="new-password"
+                                            placeholder="••••••••"
+                                            {...{
+                                                passwordrules: passwordRules,
+                                            }}
+                                        />
+                                        <InputError
+                                            message={errors.password}
+                                            className="mt-1 text-[11px]"
+                                        />
+                                    </div>
 
-                                <div className="field">
-                                    <label htmlFor="password_confirmation">
-                                        Confirm password
-                                    </label>
-                                    <Input
-                                        id="password_confirmation"
-                                        name="password_confirmation"
-                                        type="password"
-                                        required
-                                        tabIndex={6}
-                                        autoComplete="new-password"
-                                        placeholder="••••••••"
-                                        {...{ passwordrules: passwordRules }}
-                                    />
-                                    <InputError
-                                        message={errors.password_confirmation}
-                                        className="mt-1 text-[11px]"
-                                    />
+                                    <div className="field">
+                                        <label htmlFor="password_confirmation">
+                                            Confirm password
+                                        </label>
+                                        <Input
+                                            id="password_confirmation"
+                                            name="password_confirmation"
+                                            type="password"
+                                            required
+                                            tabIndex={6}
+                                            autoComplete="new-password"
+                                            placeholder="••••••••"
+                                            {...{
+                                                passwordrules: passwordRules,
+                                            }}
+                                        />
+                                        <InputError
+                                            message={
+                                                errors.password_confirmation
+                                            }
+                                            className="mt-1 text-[11px]"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
-                            {canLoginWithGoogle && (
+                            {canLoginWithGoogle && !googleProfile && (
                                 <GoogleAuthButton
                                     href={googleRedirect.url({
                                         query: { intent: 'register' },
@@ -241,7 +299,9 @@ export default function Register({
                                     tabIndex={7}
                                 />
                             )}
-                            {googleSetupHint && <GoogleSetupHint />}
+                            {googleSetupHint && !googleProfile && (
+                                <GoogleSetupHint />
+                            )}
 
                             <label
                                 style={{

@@ -7,10 +7,12 @@ use App\Enums\AuthPortal;
 use App\Enums\GoogleAuthIntent;
 use App\Http\Controllers\Controller;
 use App\Support\AuthHome;
+use App\Support\PendingGoogleRegistration;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 use Throwable;
@@ -75,8 +77,12 @@ class GoogleAuthController extends Controller
             return $this->failed($portal, $intent, __('We could not sign you in with Google. Please try again.'));
         }
 
+        if ($intent === GoogleAuthIntent::Register) {
+            return $this->startRegistration($googleUser, $portal);
+        }
+
         try {
-            $user = $this->resolveGoogleUser->handle($googleUser, $portal, $intent);
+            $user = $this->resolveGoogleUser->handle($googleUser, $portal);
         } catch (ValidationException $e) {
             return $this->failed($portal, $intent, collect($e->errors())->flatten()->first() ?? $e->getMessage());
         }
@@ -86,6 +92,36 @@ class GoogleAuthController extends Controller
         $request->session()->regenerate();
 
         return redirect()->intended(AuthHome::for($user));
+    }
+
+    /**
+     * Carry a brand new Google identity back to the sign up form.
+     *
+     * Google cannot supply the role, the school or business name, or agreement
+     * to the terms, so it cannot create the account on its own. What it can do
+     * is vouch for the name and address, which are carried across in the
+     * session and fill the form in so none of it has to be retyped.
+     */
+    private function startRegistration(SocialiteUser $googleUser, AuthPortal $portal): RedirectResponse
+    {
+        try {
+            $existing = $this->resolveGoogleUser->findExisting($googleUser);
+            $email = $this->resolveGoogleUser->email($googleUser);
+        } catch (ValidationException $e) {
+            return $this->failed($portal, GoogleAuthIntent::Register, collect($e->errors())->flatten()->first() ?? $e->getMessage());
+        }
+
+        // Pressing sign up with an account that already exists is the error
+        // rather than the goal, so say so instead of quietly logging them in.
+        if ($existing !== null) {
+            return $this->failed($portal, GoogleAuthIntent::Register, __('This Google account is already registered as a :role. Please log in instead.', [
+                'role' => $existing->role->label(),
+            ]));
+        }
+
+        PendingGoogleRegistration::put($googleUser, $email);
+
+        return redirect()->route('register');
     }
 
     /**
