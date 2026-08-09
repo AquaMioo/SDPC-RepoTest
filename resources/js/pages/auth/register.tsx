@@ -32,7 +32,7 @@ const TWO_UP: React.CSSProperties = {
 };
 
 /**
- * Sign up. The role segmented control is the real thing, not a preview toggle:
+ * Register. The role segmented control is the real thing, not a preview toggle:
  * it drives which extra field is asked for and is submitted as `role`, which
  * CreateNewUser validates against the self-registerable roles before assigning
  * it. Admin is never offered.
@@ -52,7 +52,7 @@ export default function Register({
 
     return (
         <>
-            <Head title="Sign up" />
+            <Head title="Register" />
 
             <div
                 className="card elev-md"
@@ -63,7 +63,7 @@ export default function Register({
                     position: 'relative',
                 }}
             >
-                <h4 style={{ margin: 0, textAlign: 'center' }}>Sign up</h4>
+                <h4 style={{ margin: 0, textAlign: 'center' }}>Register</h4>
 
                 <GoogleAuthError />
 

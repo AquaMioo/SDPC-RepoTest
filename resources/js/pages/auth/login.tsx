@@ -229,7 +229,7 @@ export default function Login({
                             data-test="register-link"
                             tabIndex={5}
                         >
-                            Sign up
+                            Register
                         </Link>
                     </Btn>
                 </div>

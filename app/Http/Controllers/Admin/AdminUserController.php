@@ -22,7 +22,11 @@ class AdminUserController extends Controller
         return Inertia::render('admin/users', [
             'users' => User::query()
                 ->with('latestStudentCredential')
+                // Id breaks the tie: two accounts created in the same second
+                // would otherwise come back in whatever order the database
+                // felt like, and swap places between page loads.
                 ->orderByDesc('created_at')
+                ->orderByDesc('id')
                 ->get(['id', 'name', 'email', 'role', 'status', 'avatar', 'email_verified_at'])
                 ->map(fn (User $user): array => [
                     'id' => $user->id,

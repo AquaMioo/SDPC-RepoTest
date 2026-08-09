@@ -18,8 +18,6 @@ class AdminUserManagementTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        // The list is ordered by created_at alone, so an explicit later
-        // timestamp is what makes "newest first" deterministic here.
         $student = User::factory()->student()->create([
             'name' => 'Ada Lovelace',
             'created_at' => now()->addMinute(),
@@ -37,6 +35,25 @@ class AdminUserManagementTest extends TestCase
             ->where('users.0.status', 'pending')
             ->where('users.0.isSelf', false),
         );
+    }
+
+    public function test_accounts_created_in_the_same_second_have_a_stable_order(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $sameMoment = now();
+
+        $first = User::factory()->student()->create(['created_at' => $sameMoment]);
+        $second = User::factory()->student()->create(['created_at' => $sameMoment]);
+
+        // Without the id tiebreaker these two could swap places between page
+        // loads, since created_at alone does not separate them.
+        $this->actingAs($admin)
+            ->get(route('admin.users.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('users.0.id', $second->id)
+                ->where('users.1.id', $first->id),
+            );
     }
 
     public function test_the_screen_marks_the_signed_in_administrator_as_themselves(): void
