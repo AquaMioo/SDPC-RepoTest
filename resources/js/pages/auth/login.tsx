@@ -3,7 +3,6 @@ import { EyeIcon, EyeSlashIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
-import PasskeyVerify from '@/components/passkey-verify';
 import { Btn } from '@/components/sdpc/btn';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
 import GoogleAuthError from '@/components/sdpc/google-auth-error';
@@ -27,6 +26,13 @@ type Props = {
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
 
+/** One half of the hairline either side of the divider's label. */
+const RULE: React.CSSProperties = {
+    flex: 1,
+    height: 1,
+    background: 'var(--color-divider)',
+};
+
 export default function Login({
     status,
     canResetPassword,
@@ -46,8 +52,6 @@ export default function Login({
                     action="Log in"
                 />
             )}
-
-            <PasskeyVerify />
 
             <div
                 className="card elev-md"
@@ -147,6 +151,34 @@ export default function Login({
                                     className="mt-1 text-[11px]"
                                 />
                             </div>
+
+                            {/* Only drawn when there is something on the other
+                                side of it — a rule with nothing below reads as
+                                a missing section. */}
+                            {canLoginWithGoogle && (
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        marginTop: 2,
+                                    }}
+                                >
+                                    <span style={RULE} />
+                                    <span
+                                        style={{
+                                            fontSize: 10.5,
+                                            letterSpacing: '.12em',
+                                            textTransform: 'uppercase',
+                                            whiteSpace: 'nowrap',
+                                            color: MUTED,
+                                        }}
+                                    >
+                                        Or continue with email
+                                    </span>
+                                    <span style={RULE} />
+                                </div>
+                            )}
 
                             {canLoginWithGoogle && (
                                 <GoogleAuthButton
