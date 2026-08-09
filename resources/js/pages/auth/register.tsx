@@ -4,6 +4,7 @@ import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
+import GoogleAuthError from '@/components/sdpc/google-auth-error';
 import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
@@ -55,9 +56,16 @@ export default function Register({
 
             <div
                 className="card elev-md"
-                style={{ width: 420, padding: 28, gap: 13, position: 'relative' }}
+                style={{
+                    width: 420,
+                    padding: 28,
+                    gap: 13,
+                    position: 'relative',
+                }}
             >
                 <h4 style={{ margin: 0, textAlign: 'center' }}>Sign up</h4>
+
+                <GoogleAuthError />
 
                 {teamInvitation && (
                     <TeamInvitationAlert
@@ -112,7 +120,9 @@ export default function Register({
                                 </div>
 
                                 <div className="field">
-                                    <label htmlFor="first_name">First name</label>
+                                    <label htmlFor="first_name">
+                                        First name
+                                    </label>
                                     <Input
                                         id="first_name"
                                         name="first_name"
@@ -225,7 +235,9 @@ export default function Register({
 
                             {canLoginWithGoogle && (
                                 <GoogleAuthButton
-                                    href={googleRedirect.url()}
+                                    href={googleRedirect.url({
+                                        query: { intent: 'register' },
+                                    })}
                                     tabIndex={7}
                                 />
                             )}
@@ -256,9 +268,9 @@ export default function Register({
                                         marginTop: 1,
                                     }}
                                 />
-                                Yes, I understand and agree to the SDPCC Terms of
-                                Service, including the User Agreement and Privacy
-                                Policy.
+                                Yes, I understand and agree to the SDPCC Terms
+                                of Service, including the User Agreement and
+                                Privacy Policy.
                             </label>
                             <InputError
                                 message={errors.terms}
@@ -280,14 +292,22 @@ export default function Register({
                     )}
                 </Form>
 
-                <div style={{ textAlign: 'center', fontSize: 12.5, color: MUTED }}>
+                <div
+                    style={{
+                        textAlign: 'center',
+                        fontSize: 12.5,
+                        color: MUTED,
+                    }}
+                >
                     Already registered?{' '}
                     <Btn asChild variant="ghost" style={{ fontSize: 12.5 }}>
                         <Link
                             href={
                                 teamInvitation
                                     ? login.url({
-                                          query: { invitation: teamInvitation.code },
+                                          query: {
+                                              invitation: teamInvitation.code,
+                                          },
                                       })
                                     : login.url()
                             }

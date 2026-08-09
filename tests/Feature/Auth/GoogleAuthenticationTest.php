@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -44,83 +45,96 @@ class GoogleAuthenticationTest extends TestCase
         $this->actingAs($user)->get(route('google.callback'))->assertRedirect();
     }
 
-    public function test_a_new_student_is_created_and_sent_to_the_credential_step(): void
+    public function test_an_unknown_google_account_can_not_create_an_account(): void
     {
-        $this->startFlowFrom(route('google.redirect', ['role' => 'student']));
+        $this->startFlowFrom(route('google.redirect'));
         $this->mockGoogleReturns($this->googleUser());
 
         $response = $this->get(route('google.callback'));
 
-        $response->assertRedirect(route('credentials.create'));
-        $this->assertAuthenticated();
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHasErrors('google');
+        $this->assertGuest();
 
-        $user = User::firstWhere('email', 'ada@example.com');
-
-        $this->assertSame(UserRole::Student, $user->role);
-        $this->assertSame('1234567890', $user->google_id);
-        $this->assertSame('Ada', $user->first_name);
-        $this->assertSame('Lovelace', $user->last_name);
-        $this->assertSame('https://example.com/avatar.jpg', $user->avatar);
-
-        // Google has already proven the address, and the account never gets a
-        // password, so the password form can not be used to reach it.
-        $this->assertNull($user->password);
-        $this->assertNotNull($user->email_verified_at);
-
-        // A student's team is personal and never shown to them, but it has to
-        // exist: every route past this point is scoped to one.
-        $this->assertNotNull($user->personalTeam());
-        $this->assertSame("Ada Lovelace's Team", $user->currentTeam->name);
+        // Google is a way in, never a way to sign up: registration collects the
+        // role, school or business name and the terms, none of which Google
+        // knows, so no account may appear out of a Google identity.
+        $this->assertDatabaseMissing('users', ['email' => 'ada@example.com']);
+        $this->assertSame(0, User::count());
     }
 
-    public function test_a_new_account_can_be_created_with_the_client_role(): void
+    public function test_the_failure_message_reaches_the_login_screen(): void
     {
-        $this->startFlowFrom(route('google.redirect', ['role' => 'client']));
-        $this->mockGoogleReturns($this->googleUser());
-
-        $response = $this->get(route('google.callback'));
-
-        $this->assertAuthenticated();
-
-        $user = User::firstWhere('email', 'ada@example.com');
-
-        $this->assertSame(UserRole::Client, $user->role);
-
-        // A client's team is their business rather than a personal one, so it
-        // is not flagged personal even though Google gave us no business name.
-        $this->assertFalse($user->currentTeam->is_personal);
-        $this->assertTrue($user->ownsTeam($user->currentTeam));
-
-        // The team has to exist before this redirect resolves: /dashboard on its
-        // own matches no route, only {current_team}/dashboard does.
-        $response->assertRedirect(route('dashboard', ['current_team' => $user->currentTeam->slug]));
-    }
-
-    public function test_a_new_google_account_lands_on_a_page_that_actually_exists(): void
-    {
-        $this->startFlowFrom(route('google.redirect', ['role' => 'client']));
-        $this->mockGoogleReturns($this->googleUser());
-
-        $this->followingRedirects()
-            ->get(route('google.callback'))
-            ->assertOk();
-    }
-
-    public function test_a_tampered_sign_up_role_can_not_create_an_administrator(): void
-    {
-        $this->startFlowFrom(route('google.redirect', ['role' => 'admin']));
+        $this->startFlowFrom(route('google.redirect'));
         $this->mockGoogleReturns($this->googleUser());
 
         $this->get(route('google.callback'));
 
-        $this->assertSame(UserRole::Student, User::firstWhere('email', 'ada@example.com')->role);
+        // The flow returns as a fresh GET rather than a form submission, so the
+        // message only shows if it survives into the page's shared error bag.
+        $this->get(route('login'))->assertInertia(fn (Assert $page) => $page
+            ->component('auth/login')
+            ->where(
+                'errors.google',
+                'No account is registered for this Google account. Please create an account first.',
+            ),
+        );
+    }
+
+    public function test_an_unknown_google_account_is_sent_back_to_the_sign_up_form(): void
+    {
+        $this->startFlowFrom(route('google.redirect', ['intent' => 'register']));
+        $this->mockGoogleReturns($this->googleUser());
+
+        $response = $this->get(route('google.callback'));
+
+        // Back to the form they still have to fill in, not the login screen.
+        $response->assertRedirect(route('register'));
+        $response->assertSessionHasErrors('google');
+        $this->assertGuest();
+        $this->assertSame(0, User::count());
+    }
+
+    public function test_an_already_registered_account_can_not_be_registered_again(): void
+    {
+        $student = User::factory()->student()->create(['email' => 'ada@example.com']);
+
+        $this->startFlowFrom(route('google.redirect', ['intent' => 'register']));
+        $this->mockGoogleReturns($this->googleUser());
+
+        $response = $this->get(route('google.callback'));
+
+        $response->assertRedirect(route('register'));
+        $response->assertSessionHasErrors([
+            'google' => 'This Google account is already registered as a Student. Please log in instead.',
+        ]);
+
+        // Pressing sign up does not quietly log them in instead.
+        $this->assertGuest();
+        $this->assertSame(1, User::count());
+        $this->assertNull($student->refresh()->google_id);
+    }
+
+    public function test_a_registered_student_can_sign_in_with_google(): void
+    {
+        $student = User::factory()->student()->create(['email' => 'ada@example.com']);
+
+        $this->startFlowFrom(route('google.redirect'));
+        $this->mockGoogleReturns($this->googleUser());
+
+        $response = $this->get(route('google.callback'));
+
+        $this->assertAuthenticatedAs($student);
+        $response->assertRedirect(route('dashboard', [
+            'current_team' => $student->personalTeam()->slug,
+        ]));
     }
 
     public function test_an_existing_account_is_linked_by_email_and_keeps_its_role(): void
     {
         $client = User::factory()->client()->create(['email' => 'ada@example.com']);
 
-        $this->startFlowFrom(route('google.redirect', ['role' => 'student']));
+        $this->startFlowFrom(route('google.redirect'));
         $this->mockGoogleReturns($this->googleUser());
 
         $this->get(route('google.callback'));
@@ -161,7 +175,7 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->get(route('google.callback'));
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHasErrors('email');
+        $response->assertSessionHasErrors('google');
         $this->assertGuest();
 
         // The identity is not attached to an account that can not use it.
@@ -178,7 +192,7 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->get(route('google.callback'));
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHasErrors(['email' => 'Please login using the Admin Portal.']);
+        $response->assertSessionHasErrors(['google' => 'Please login using the Admin Portal.']);
         $this->assertGuest();
     }
 
@@ -206,7 +220,7 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->get(route('google.callback'));
 
         $response->assertRedirect(route('admin.login'));
-        $response->assertSessionHasErrors(['email' => 'This account is not authorized to use the Admin Portal.']);
+        $response->assertSessionHasErrors(['google' => 'This account is not authorized to use the Admin Portal.']);
         $this->assertGuest();
     }
 
@@ -218,7 +232,7 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->get(route('google.callback'));
 
         $response->assertRedirect(route('admin.login'));
-        $response->assertSessionHasErrors('email');
+        $response->assertSessionHasErrors('google');
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['email' => 'ada@example.com']);
     }
@@ -231,7 +245,7 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->get(route('google.callback'));
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHasErrors('email');
+        $response->assertSessionHasErrors('google');
         $this->assertGuest();
         $this->assertSame(0, User::count());
     }
@@ -247,7 +261,7 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->get(route('google.callback'));
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHasErrors('email');
+        $response->assertSessionHasErrors('google');
         $this->assertGuest();
     }
 

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Actions\Auth\ResolveGoogleUser;
 use App\Enums\AuthPortal;
-use App\Enums\UserRole;
+use App\Enums\GoogleAuthIntent;
 use App\Http\Controllers\Controller;
 use App\Support\AuthHome;
 use Illuminate\Http\RedirectResponse;
@@ -23,9 +23,9 @@ class GoogleAuthController extends Controller
     private const PORTAL_SESSION_KEY = 'auth.google.portal';
 
     /**
-     * The session key holding the role picked on the sign up form.
+     * The session key holding which button started the flow.
      */
-    private const ROLE_SESSION_KEY = 'auth.google.role';
+    private const INTENT_SESSION_KEY = 'auth.google.intent';
 
     public function __construct(private readonly ResolveGoogleUser $resolveGoogleUser) {}
 
@@ -44,25 +44,14 @@ class GoogleAuthController extends Controller
             AuthPortal::fromRequest($request)->value,
         );
 
-        // The sign up form passes the role its toggle is on. It is carried in
-        // the session rather than through Google, and re-validated on the way
-        // back, so the round trip can never widen it to something else.
+        // Which button was pressed rides in the session for the same reason as
+        // the portal: Google hands back nothing we could infer it from.
         $request->session()->put(
-            self::ROLE_SESSION_KEY,
-            $this->intendedRole($request)?->value,
+            self::INTENT_SESSION_KEY,
+            GoogleAuthIntent::fromRequest($request)->value,
         );
 
         return Socialite::driver('google')->redirect();
-    }
-
-    /**
-     * Read the requested sign up role, ignoring anything not self-registerable.
-     */
-    private function intendedRole(Request $request): ?UserRole
-    {
-        $role = UserRole::tryFrom((string) $request->query('role'));
-
-        return $role?->isSelfRegisterable() ? $role : null;
     }
 
     /**
@@ -76,45 +65,48 @@ class GoogleAuthController extends Controller
             (string) $request->session()->pull(self::PORTAL_SESSION_KEY)
         ) ?? AuthPortal::Public;
 
-        $intendedRole = UserRole::tryFrom(
-            (string) $request->session()->pull(self::ROLE_SESSION_KEY)
-        );
+        $intent = GoogleAuthIntent::tryFrom(
+            (string) $request->session()->pull(self::INTENT_SESSION_KEY)
+        ) ?? GoogleAuthIntent::Login;
 
         try {
             $googleUser = Socialite::driver('google')->user();
         } catch (Throwable) {
-            return $this->failed($portal, __('We could not sign you in with Google. Please try again.'));
+            return $this->failed($portal, $intent, __('We could not sign you in with Google. Please try again.'));
         }
 
         try {
-            $user = $this->resolveGoogleUser->handle($googleUser, $portal, $intendedRole);
+            $user = $this->resolveGoogleUser->handle($googleUser, $portal, $intent);
         } catch (ValidationException $e) {
-            return $this->failed($portal, collect($e->errors())->flatten()->first() ?? $e->getMessage());
+            return $this->failed($portal, $intent, collect($e->errors())->flatten()->first() ?? $e->getMessage());
         }
-
-        $justRegistered = $user->wasRecentlyCreated;
 
         Auth::login($user, remember: true);
 
         $request->session()->regenerate();
 
-        // A student signing up through Google goes to the same credential step
-        // as one who registered with a password.
-        if ($justRegistered && $user->requiresCredentialVerification()) {
-            return redirect()->route('credentials.create');
-        }
-
         return redirect()->intended(AuthHome::for($user));
     }
 
     /**
-     * Send the user back to the portal's login screen with an error message.
+     * Send the user back to the screen they started from, with the error.
+     *
+     * Someone who pressed "Continue with Google" on the sign up screen is
+     * returned there rather than to the login screen, so the message lands
+     * next to the form they still need to fill in.
      */
-    private function failed(AuthPortal $portal, string $message): RedirectResponse
+    private function failed(AuthPortal $portal, GoogleAuthIntent $intent, string $message): RedirectResponse
     {
+        $route = $intent === GoogleAuthIntent::Register && $portal === AuthPortal::Public
+            ? 'register'
+            : $portal->loginRouteName();
+
+        // Keyed on "google" rather than "email": this failure belongs to the
+        // Google button, not to the login form's email field, and the screens
+        // surface it as a banner of its own.
         return redirect()
-            ->route($portal->loginRouteName())
-            ->withErrors(['email' => $message]);
+            ->route($route)
+            ->withErrors(['google' => $message]);
     }
 
     /**

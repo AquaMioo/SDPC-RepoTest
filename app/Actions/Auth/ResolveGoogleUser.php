@@ -2,35 +2,29 @@
 
 namespace App\Actions\Auth;
 
-use App\Actions\Teams\CreateTeam;
 use App\Enums\AuthPortal;
-use App\Enums\UserRole;
-use App\Enums\UserStatus;
+use App\Enums\GoogleAuthIntent;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 
 class ResolveGoogleUser
 {
-    public function __construct(private CreateTeam $createTeam) {}
-
     /**
      * Resolve the local account for a Google identity.
      *
-     * Students and clients may create an account this way; the very first
-     * Google sign in creates the account with the default role. Administrator
-     * accounts are never created here — an admin may only sign in when the
-     * account already exists and already holds the admin role.
-     *
-     * @param  UserRole|null  $intendedRole  The role chosen on the sign up form,
-     *                                       used only when creating an account.
+     * Google is a way of signing in, never a way of signing up. An account has
+     * to exist already, because registration collects things Google does not
+     * know — the role, the school or business name, and agreement to the terms
+     * — and none of that can be inferred from a Google profile.
      *
      * @throws ValidationException
      */
-    public function handle(SocialiteUser $googleUser, AuthPortal $portal, ?UserRole $intendedRole = null): User
-    {
+    public function handle(
+        SocialiteUser $googleUser,
+        AuthPortal $portal,
+        GoogleAuthIntent $intent = GoogleAuthIntent::Login,
+    ): User {
         $email = $this->email($googleUser);
         $googleId = (string) $googleUser->getId();
 
@@ -40,7 +34,20 @@ class ResolveGoogleUser
             ->first();
 
         if ($user === null) {
-            return $this->create($googleUser, $email, $googleId, $portal, $intendedRole);
+            throw ValidationException::withMessages([
+                'email' => [$intent->noAccountMessage()],
+            ]);
+        }
+
+        // Reached from the sign up screen, an account that already exists is
+        // the error rather than the goal, so say so instead of quietly logging
+        // them in on a page they went to in order to register.
+        if ($intent === GoogleAuthIntent::Register) {
+            throw ValidationException::withMessages([
+                'email' => [__('This Google account is already registered as a :role. Please log in instead.', [
+                    'role' => $user->role->label(),
+                ])],
+            ]);
         }
 
         $this->ensureAccountIsActive($user);
@@ -63,65 +70,6 @@ class ResolveGoogleUser
         throw ValidationException::withMessages([
             'email' => [__('This account has been deactivated. Please contact an administrator.')],
         ]);
-    }
-
-    /**
-     * Create a brand new account for the Google identity.
-     *
-     * @throws ValidationException
-     */
-    private function create(
-        SocialiteUser $googleUser,
-        string $email,
-        string $googleId,
-        AuthPortal $portal,
-        ?UserRole $intendedRole,
-    ): User {
-        // Registration is only ever possible through the public portal, so an
-        // unknown Google identity can never become an administrator.
-        if ($portal !== AuthPortal::Public) {
-            throw ValidationException::withMessages([
-                'email' => [__('No administrator account exists for this Google account.')],
-            ]);
-        }
-
-        // The role is re-checked here rather than trusted from the session, so
-        // a tampered value still cannot produce anything but student or client.
-        $role = $intendedRole?->isSelfRegisterable() ? $intendedRole : UserRole::default();
-
-        $name = $googleUser->getName() ?? $googleUser->getNickname() ?? $email;
-
-        return DB::transaction(function () use ($googleUser, $email, $googleId, $role, $name) {
-            $user = new User;
-
-            $user->forceFill([
-                'name' => $name,
-                'first_name' => Str::before($name, ' ') ?: $name,
-                'last_name' => Str::contains($name, ' ') ? Str::afterLast($name, ' ') : null,
-                'email' => $email,
-                'role' => $role,
-                'status' => UserStatus::default(),
-                'google_id' => $googleId,
-                'avatar' => $googleUser->getAvatar(),
-                'password' => null,
-                'email_verified_at' => now(),
-            ])->save();
-
-            // Every account gets a team, exactly as the password sign up path
-            // does in CreateNewUser: the client module is entirely team scoped,
-            // so an account without one has nowhere to land after signing in.
-            //
-            // Google never tells us a business name, so a client's team is named
-            // after them for now. The profile screen seeds the business profile
-            // from the team name on first visit, and both are theirs to rename.
-            $this->createTeam->handle(
-                $user,
-                $name."'s Team",
-                isPersonal: $role !== UserRole::Client,
-            );
-
-            return $user;
-        });
     }
 
     /**

@@ -6,6 +6,7 @@ import InputError from '@/components/input-error';
 import PasskeyVerify from '@/components/passkey-verify';
 import { Btn } from '@/components/sdpc/btn';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
+import GoogleAuthError from '@/components/sdpc/google-auth-error';
 import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
@@ -40,16 +41,28 @@ export default function Login({
             <Head title="Log in" />
 
             {teamInvitation && (
-                <TeamInvitationAlert invitation={teamInvitation} action="Log in" />
+                <TeamInvitationAlert
+                    invitation={teamInvitation}
+                    action="Log in"
+                />
             )}
 
             <PasskeyVerify />
 
             <div
                 className="card elev-md"
-                style={{ width: 380, padding: 28, gap: 14, position: 'relative' }}
+                style={{
+                    width: 380,
+                    padding: 28,
+                    gap: 14,
+                    position: 'relative',
+                }}
             >
-                <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>Log in</h4>
+                <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>
+                    Log in
+                </h4>
+
+                <GoogleAuthError />
 
                 {status && (
                     <div
@@ -122,7 +135,11 @@ export default function Login({
                                             color: 'inherit',
                                         }}
                                     >
-                                        {revealed ? <EyeIcon /> : <EyeSlashIcon />}
+                                        {revealed ? (
+                                            <EyeIcon />
+                                        ) : (
+                                            <EyeSlashIcon />
+                                        )}
                                     </button>
                                 </div>
                                 <InputError
@@ -197,7 +214,11 @@ export default function Login({
                 </Form>
 
                 <div
-                    style={{ textAlign: 'center', fontSize: 12.5, color: MUTED }}
+                    style={{
+                        textAlign: 'center',
+                        fontSize: 12.5,
+                        color: MUTED,
+                    }}
                 >
                     Don&apos;t have an SDPCC account?{' '}
                     <Btn asChild variant="ghost" style={{ fontSize: 12.5 }}>

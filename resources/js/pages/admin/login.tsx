@@ -1,10 +1,16 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { EyeIcon, EyeSlashIcon, LockSimpleIcon, UserIcon } from '@phosphor-icons/react';
+import {
+    EyeIcon,
+    EyeSlashIcon,
+    LockSimpleIcon,
+    UserIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
+import GoogleAuthError from '@/components/sdpc/google-auth-error';
 import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -87,8 +93,15 @@ export default function AdminLogin({
                 </span>
             </div>
 
-            <div className="card elev-md" style={{ width: 370, padding: 28, gap: 14 }}>
-                <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>Log in</h4>
+            <div
+                className="card elev-md"
+                style={{ width: 370, padding: 28, gap: 14 }}
+            >
+                <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>
+                    Log in
+                </h4>
+
+                <GoogleAuthError />
 
                 {status && (
                     <div
@@ -143,13 +156,18 @@ export default function AdminLogin({
                                         tabIndex={2}
                                         autoComplete="current-password"
                                         placeholder="••••••••"
-                                        style={{ paddingLeft: 31, paddingRight: 34 }}
+                                        style={{
+                                            paddingLeft: 31,
+                                            paddingRight: 34,
+                                        }}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setRevealed((v) => !v)}
                                         aria-label={
-                                            revealed ? 'Hide password' : 'Show password'
+                                            revealed
+                                                ? 'Hide password'
+                                                : 'Show password'
                                         }
                                         style={{
                                             position: 'absolute',
@@ -164,7 +182,11 @@ export default function AdminLogin({
                                             color: 'inherit',
                                         }}
                                     >
-                                        {revealed ? <EyeIcon /> : <EyeSlashIcon />}
+                                        {revealed ? (
+                                            <EyeIcon />
+                                        ) : (
+                                            <EyeSlashIcon />
+                                        )}
                                     </button>
                                 </div>
                                 <InputError
@@ -201,7 +223,10 @@ export default function AdminLogin({
                                     />
                                     Keep me logged in
                                 </label>
-                                <Link href={request.url()} style={{ fontSize: 12 }}>
+                                <Link
+                                    href={request.url()}
+                                    style={{ fontSize: 12 }}
+                                >
                                     Forgot password?
                                 </Link>
                             </div>
@@ -223,7 +248,10 @@ export default function AdminLogin({
                 </Form>
 
                 {canLoginWithGoogle && (
-                    <GoogleAuthButton href={adminGoogleRedirect.url()} tabIndex={5} />
+                    <GoogleAuthButton
+                        href={adminGoogleRedirect.url()}
+                        tabIndex={5}
+                    />
                 )}
                 {googleSetupHint && <GoogleSetupHint />}
             </div>

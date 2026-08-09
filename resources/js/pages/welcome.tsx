@@ -94,7 +94,7 @@ export default function Welcome() {
                         <Link href={login.url()}>Log in</Link>
                     </Btn>
                     <Btn asChild variant="primary">
-                        <Link href={register.url()}>Sign up</Link>
+                        <Link href={register.url()}>Register</Link>
                     </Btn>
                 </nav>
 
