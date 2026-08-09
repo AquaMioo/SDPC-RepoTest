@@ -1,8 +1,11 @@
-import { Head } from '@inertiajs/react';
+import { Form, Head } from '@inertiajs/react';
 import { useState } from 'react';
 
+import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
 import { Textarea } from '@/components/sdpc/input';
+import { Spinner } from '@/components/ui/spinner';
+import { update } from '@/routes/admin/content';
 
 type Draft = {
     announcements: string;
@@ -10,7 +13,9 @@ type Draft = {
     policies: string;
 };
 
-const EMPTY: Draft = { announcements: '', rules: '', policies: '' };
+type Props = {
+    content?: Partial<Record<keyof Draft, string | null>>;
+};
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -18,18 +23,28 @@ const MUTED = (pct: number) =>
 /**
  * Content management.
  *
- * The three fields are edited and previewed live, but there is no content table
- * to save them into yet — that schema is not part of this merge, so nothing is
- * invented here and the notice below says so plainly.
+ * The three blocks are edited on the left and previewed live on the right. The
+ * preview reads the draft rather than the saved copy, so it shows what saving
+ * would publish, not what is already published.
  */
-export default function AdminContent() {
-    const [draft, setDraft] = useState<Draft>(EMPTY);
+export default function AdminContent({ content }: Props) {
+    const [draft, setDraft] = useState<Draft>({
+        announcements: content?.announcements ?? '',
+        rules: content?.rules ?? '',
+        policies: content?.policies ?? '',
+    });
 
-    const update = (key: keyof Draft, value: string) =>
+    const edit = (key: keyof Draft, value: string) =>
         setDraft((current) => ({ ...current, [key]: value }));
 
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}>
+        <div
+            style={{
+                maxWidth: 1180,
+                margin: '0 auto',
+                padding: '30px 32px 72px',
+            }}
+        >
             <Head title="Content management" />
 
             <h3 style={{ margin: '0 0 20px' }}>Content management</h3>
@@ -42,55 +57,72 @@ export default function AdminContent() {
                     alignItems: 'start',
                 }}
             >
-                <div className="card elev-sm" style={{ padding: 20, gap: 16 }}>
-                    <EditorField
-                        label="Announcements"
-                        placeholder="e.g. Milestone escrow is now live for extension payments…"
-                        value={draft.announcements}
-                        onChange={(value) => update('announcements', value)}
-                    />
-                    <EditorField
-                        label="Platform rules"
-                        placeholder="e.g. Projects must be scoped in writing before collaboration begins…"
-                        value={draft.rules}
-                        onChange={(value) => update('rules', value)}
-                    />
-                    <EditorField
-                        label="System policies"
-                        placeholder="e.g. Student accounts require school verification within 14 days…"
-                        value={draft.policies}
-                        onChange={(value) => update('policies', value)}
-                    />
+                <Form
+                    {...update.form()}
+                    disableWhileProcessing
+                    className="card elev-sm"
+                    style={{ padding: 20, gap: 16 }}
+                >
+                    {({ processing, errors, recentlySuccessful }) => (
+                        <>
+                            <EditorField
+                                name="announcements"
+                                label="Announcements"
+                                placeholder="e.g. Milestone escrow is now live for extension payments…"
+                                value={draft.announcements}
+                                error={errors.announcements}
+                                onChange={(value) =>
+                                    edit('announcements', value)
+                                }
+                            />
+                            <EditorField
+                                name="rules"
+                                label="Platform rules"
+                                placeholder="e.g. Projects must be scoped in writing before collaboration begins…"
+                                value={draft.rules}
+                                error={errors.rules}
+                                onChange={(value) => edit('rules', value)}
+                            />
+                            <EditorField
+                                name="policies"
+                                label="System policies"
+                                placeholder="e.g. Student accounts require school verification within 14 days…"
+                                value={draft.policies}
+                                error={errors.policies}
+                                onChange={(value) => edit('policies', value)}
+                            />
 
-                    <div style={{ display: 'flex', gap: 10 }}>
-                        <Btn variant="primary" disabled>
-                            Save changes
-                        </Btn>
-                        <Btn variant="secondary" disabled>
-                            Preview as user
-                        </Btn>
-                    </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 10,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Btn
+                                    type="submit"
+                                    variant="primary"
+                                    data-test="save-content-button"
+                                >
+                                    {processing && <Spinner />}
+                                    Save changes
+                                </Btn>
 
-                    <p
-                        style={{
-                            margin: 0,
-                            padding: '11px 13px',
-                            borderRadius: 'var(--radius-md)',
-                            background: MUTED(5),
-                            fontSize: 12,
-                            lineHeight: 1.6,
-                            color: MUTED(65),
-                        }}
-                    >
-                        <b style={{ color: 'var(--color-text)' }}>
-                            Not persisted yet.
-                        </b>{' '}
-                        These three fields need a table of their own before they
-                        can survive a refresh. That schema sits outside this
-                        merge, so the save button stays disabled rather than
-                        pretending to work.
-                    </p>
-                </div>
+                                {recentlySuccessful && (
+                                    <span
+                                        style={{
+                                            fontSize: 12,
+                                            color: MUTED(65),
+                                        }}
+                                        data-test="content-saved"
+                                    >
+                                        Saved.
+                                    </span>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </Form>
 
                 <div className="card elev-sm" style={{ padding: 20, gap: 12 }}>
                     <h6 style={{ margin: 0 }}>Live preview</h6>
@@ -108,25 +140,33 @@ export default function AdminContent() {
 }
 
 function EditorField({
+    name,
     label,
     placeholder,
     value,
+    error,
     onChange,
 }: {
+    name: string;
     label: string;
     placeholder: string;
     value: string;
+    error?: string;
     onChange: (value: string) => void;
 }) {
     return (
         <div className="field">
-            <label>{label}</label>
+            <label htmlFor={name}>{label}</label>
             <Textarea
+                id={name}
+                name={name}
                 value={value}
                 placeholder={placeholder}
                 onChange={(event) => onChange(event.target.value)}
+                aria-invalid={Boolean(error)}
                 style={{ minHeight: 88 }}
             />
+            <InputError message={error} className="mt-1 text-[11px]" />
         </div>
     );
 }

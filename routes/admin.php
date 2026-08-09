@@ -46,7 +46,8 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
         Route::patch('credentials/{credential}', [AdminCredentialController::class, 'update'])
             ->name('credentials.update');
 
-        Route::get('content', AdminContentController::class)->name('content');
+        Route::get('content', [AdminContentController::class, 'index'])->name('content');
+        Route::put('content', [AdminContentController::class, 'update'])->name('content.update');
         Route::get('issues', AdminIssueController::class)->name('issues');
     });
 });
