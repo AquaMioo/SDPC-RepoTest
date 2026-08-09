@@ -9,20 +9,14 @@ import { useState } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
-import GoogleAuthButton from '@/components/sdpc/google-auth-button';
-import GoogleAuthError from '@/components/sdpc/google-auth-error';
-import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
 import { Spinner } from '@/components/ui/spinner';
 import { useMod } from '@/hooks/use-mod';
-import { redirect as adminGoogleRedirect } from '@/routes/admin/google';
 import { store as adminLoginStore } from '@/routes/admin/login';
 import { request } from '@/routes/password';
 
 type Props = {
     status?: string;
-    canLoginWithGoogle?: boolean;
-    googleSetupHint?: boolean;
 };
 
 const ADORN: React.CSSProperties = {
@@ -40,11 +34,7 @@ const ADORN: React.CSSProperties = {
  * the base palette — the deeper #0c1614 green the design gives admin screens,
  * not the #2b3439 the public app wears.
  */
-export default function AdminLogin({
-    status,
-    canLoginWithGoogle = false,
-    googleSetupHint = false,
-}: Props) {
+export default function AdminLogin({ status }: Props) {
     const [revealed, setRevealed] = useState(false);
 
     useMod('admin');
@@ -100,8 +90,6 @@ export default function AdminLogin({
                 <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>
                     Log in
                 </h4>
-
-                <GoogleAuthError />
 
                 {status && (
                     <div
@@ -246,14 +234,6 @@ export default function AdminLogin({
                         </>
                     )}
                 </Form>
-
-                {canLoginWithGoogle && (
-                    <GoogleAuthButton
-                        href={adminGoogleRedirect.url()}
-                        tabIndex={5}
-                    />
-                )}
-                {googleSetupHint && <GoogleSetupHint />}
             </div>
         </div>
     );

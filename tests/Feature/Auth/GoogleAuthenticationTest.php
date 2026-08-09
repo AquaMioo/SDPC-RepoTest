@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
@@ -31,7 +32,6 @@ class GoogleAuthenticationTest extends TestCase
         config(['services.google.enabled' => false]);
 
         $this->get(route('google.redirect'))->assertNotFound();
-        $this->get(route('admin.google.redirect'))->assertNotFound();
         $this->get(route('google.callback'))->assertNotFound();
     }
 
@@ -196,45 +196,27 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_an_administrator_can_sign_in_through_the_admin_portal(): void
+    public function test_the_admin_portal_offers_no_google_route_at_all(): void
     {
-        $admin = User::factory()->admin()->create(['email' => 'ada@example.com']);
+        // Administrator accounts are issued by the developers, never
+        // self-served, so the portal is password only and the route is gone
+        // rather than merely hidden.
+        $this->assertFalse(Route::has('admin.google.redirect'));
 
-        $this->startFlowFrom(route('admin.google.redirect'));
-        $this->mockGoogleReturns($this->googleUser());
+        $this->enableGoogle();
 
-        $response = $this->get(route('google.callback'));
-
-        $response->assertRedirect(route('admin.dashboard'));
-        $this->assertAuthenticatedAs($admin);
-        $this->assertSame('1234567890', $admin->refresh()->google_id);
+        $this->get('/admin/auth/google/redirect')->assertNotFound();
     }
 
-    public function test_a_student_can_not_sign_in_through_the_admin_portal(): void
+    public function test_the_admin_login_screen_offers_no_google_button(): void
     {
-        User::factory()->student()->create(['email' => 'ada@example.com']);
+        $this->enableGoogle();
 
-        $this->startFlowFrom(route('admin.google.redirect'));
-        $this->mockGoogleReturns($this->googleUser());
-
-        $response = $this->get(route('google.callback'));
-
-        $response->assertRedirect(route('admin.login'));
-        $response->assertSessionHasErrors(['google' => 'This account is not authorized to use the Admin Portal.']);
-        $this->assertGuest();
-    }
-
-    public function test_an_unknown_google_account_can_not_register_through_the_admin_portal(): void
-    {
-        $this->startFlowFrom(route('admin.google.redirect'));
-        $this->mockGoogleReturns($this->googleUser());
-
-        $response = $this->get(route('google.callback'));
-
-        $response->assertRedirect(route('admin.login'));
-        $response->assertSessionHasErrors('google');
-        $this->assertGuest();
-        $this->assertDatabaseMissing('users', ['email' => 'ada@example.com']);
+        $this->get(route('admin.login'))->assertInertia(fn (Assert $page) => $page
+            ->component('admin/login')
+            ->missing('canLoginWithGoogle')
+            ->missing('googleSetupHint'),
+        );
     }
 
     public function test_a_google_account_without_an_email_address_is_rejected(): void
@@ -263,17 +245,6 @@ class GoogleAuthenticationTest extends TestCase
         $response->assertRedirect(route('login'));
         $response->assertSessionHasErrors('google');
         $this->assertGuest();
-    }
-
-    public function test_a_failure_on_the_admin_portal_returns_to_the_admin_login_screen(): void
-    {
-        $this->startFlowFrom(route('admin.google.redirect'));
-
-        $provider = Mockery::mock(Provider::class);
-        $provider->shouldReceive('user')->once()->andThrow(new RuntimeException('Invalid state.'));
-        Socialite::shouldReceive('driver')->with('google')->once()->andReturn($provider);
-
-        $this->get(route('google.callback'))->assertRedirect(route('admin.login'));
     }
 
     public function test_the_google_flow_is_rate_limited(): void

@@ -8,7 +8,6 @@ use App\Http\Controllers\Admin\AdminIssueController;
 use App\Http\Controllers\Admin\AdminLoginController;
 use App\Http\Controllers\Admin\AdminOverviewController;
 use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\Auth\GoogleAuthController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
@@ -26,9 +25,13 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
             ->middleware($loginLimiter ? ['throttle:'.$loginLimiter] : [])
             ->name('login.store');
 
-        Route::get('auth/google/redirect', [GoogleAuthController::class, 'redirect'])
-            ->middleware('throttle:10,1')
-            ->name('google.redirect');
+        /*
+         * There is deliberately no Google button on this portal. Administrator
+         * accounts are created by the developers, never self-served, so the
+         * only way in is a password this team issued. App\Actions\Auth\
+         * ResolveGoogleUser still refuses an administrator on the public
+         * button, so removing the route closes the door rather than hiding it.
+         */
     });
 
     Route::middleware(['auth:'.$guard, 'role:'.UserRole::Admin->value])->group(function () {

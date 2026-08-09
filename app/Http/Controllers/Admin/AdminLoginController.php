@@ -18,10 +18,10 @@ class AdminLoginController extends Controller
      */
     public function create(Request $request): Response
     {
+        // No Google props: this portal is password only. Administrator accounts
+        // are issued by the developers rather than self-served.
         return Inertia::render('admin/login', [
             'status' => $request->session()->get('status'),
-            'canLoginWithGoogle' => (bool) config('services.google.enabled'),
-            'googleSetupHint' => ! config('services.google.enabled') && ! app()->isProduction(),
         ]);
     }
 }
