@@ -4,6 +4,7 @@ namespace App\Services\Credentials;
 
 use App\Contracts\VerifiesStudentCredentials;
 use App\Enums\CredentialStatus;
+use App\Models\School;
 use App\Models\StudentCredential;
 use App\Support\Credentials\VerificationResult;
 use Illuminate\Support\Facades\Storage;
@@ -60,7 +61,7 @@ class AutomatedCredentialVerifier implements VerifiesStudentCredentials
 
         $checks[] = $school = $this->check(
             'known_school',
-            in_array($credential->school, $this->schools(), strict: true),
+            in_array($credential->school, School::names(), strict: true),
             'The selected school is recognised.',
             'The selected school is not on the recognised list.',
         );
@@ -96,16 +97,6 @@ class AutomatedCredentialVerifier implements VerifiesStudentCredentials
                 CredentialStatus::Verified->value,
             ])
             ->exists();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function schools(): array
-    {
-        $schools = config('schools.list');
-
-        return is_array($schools) ? array_values(array_filter($schools, 'is_string')) : [];
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\School;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,7 +25,7 @@ class StoreStudentCredentialRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'school' => ['required', 'string', Rule::in($this->schools())],
+            'school' => ['required', 'string', Rule::in(School::names())],
             'document' => [
                 'required',
                 'file',
@@ -44,15 +45,5 @@ class StoreStudentCredentialRequest extends FormRequest
             'document.mimes' => __('Upload a JPG, PNG, WEBP or PDF document.'),
             'document.max' => __('The document must be 8 MB or smaller.'),
         ];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function schools(): array
-    {
-        $schools = config('schools.list');
-
-        return is_array($schools) ? array_values(array_filter($schools, 'is_string')) : [];
     }
 }

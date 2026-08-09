@@ -41,6 +41,20 @@ class School extends Model
     }
 
     /**
+     * Get every school name, alphabetically.
+     *
+     * The credential picker is built from this list and the credential rules
+     * validate against it, so the two can never disagree about what counts as
+     * a recognised school.
+     *
+     * @return array<int, string>
+     */
+    public static function names(): array
+    {
+        return self::query()->orderBy('name')->pluck('name')->all();
+    }
+
+    /**
      * Get the student profiles attached to this school.
      *
      * @return HasMany<StudentProfile, $this>

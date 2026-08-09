@@ -6,6 +6,7 @@ use App\Enums\CredentialStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\StoreStudentCredentialRequest;
 use App\Jobs\VerifyStudentCredential;
+use App\Models\School;
 use App\Models\StudentCredential;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -34,7 +35,7 @@ class StudentCredentialController extends Controller
         $credential = $this->latestSubmission($user);
 
         return Inertia::render('auth/credentials', [
-            'schools' => array_values((array) config('schools.list', [])),
+            'schools' => School::names(),
             'submission' => $credential === null ? null : [
                 'school' => $credential->school,
                 'fileName' => $credential->original_name,
