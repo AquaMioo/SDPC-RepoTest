@@ -1,8 +1,13 @@
 import { Head, router } from '@inertiajs/react';
 import { FilePdfIcon } from '@phosphor-icons/react';
+import { useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
-import { document as credentialDocument, update } from '@/routes/admin/credentials';
+import { Textarea } from '@/components/sdpc/input';
+import {
+    document as credentialDocument,
+    update,
+} from '@/routes/admin/credentials';
 
 type Credential = {
     id: number;
@@ -46,11 +51,39 @@ export default function AdminCredentials({
 }: {
     credentials: Credential[];
 }) {
-    const decide = (id: number, status: 'verified' | 'rejected') =>
-        router.patch(update.url(id), { status }, { preserveScroll: true });
+    // Which row has its rejection reason box open. The server requires a
+    // reason on rejection, so it has to be collected before sending.
+    const [rejecting, setRejecting] = useState<number | null>(null);
+    const [reason, setReason] = useState('');
+
+    const verify = (id: number) =>
+        router.patch(
+            update.url(id),
+            { decision: 'verified' },
+            { preserveScroll: true },
+        );
+
+    const reject = (id: number) =>
+        router.patch(
+            update.url(id),
+            { decision: 'rejected', reason },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setRejecting(null);
+                    setReason('');
+                },
+            },
+        );
 
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}>
+        <div
+            style={{
+                maxWidth: 1180,
+                margin: '0 auto',
+                padding: '30px 32px 72px',
+            }}
+        >
             <Head title="Student credentials" />
 
             <div style={{ marginBottom: 20 }}>
@@ -75,7 +108,9 @@ export default function AdminCredentials({
                         className="card elev-sm"
                         style={{ padding: '18px 20px', gap: 8 }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                        <div
+                            style={{ display: 'flex', alignItems: 'baseline' }}
+                        >
                             <span
                                 style={{
                                     fontFamily: 'var(--font-heading)',
@@ -87,7 +122,8 @@ export default function AdminCredentials({
                             </span>
                             <span
                                 className={
-                                    STATUS_TAG[credential.status] ?? 'tag tag-neutral'
+                                    STATUS_TAG[credential.status] ??
+                                    'tag tag-neutral'
                                 }
                             >
                                 {credential.statusLabel}
@@ -127,10 +163,15 @@ export default function AdminCredentials({
                                 <Btn
                                     asChild
                                     variant="secondary"
-                                    style={{ fontSize: 12.5, padding: '5px 12px' }}
+                                    style={{
+                                        fontSize: 12.5,
+                                        padding: '5px 12px',
+                                    }}
                                 >
                                     <a
-                                        href={credentialDocument.url(credential.id)}
+                                        href={credentialDocument.url(
+                                            credential.id,
+                                        )}
                                         target="_blank"
                                         rel="noreferrer"
                                     >
@@ -146,18 +187,28 @@ export default function AdminCredentials({
                                 <>
                                     <Btn
                                         variant="primary"
-                                        style={{ fontSize: 12.5, padding: '5px 12px' }}
-                                        onClick={() =>
-                                            decide(credential.id, 'verified')
-                                        }
+                                        style={{
+                                            fontSize: 12.5,
+                                            padding: '5px 12px',
+                                        }}
+                                        data-test="verify-credential"
+                                        onClick={() => verify(credential.id)}
                                     >
                                         Verify
                                     </Btn>
                                     <Btn
                                         variant="secondary"
-                                        style={{ fontSize: 12.5, padding: '5px 12px' }}
+                                        style={{
+                                            fontSize: 12.5,
+                                            padding: '5px 12px',
+                                        }}
+                                        data-test="reject-credential"
                                         onClick={() =>
-                                            decide(credential.id, 'rejected')
+                                            setRejecting(
+                                                rejecting === credential.id
+                                                    ? null
+                                                    : credential.id,
+                                            )
                                         }
                                     >
                                         Reject
@@ -166,11 +217,61 @@ export default function AdminCredentials({
                             )}
 
                             {credential.reviewedAt && (
-                                <span style={{ fontSize: 11.5, color: MUTED(45) }}>
+                                <span
+                                    style={{ fontSize: 11.5, color: MUTED(45) }}
+                                >
                                     Reviewed {credential.reviewedAt}
                                 </span>
                             )}
                         </div>
+
+                        {rejecting === credential.id && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 8,
+                                    marginTop: 8,
+                                }}
+                            >
+                                <Textarea
+                                    autoFocus
+                                    value={reason}
+                                    onChange={(event) =>
+                                        setReason(event.target.value)
+                                    }
+                                    placeholder="Tell the student why, so they know what to send instead."
+                                    style={{ minHeight: 62, fontSize: 12.5 }}
+                                />
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <Btn
+                                        variant="primary"
+                                        disabled={reason.trim() === ''}
+                                        style={{
+                                            fontSize: 12.5,
+                                            padding: '5px 12px',
+                                        }}
+                                        data-test="confirm-rejection"
+                                        onClick={() => reject(credential.id)}
+                                    >
+                                        Confirm rejection
+                                    </Btn>
+                                    <Btn
+                                        variant="ghost"
+                                        style={{
+                                            fontSize: 12.5,
+                                            padding: '5px 12px',
+                                        }}
+                                        onClick={() => {
+                                            setRejecting(null);
+                                            setReason('');
+                                        }}
+                                    >
+                                        Cancel
+                                    </Btn>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>

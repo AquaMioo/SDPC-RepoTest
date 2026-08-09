@@ -4,6 +4,8 @@ namespace Tests\Feature\Client;
 
 use App\Enums\ProjectStatus;
 use App\Enums\TeamRole;
+use App\Enums\VerificationStatus;
+use App\Models\ClientProfile;
 use App\Models\Project;
 use App\Models\ProjectMilestone;
 use App\Models\Skill;
@@ -18,7 +20,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->get($this->url('projects.index', $user))
             ->assertRedirect(route('login'));
@@ -26,7 +28,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_can_see_their_own_project_board(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         Project::factory()->create(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user)
@@ -45,7 +47,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_cannot_see_another_teams_project(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $foreign = Project::factory()->create();
 
         $this->actingAs($user)
@@ -55,7 +57,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_can_publish_a_project(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)
             ->post($this->url('projects.store', $user), $this->validPayload())
@@ -71,7 +73,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_publishing_attaches_skills_and_milestones(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)->post($this->url('projects.store', $user), $this->validPayload([
             'skills' => ['Laravel', 'MySQL', 'Laravel'],
@@ -92,7 +94,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_draft_is_not_stamped_as_published(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)->post($this->url('projects.store', $user), $this->validPayload([
             'status' => ProjectStatus::Draft->value,
@@ -103,7 +105,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_project_cannot_be_created_with_a_deadline_after_delivery(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)
             ->post($this->url('projects.store', $user), $this->validPayload([
@@ -117,7 +119,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_can_update_their_project(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user)
@@ -132,7 +134,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_completed_project_can_no_longer_be_edited(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->completed()->create(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user)
@@ -150,6 +152,17 @@ class ProjectWorkflowTest extends TestCase
         $team->members()->attach($member, ['role' => TeamRole::Member->value]);
         $member->switchTeam($team);
 
+        // Verification is per business, so the team they switched into needs
+        // its own accepted permit. Otherwise the verification gate answers
+        // first and this never reaches the permission check it is testing.
+        ClientProfile::create([
+            'team_id' => $team->id,
+            'business_name' => $team->name,
+            'permit_path' => 'business-permits/'.$team->id.'/permit.jpg',
+            'verification_status' => VerificationStatus::Verified,
+            'verified_at' => now(),
+        ]);
+
         $this->actingAs($member)
             ->post($this->url('projects.store', $member), $this->validPayload())
             ->assertForbidden();
@@ -157,7 +170,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_can_archive_a_project(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user)
@@ -172,7 +185,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_can_pause_and_resume_applications(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $user->current_team_id]);
         $url = $this->url('projects.intake.toggle', $user, ['project' => $project]);
 
@@ -185,7 +198,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_duplicating_a_project_creates_an_independent_draft(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create([
             'team_id' => $user->current_team_id,
             'title' => 'Inventory System',
@@ -209,7 +222,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_can_delete_their_project(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user)
@@ -221,7 +234,7 @@ class ProjectWorkflowTest extends TestCase
 
     public function test_a_client_cannot_delete_another_teams_project(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $foreign = Project::factory()->create();
 
         $this->actingAs($user)

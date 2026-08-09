@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Concerns\HasTeams;
+use App\Enums\CredentialStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
@@ -153,6 +154,23 @@ class User extends Authenticatable implements PasskeyUser
     public function requiresCredentialVerification(): bool
     {
         return $this->hasRole(UserRole::Student);
+    }
+
+    /**
+     * Determine if the account has proved what it claims to be.
+     *
+     * Until this is true the account is read only: it may look around its
+     * module but not post work, hire anyone, or apply for anything. A student
+     * proves it with an accepted credential document, a client with an
+     * accepted business permit. Administrators have nothing to prove.
+     */
+    public function isVerifiedForOperating(): bool
+    {
+        return match ($this->role) {
+            UserRole::Admin => true,
+            UserRole::Student => $this->latestStudentCredential?->status === CredentialStatus::Verified,
+            UserRole::Client => $this->currentTeam?->clientProfile?->isVerified() ?? false,
+        };
     }
 
     /**

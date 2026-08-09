@@ -25,7 +25,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)->post($this->url('projects.store', $user), $this->payload());
 
@@ -36,7 +36,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)->post(
             $this->url('projects.store', $user),
@@ -50,7 +50,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->draft()->create([
             'team_id' => $user->current_team_id,
         ]);
@@ -75,7 +75,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $owner->current_team_id]);
 
         Application::factory()->create(['project_id' => $project->id]);
@@ -87,7 +87,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $owner->current_team_id]);
 
         Application::factory()->invited()->create(['project_id' => $project->id]);
@@ -99,7 +99,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $student = User::factory()->student()->create();
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
@@ -121,7 +121,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
             'team_size' => 1,
@@ -145,7 +145,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
             'team_size' => 3,
@@ -165,7 +165,7 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create(['team_id' => $owner->current_team_id]);
 
         $this->actingAs($owner)
@@ -178,8 +178,8 @@ class ClientNotificationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
-        $colleague = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
+        $colleague = User::factory()->verifiedBusiness()->create();
 
         $owner->currentTeam->members()->attach($colleague, [
             'role' => TeamRole::Admin->value,
@@ -194,7 +194,7 @@ class ClientNotificationTest extends TestCase
 
     public function test_the_stored_payload_identifies_the_project_and_student(): void
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
         $student = User::factory()->student()->create(['name' => 'Jeremie Caasi']);
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,

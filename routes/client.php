@@ -6,6 +6,7 @@ use App\Http\Controllers\Client\ProjectApplicationController;
 use App\Http\Controllers\Client\ProjectController;
 use App\Http\Controllers\Client\RecruitController;
 use App\Http\Controllers\Client\StudentProfileController;
+use App\Http\Middleware\EnsureAccountIsVerified;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Http\Middleware\EnsureUserIsClient;
 use Illuminate\Support\Facades\Route;
@@ -22,21 +23,33 @@ Route::prefix('{current_team}')
     ->group(function () {
         Route::get('overview', ClientDashboardController::class)->name('client.dashboard');
 
-        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
-        Route::get('projects/create', [ProjectController::class, 'create'])->name('projects.create');
-        Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
-        Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
-        Route::get('projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
-        Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
-        Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+        /*
+         * Reading stays open to any client: looking around the module is how a
+         * new business decides whether to finish signing up at all. Posting
+         * work and hiring wait for `verified`, which is only granted once an
+         * administrator has accepted the business permit.
+         *
+         * The gate is applied per route rather than as a group because order
+         * matters here — Project binds on its slug, so `projects/create` has
+         * to stay ahead of `projects/{project}` or it is read as a slug.
+         */
+        $verified = EnsureAccountIsVerified::class;
 
-        Route::patch('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
-        Route::post('projects/{project}/duplicate', [ProjectController::class, 'duplicate'])->name('projects.duplicate');
-        Route::patch('projects/{project}/intake', [ProjectController::class, 'toggleApplications'])->name('projects.intake.toggle');
+        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
+        Route::get('projects/create', [ProjectController::class, 'create'])->middleware($verified)->name('projects.create');
+        Route::post('projects', [ProjectController::class, 'store'])->middleware($verified)->name('projects.store');
+        Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+        Route::get('projects/{project}/edit', [ProjectController::class, 'edit'])->middleware($verified)->name('projects.edit');
+        Route::patch('projects/{project}', [ProjectController::class, 'update'])->middleware($verified)->name('projects.update');
+        Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->middleware($verified)->name('projects.destroy');
+
+        Route::patch('projects/{project}/archive', [ProjectController::class, 'archive'])->middleware($verified)->name('projects.archive');
+        Route::post('projects/{project}/duplicate', [ProjectController::class, 'duplicate'])->middleware($verified)->name('projects.duplicate');
+        Route::patch('projects/{project}/intake', [ProjectController::class, 'toggleApplications'])->middleware($verified)->name('projects.intake.toggle');
 
         Route::get('projects/{project}/applicants', [ProjectApplicationController::class, 'index'])->name('projects.applicants.index');
-        Route::post('projects/{project}/invitations', [ProjectApplicationController::class, 'invite'])->name('projects.invitations.store');
-        Route::patch('applications/{application}', [ProjectApplicationController::class, 'update'])->name('applications.update');
+        Route::post('projects/{project}/invitations', [ProjectApplicationController::class, 'invite'])->middleware($verified)->name('projects.invitations.store');
+        Route::patch('applications/{application}', [ProjectApplicationController::class, 'update'])->middleware($verified)->name('applications.update');
 
         Route::get('recruit', RecruitController::class)->name('recruit.index');
         Route::get('students/{user}', StudentProfileController::class)->name('students.show');

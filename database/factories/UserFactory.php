@@ -5,6 +5,8 @@ namespace Database\Factories;
 use App\Enums\TeamRole;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Enums\VerificationStatus;
+use App\Models\ClientProfile;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -117,6 +119,35 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => UserStatus::Deactivated,
         ]);
+    }
+
+    /**
+     * Indicate that the client's business has had its permit accepted.
+     *
+     * This is what unlocks posting work and hiring — see
+     * App\Http\Middleware\EnsureAccountIsVerified. A client without it may look
+     * around the module but not act in it, so any test exercising a write needs
+     * this state.
+     */
+    public function verifiedBusiness(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $team = $user->currentTeam ?? $user->personalTeam();
+
+            if ($team === null) {
+                return;
+            }
+
+            ClientProfile::updateOrCreate(
+                ['team_id' => $team->id],
+                [
+                    'business_name' => $team->name,
+                    'permit_path' => 'business-permits/'.$team->id.'/permit.jpg',
+                    'verification_status' => VerificationStatus::Verified,
+                    'verified_at' => now(),
+                ],
+            );
+        });
     }
 
     /**

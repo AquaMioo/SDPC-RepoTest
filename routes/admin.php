@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\Admin\AdminBusinessController;
 use App\Http\Controllers\Admin\AdminContentController;
 use App\Http\Controllers\Admin\AdminCredentialController;
 use App\Http\Controllers\Admin\AdminDashboardController;
@@ -41,6 +42,13 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
         Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
         Route::patch('users/{user}/status', [AdminUserController::class, 'updateStatus'])
             ->name('users.status.update');
+
+        Route::get('businesses', [AdminBusinessController::class, 'index'])
+            ->name('businesses.index');
+        Route::get('businesses/{business}/permit', [AdminBusinessController::class, 'permit'])
+            ->name('businesses.permit');
+        Route::patch('businesses/{business}', [AdminBusinessController::class, 'update'])
+            ->name('businesses.update');
 
         Route::get('credentials', [AdminCredentialController::class, 'index'])
             ->name('credentials.index');
