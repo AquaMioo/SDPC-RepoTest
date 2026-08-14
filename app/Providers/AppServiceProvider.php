@@ -7,8 +7,10 @@ use App\Services\Credentials\AutomatedCredentialVerifier;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\StoredRecommendationService;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -48,6 +50,16 @@ class AppServiceProvider extends ServiceProvider
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
         );
+
+        // Every generated URL goes out as https in production, so a link in an
+        // email or a redirect can never drop someone onto plain http where the
+        // session cookie would travel in the clear. Left alone locally, where
+        // there is no certificate.
+        URL::forceHttps(app()->isProduction());
+
+        // A model that quietly ignores an unknown attribute hides a typo until
+        // it becomes a bug. Fail loudly outside production instead.
+        Model::preventSilentlyDiscardingAttributes(! app()->isProduction());
 
         Password::defaults(fn (): ?Password => app()->isProduction()
             ? Password::min(12)
