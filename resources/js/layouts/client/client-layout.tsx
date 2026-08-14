@@ -57,7 +57,7 @@ const MUTED = 'color-mix(in srgb, var(--color-text) 45%, transparent)';
 /**
  * The signed-in shell for clients and students.
  *
- * Wears the design's `data-mod="user"` palette (#2b3439 ground, sage accent).
+ * Wears the design's `data-mod="user"` palette (#e3e3e3 ground, olive accent).
  * The design's role toggle in this header is a prototype control for previewing
  * both navs; a real user's role is fixed, so the nav is chosen from auth.role
  * instead of being switchable.

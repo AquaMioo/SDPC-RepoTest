@@ -38,7 +38,7 @@ const NAV_LINK: CSSProperties = {
  *
  * Deliberately does NOT set data-mod="user", so it falls through to the base
  * palette the design gives admin screens: #0c1614 ground, #1b2f28 surface,
- * #3f8f70 accent — a different, deeper green than the user app's #2b3439.
+ * #3f8f70 accent — a different, deeper green than the user app's #e3e3e3.
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {
     const page = usePage();

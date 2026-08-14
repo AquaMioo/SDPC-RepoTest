@@ -24,7 +24,7 @@
              Layouts re-point data-mod on the root element to swap palette. --}}
         <style>
             html {
-                background-color: #2b3439;
+                background-color: #e3e3e3;
             }
 
             html[data-mod='admin'] {

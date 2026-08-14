@@ -32,7 +32,7 @@ const ADORN: React.CSSProperties = {
  *
  * Brings its own shell (it is excluded from the layout resolver) and stays on
  * the base palette — the deeper #0c1614 green the design gives admin screens,
- * not the #2b3439 the public app wears.
+ * not the #e3e3e3 the public app wears.
  */
 export default function AdminLogin({ status }: Props) {
     const [revealed, setRevealed] = useState(false);

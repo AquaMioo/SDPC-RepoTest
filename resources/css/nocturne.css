@@ -9,7 +9,7 @@
  * Palettes, in cascade order:
  *   [data-mod]        -> Nocturne defaults, then the SDPC green theme
  *                        (bg #0c1614, surface #1b2f28, accent #3f8f70) = admin
- *   [data-mod="user"] -> bg #2b3439, surface #34413f, accent #9cb080
+ *   [data-mod="user"] -> bg #e3e3e3, surface #f2f2f0, accent #64764f
  *                        = landing, auth, and every client/student screen
  *
  * Tokens hang off [data-mod] rather than :root so they do not collide with
@@ -591,25 +591,40 @@ a:hover { color: var(--color-accent-300); }
 [data-nav][aria-current="page"] { color: var(--color-accent); }
 [data-day][data-today="true"] { background: var(--color-accent); color: var(--color-bg); }
 [data-day][data-muted="true"] { opacity: 0.25; }
+/*
+ * The user palette, taken from the platform design's [data-mod="user"] block.
+ *
+ * Light, unlike the admin portal above it. The accent ramp runs the opposite
+ * way to the dark theme's — 100 is the darkest olive here, because on a light
+ * ground the readable accents are the deep end of the scale, not the pale one.
+ *
+ * Only the student and client sides carry data-mod="user"; the admin portal
+ * sets data-mod="admin" and keeps the dark green above.
+ */
 [data-mod="user"] {
-  --color-bg: #2b3439;
-  --color-surface: #34413f;
-  --color-text: #eaefe6;
-  --color-accent: #9cb080;
-  --color-accent-100: #f3f7ec; --color-accent-200: #e3edd5; --color-accent-300: #ccdcb7;
-  --color-accent-400: #b4c99a; --color-accent-500: #9cb080; --color-accent-600: #7f9366;
-  --color-accent-700: #64764f; --color-accent-800: #46543a; --color-accent-900: #2f3928;
+  --color-bg: #e3e3e3;
+  --color-surface: #f2f2f0;
+  --color-text: #23291f;
+  --color-divider: #cdcfc8;
+  color: #23291f;
+  background: #e3e3e3;
+  --color-accent: #64764f;
+  --color-accent-100: #2f3928; --color-accent-200: #46543a; --color-accent-300: #64764f;
+  --color-accent-400: #7f9366; --color-accent-500: #9cb080; --color-accent-600: #b4c99a;
+  --color-accent-700: #ccdcb7; --color-accent-800: #dfe8d2; --color-accent-900: #eef3e6;
   --color-accent-2-100: #eef5ef; --color-accent-2-200: #d9e7db; --color-accent-2-300: #a9c9ad;
   --color-accent-2-400: #87ac8c; --color-accent-2-500: #64906b; --color-accent-2-600: #517757;
   --color-accent-2-700: #3f5e45; --color-accent-2-800: #2b5347; --color-accent-2-900: #1e3a31;
-  --color-neutral-100: #f0f3f2; --color-neutral-200: #dde3e2; --color-neutral-300: #c4cecd;
-  --color-neutral-400: #a5b1b2; --color-neutral-500: #85918f; --color-neutral-600: #697a7e;
-  --color-neutral-700: #4f5f63; --color-neutral-800: #3d4a4e; --color-neutral-900: #232b2f;
+  --color-neutral-100: #23291f; --color-neutral-200: #333a2e; --color-neutral-300: #55604c;
+  --color-neutral-400: #7c8573; --color-neutral-500: #9aa294; --color-neutral-600: #b6bcb0;
+  --color-neutral-700: #cdd1c8; --color-neutral-800: #dedfd9; --color-neutral-900: #f2f2f0;
   --color-section: #2b5347; --color-section-glow: #64906b; --color-section-ghost: #9cb080;
-  --shadow-sm: 0 0 0 1px #3d4a4e;
-  --shadow-md: 0 0 0 1px #4f5f63, 0 6px 18px rgba(0,0,0,0.5);
-  --shadow-lg: 0 0 0 1px #85918f, 0 16px 40px rgba(0,0,0,0.6);
+  --shadow-sm: 0 0 0 1px #d3d5cd;
+  --shadow-md: 0 0 0 1px #cdcfc8, 0 6px 18px rgba(35,41,31,0.10);
+  --shadow-lg: 0 0 0 1px #c2c5bc, 0 16px 40px rgba(35,41,31,0.16);
 }
+/* Lighten blending is for dark grounds; on the light palette it washes out. */
+[data-mod="user"] .lighten, [data-mod="user"] .lighten > * { mix-blend-mode: normal; }
 [data-theme="indigo"] { --color-bg: #0a1210; --color-surface: #16261f; }
 [data-theme="graphite"] { --color-bg: #10231c; --color-surface: #1f382d; }
 [data-theme="slate"] { --color-bg: #101a18; --color-surface: #223630; }

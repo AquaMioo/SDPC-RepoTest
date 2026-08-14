@@ -32,9 +32,20 @@ const SHELL: React.CSSProperties = {
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
-const SECTION_BAND: React.CSSProperties = {
-    background:
-        'linear-gradient(120deg,var(--color-section),var(--color-section-glow))',
+/*
+ * The stat band and footer sit on the page ground with hairline rules, rather
+ * than the green gradient the dark theme used. On the light palette a
+ * saturated band fights the page instead of seating into it.
+ */
+const STAT_BAND: React.CSSProperties = {
+    background: 'var(--color-bg)',
+    boxShadow:
+        'inset 0 1px 0 var(--color-divider), inset 0 -1px 0 var(--color-divider)',
+};
+
+const FOOTER_BAND: React.CSSProperties = {
+    background: 'var(--color-bg)',
+    boxShadow: 'inset 0 1px 0 var(--color-divider)',
 };
 
 const FADING_RULE: React.CSSProperties = {
@@ -149,13 +160,19 @@ export default function Welcome() {
                                 textWrap: 'pretty',
                             }}
                         >
-                            SDPC connects tertiary students in San Jose Del Monte
-                            with local clients who need real systems built —
-                            matched by skill, tracked to delivery, documented end
-                            to end.
+                            SDPC connects tertiary students in San Jose Del
+                            Monte with local clients who need real systems built
+                            — matched by skill, tracked to delivery, documented
+                            end to end.
                         </p>
 
-                        <div style={{ display: 'flex', gap: 12, marginBottom: 30 }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: 12,
+                                marginBottom: 30,
+                            }}
+                        >
                             <Btn
                                 asChild
                                 variant="primary"
@@ -249,15 +266,27 @@ export default function Welcome() {
                         boxShadow: 'var(--shadow-sm)',
                     }}
                 >
-                    <ValueCell icon={<UsersThreeIcon />} label="Find the right developer" />
-                    <ValueCell icon={<ChatsCircleIcon />} label="Collaborate in one place" />
-                    <ValueCell icon={<SealCheckIcon />} label="Verified with confidence" />
-                    <ValueCell icon={<ChartLineUpIcon />} label="Track every milestone" />
+                    <ValueCell
+                        icon={<UsersThreeIcon />}
+                        label="Find the right developer"
+                    />
+                    <ValueCell
+                        icon={<ChatsCircleIcon />}
+                        label="Collaborate in one place"
+                    />
+                    <ValueCell
+                        icon={<SealCheckIcon />}
+                        label="Verified with confidence"
+                    />
+                    <ValueCell
+                        icon={<ChartLineUpIcon />}
+                        label="Track every milestone"
+                    />
                 </div>
             </div>
 
             {/* ── stat band ── */}
-            <div style={{ margin: '36px 0 0', ...SECTION_BAND }}>
+            <div style={{ margin: '36px 0 0', ...STAT_BAND }}>
                 <div
                     style={{
                         maxWidth: 1240,
@@ -268,10 +297,26 @@ export default function Welcome() {
                         gap: 24,
                     }}
                 >
-                    <Stat icon={<StudentIcon />} value="205" label="Students surveyed" />
-                    <Stat icon={<BriefcaseIcon />} value="48" label="Projects completed" />
-                    <Stat icon={<SmileyIcon />} value="94%" label="Client satisfaction" />
-                    <Stat icon={<BuildingsIcon />} value="32" label="Local clients" />
+                    <Stat
+                        icon={<StudentIcon />}
+                        value="205"
+                        label="Students surveyed"
+                    />
+                    <Stat
+                        icon={<BriefcaseIcon />}
+                        value="48"
+                        label="Projects completed"
+                    />
+                    <Stat
+                        icon={<SmileyIcon />}
+                        value="94%"
+                        label="Client satisfaction"
+                    />
+                    <Stat
+                        icon={<BuildingsIcon />}
+                        value="32"
+                        label="Local clients"
+                    />
                 </div>
             </div>
 
@@ -284,8 +329,15 @@ export default function Welcome() {
                 }}
             >
                 <h3 style={{ margin: '0 0 6px' }}>What our clients say</h3>
-                <p style={{ fontSize: 13.5, color: MUTED(55), margin: '0 0 26px' }}>
-                    From businesses in San Jose Del Monte who hired a student team.
+                <p
+                    style={{
+                        fontSize: 13.5,
+                        color: MUTED(55),
+                        margin: '0 0 26px',
+                    }}
+                >
+                    From businesses in San Jose Del Monte who hired a student
+                    team.
                 </p>
 
                 <div
@@ -314,7 +366,7 @@ export default function Welcome() {
             </div>
 
             {/* ── footer ── */}
-            <div style={SECTION_BAND}>
+            <div style={FOOTER_BAND}>
                 <div
                     style={{
                         maxWidth: 1240,
@@ -379,7 +431,9 @@ function ValueCell({ icon, label }: { icon: ReactNode; label: string }) {
                 background: 'var(--color-surface)',
             }}
         >
-            <span style={{ fontSize: 22, color: 'var(--color-accent)' }}>{icon}</span>
+            <span style={{ fontSize: 22, color: 'var(--color-accent)' }}>
+                {icon}
+            </span>
             <span style={{ fontSize: 13.5 }}>{label}</span>
         </div>
     );

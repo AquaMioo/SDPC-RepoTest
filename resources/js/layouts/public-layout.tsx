@@ -5,7 +5,7 @@ import { useMod } from '@/hooks/use-mod';
 /**
  * Shell for the screens a signed-out visitor can reach: the landing page and
  * the login / sign up cards. Uses the design's `data-mod="user"` palette
- * (#2b3439 ground, sage accent) — the same one the signed-in app wears.
+ * (#e3e3e3 ground, olive accent) — the same one the signed-in app wears.
  */
 export default function PublicLayout({ children }: { children: ReactNode }) {
     useMod('user');
