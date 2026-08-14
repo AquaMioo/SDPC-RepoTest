@@ -7,6 +7,7 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import ClientLayout from '@/layouts/client/client-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import SettingsShell from '@/layouts/settings/shell';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -26,9 +27,11 @@ createInertiaApp({
                 return AuthLayout;
             case name.startsWith('client/'):
                 return ClientLayout;
+            // Settings is shared by both portals, so the chrome is picked from
+            // the signed-in role rather than fixed here.
             case name.startsWith('settings/'):
             case name.startsWith('teams/'):
-                return [AppLayout, SettingsLayout];
+                return [SettingsShell, SettingsLayout];
             default:
                 return AppLayout;
         }
