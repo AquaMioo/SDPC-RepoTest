@@ -16,6 +16,7 @@ import {
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { useMod } from '@/hooks/use-mod';
 import { dashboard } from '@/routes';
+import { index as agreementsIndex } from '@/routes/agreements';
 import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
 import { index as messagesIndex } from '@/routes/messages';
@@ -24,10 +25,14 @@ import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
 import { workflow as studentWorkflow } from '@/routes/student';
 import { index as studentBoard } from '@/routes/student/board';
+import { edit as studentProfileEdit } from '@/routes/student/profile';
+import { index as transactionsIndex } from '@/routes/transactions';
 
 type SharedProps = {
     auth?: { user?: { name: string; role: string } | null; role?: string | null };
     unreadMessages?: number;
+    /** False on a normal boot — the ledger is built but switched off. */
+    billingEnabled?: boolean;
 };
 
 type NavItem = {
@@ -72,6 +77,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
     const team = useCurrentTeam();
     const user = page.props.auth?.user ?? null;
     const isStudent = (page.props.auth?.role ?? user?.role) === 'student';
+    const billingEnabled = page.props.billingEnabled ?? false;
 
     useMod('user');
 
@@ -86,32 +92,29 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
      * EnsureUserIsClient, so sending a student to Recruit or Projects would
      * abort with a 403.
      */
+    /*
+     * The ledger ships dormant, so its two nav items stay disabled until
+     * config('billing.enabled') says otherwise — the routes 404 while it is
+     * off and a live-looking link would dead-end.
+     */
+    const billing: NavItem = billingEnabled
+        ? { label: 'Transaction', href: transactionsIndex.url(team.slug) }
+        : { label: 'Transaction', pending: 'Arrives with the Payments module' };
+
     const navigation: NavItem[] = isStudent
         ? [
               { label: 'Dashboard', href: dashboard.url(team.slug) },
               { label: 'Get Client', href: studentBoard.url(team.slug) },
               { label: 'Workflow', href: studentWorkflow.url(team.slug) },
-              {
-                  label: 'Performance',
-                  pending: 'Arrives with the Payments module',
-              },
-              {
-                  label: 'Agreement',
-                  pending: 'Arrives with the Contracts module',
-              },
+              { ...billing, label: 'Performance' },
+              { label: 'Agreement', href: agreementsIndex.url(team.slug) },
           ]
         : [
               { label: 'Dashboard', href: clientDashboard.url(team.slug) },
               { label: 'Recruit', href: recruitIndex.url(team.slug) },
-              {
-                  label: 'Transaction',
-                  pending: 'Arrives with the Payments module',
-              },
+              billing,
               { label: 'Project Process', href: projectsIndex.url(team.slug) },
-              {
-                  label: 'Agreement',
-                  pending: 'Arrives with the Contracts module',
-              },
+              { label: 'Agreement', href: agreementsIndex.url(team.slug) },
           ];
 
     return (
@@ -199,7 +202,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         {isStudent ? (
                             <IconAction
                                 label="Your profile"
-                                href={profileEdit.url()}
+                                href={studentProfileEdit.url(team.slug)}
                             >
                                 <UserCircleIcon />
                             </IconAction>

@@ -29,6 +29,8 @@ type CalendarDay = {
     date: string;
     isToday: boolean;
     isOutsideMonth: boolean;
+    /** What the agreement has scheduled for that day, if anything. */
+    milestone: string | null;
 };
 
 type Props = {
@@ -172,6 +174,7 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
                         data-day=""
                         data-today={day.isToday ? 'true' : undefined}
                         data-muted={day.isOutsideMonth ? 'true' : undefined}
+                        title={day.milestone ?? undefined}
                         style={{
                             aspectRatio: '1 / 1',
                             display: 'grid',
@@ -182,10 +185,28 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
                         }}
                     >
                         {day.day}
+                        {day.milestone && (
+                            <span
+                                aria-label={day.milestone}
+                                style={{
+                                    position: 'absolute',
+                                    bottom: 2,
+                                    width: 4,
+                                    height: 4,
+                                    borderRadius: 2,
+                                    background: 'var(--color-accent)',
+                                }}
+                            />
+                        )}
                     </span>
                 ))}
             </div>
 
+            {calendar.days.every((day) => day.milestone === null) && (
+                <span style={{ fontSize: 11, color: MUTED(55) }}>
+                    Milestone dates appear here once an agreement is signed.
+                </span>
+            )}
         </Panel>
     );
 }
@@ -245,7 +266,7 @@ function ProgressCard({ project }: { project: Props['project'] }) {
                 </div>
             </div>
 
-            <div style={{ fontSize: 13.5 }}>Schedule elapsed</div>
+            <div style={{ fontSize: 13.5 }}>Milestones approved</div>
             <div
                 style={{
                     fontSize: 11,
@@ -256,7 +277,7 @@ function ProgressCard({ project }: { project: Props['project'] }) {
                 {project === null
                     ? 'No active project yet'
                     : project.progress === null
-                      ? `${project.title} · ${project.statusLabel}`
+                      ? `${project.title} · ${project.statusLabel} · awaiting a signed agreement`
                       : `${project.title}${project.dueDate ? ` · due ${project.dueDate}` : ''}`}
             </div>
         </Panel>

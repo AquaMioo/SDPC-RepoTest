@@ -4,6 +4,7 @@ import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { process as studentProcess } from '@/routes/student';
 import { withdraw as applicationWithdraw } from '@/routes/student/applications';
 import { index as boardIndex, show as boardShow } from '@/routes/student/board';
 
@@ -123,6 +124,13 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                                     <Tag variant="accent">{project.status}</Tag>
                                 </div>
 
+                                {/* Progress lives on the agreement's
+                                    milestones, so the detail is there. */}
+                                <Btn asChild style={{ alignSelf: 'start' }}>
+                                    <Link href={studentProcess.url(team.slug)}>
+                                        Track progress
+                                    </Link>
+                                </Btn>
                             </Panel>
                         ))
                     )}

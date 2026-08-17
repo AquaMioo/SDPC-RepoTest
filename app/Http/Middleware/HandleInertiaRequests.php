@@ -61,6 +61,12 @@ class HandleInertiaRequests extends Middleware
                     ->get()
                     ->filter(fn (Conversation $thread) => $thread->isUnreadFor($user))
                     ->count(),
+            /*
+             * The money side ships switched off, and the nav has to know:
+             * without this the Transaction link would point at routes that
+             * 404 by design. See config/billing.php.
+             */
+            'billingEnabled' => (bool) config('billing.enabled'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'currentTeam' => fn () => $user?->currentTeam ? $user->toUserTeam($user->currentTeam) : null,
             'teams' => fn () => $user?->toUserTeams(includeCurrent: true) ?? [],

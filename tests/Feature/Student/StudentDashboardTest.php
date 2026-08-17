@@ -3,8 +3,11 @@
 namespace Tests\Feature\Student;
 
 use App\Enums\ApplicationStatus;
+use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\SiteContentKey;
+use App\Models\Agreement;
+use App\Models\AgreementMilestone;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -85,19 +88,86 @@ class StudentDashboardTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->where('project', null));
     }
 
-    public function test_progress_reports_the_projects_lifecycle_stage(): void
+    public function test_progress_averages_the_agreements_milestones(): void
     {
         $student = $this->student();
         $project = $this->project(['status' => ProjectStatus::InProgress]);
-        $this->accept($student, $project);
+        $application = $this->accept($student, $project);
 
-        // A posting carries no dates or milestones now, so its status is the
-        // only progress signal left. Coarse on purpose rather than invented.
+        $agreement = Agreement::factory()->active()->create([
+            'project_id' => $project->id,
+            'application_id' => $application->id,
+            'team_id' => $project->team_id,
+            'student_id' => $student->id,
+            'ends_on' => '2026-05-22',
+        ]);
+
+        // Approved, in progress, pending — 100 + 40 + 0 over three.
+        foreach ([MilestoneStatus::Approved, MilestoneStatus::InProgress, MilestoneStatus::Pending] as $index => $status) {
+            AgreementMilestone::factory()->create([
+                'agreement_id' => $agreement->id,
+                'position' => $index + 1,
+                'status' => $status,
+            ]);
+        }
+
         $this->actingAs($student)
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('project.progress', 50)
+                ->where('project.progress', 47)
+                ->where('project.dueDate', '22 May 2026')
                 ->where('project.statusLabel', 'In progress'));
+    }
+
+    public function test_progress_is_a_dash_until_an_agreement_is_signed(): void
+    {
+        $student = $this->student();
+        $project = $this->project(['status' => ProjectStatus::InProgress]);
+
+        $this->accept($student, $project);
+
+        // A posting carries no dates or milestones, and a lifecycle stage is
+        // not a percentage. Null renders as a dash, which is honest.
+        $this->actingAs($student)
+            ->get(route('dashboard', ['current_team' => $student->currentTeam]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('project.progress', null));
+    }
+
+    public function test_the_calendar_marks_the_agreed_milestone_dates(): void
+    {
+        Carbon::setTestNow('2026-03-10');
+
+        $student = $this->student();
+        $project = $this->project(['status' => ProjectStatus::InProgress]);
+        $application = $this->accept($student, $project);
+
+        $agreement = Agreement::factory()->active()->create([
+            'project_id' => $project->id,
+            'application_id' => $application->id,
+            'team_id' => $project->team_id,
+            'student_id' => $student->id,
+        ]);
+
+        AgreementMilestone::factory()->create([
+            'agreement_id' => $agreement->id,
+            'position' => 1,
+            'title' => 'Design',
+            'starts_on' => '2026-03-09',
+            'ends_on' => '2026-03-27',
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('dashboard', ['current_team' => $student->currentTeam]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where(
+                    'calendar.days',
+                    fn (Collection $days) => $days->firstWhere('date', '2026-03-09')['milestone'] === 'Design starts'
+                        && $days->firstWhere('date', '2026-03-27')['milestone'] === 'Design due'
+                        && $days->firstWhere('date', '2026-03-10')['milestone'] === null
+                ));
+
+        Carbon::setTestNow();
     }
 
     public function test_the_project_team_lists_accepted_students_only(): void
@@ -208,9 +278,9 @@ class StudentDashboardTest extends TestCase
     /**
      * Put the student on the project the way the platform does it.
      */
-    private function accept(User $student, Project $project): void
+    private function accept(User $student, Project $project): Application
     {
-        Application::factory()->create([
+        return Application::factory()->create([
             'project_id' => $project->id,
             'user_id' => $student->id,
             'status' => ApplicationStatus::Accepted,

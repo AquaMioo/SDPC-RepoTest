@@ -2,10 +2,12 @@ import { Head, Link, router } from '@inertiajs/react';
 import { MagnifyingGlassIcon, SparkleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { index as boardIndex, show as boardShow } from '@/routes/student/board';
+import { index as clientsIndex } from '@/routes/student/clients';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -113,6 +115,14 @@ export default function FindClients({
                             Del Monte
                         </div>
                     </div>
+
+                    {/* The board lists briefs; the directory lists the
+                        businesses behind them. */}
+                    <Btn asChild>
+                        <Link href={clientsIndex.url(team.slug)}>
+                            Browse the client list
+                        </Link>
+                    </Btn>
                 </div>
 
                 {!canApply && (

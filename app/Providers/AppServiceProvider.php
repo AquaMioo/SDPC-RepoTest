@@ -2,11 +2,14 @@
 
 namespace App\Providers;
 
+use App\Contracts\StudentVerifier;
 use App\Contracts\VerifiesStudentCredentials;
 use App\Services\Credentials\AutomatedCredentialVerifier;
 use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\StoredRecommendationService;
+use App\Services\Verification\NullStudentVerifier;
+use App\Services\Verification\SheerIdStudentVerifier;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
@@ -34,6 +37,16 @@ class AppServiceProvider extends ServiceProvider
         // Swap this binding to route credential checks at a real verification
         // provider. Everything else — controller, job, UI — stays as is.
         $this->app->bind(VerifiesStudentCredentials::class, AutomatedCredentialVerifier::class);
+
+        /*
+         * The optional third-party enrolment check. Null unless SheerID is
+         * both switched on and actually configured, which it is not by
+         * default — and nothing on the platform is gated on it either way.
+         * See config/sheerid.php.
+         */
+        $this->app->bind(StudentVerifier::class, fn () => config('sheerid.enabled')
+            ? $this->app->make(SheerIdStudentVerifier::class)
+            : $this->app->make(NullStudentVerifier::class));
     }
 
     /**

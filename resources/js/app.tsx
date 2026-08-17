@@ -24,11 +24,14 @@ createInertiaApp({
                 return AdminLayout;
             case name.startsWith('auth/'):
                 return AuthLayout;
-            // Client, student and the messaging they share all wear the same
-            // shell; it picks its nav from the signed-in role.
+            // Client, student and the ground they share — messaging, the
+            // contract and the ledger — all wear the same shell; it picks its
+            // nav from the signed-in role.
             case name.startsWith('client/'):
             case name.startsWith('student/'):
             case name.startsWith('messaging/'):
+            case name.startsWith('agreements/'):
+            case name.startsWith('billing/'):
                 return ClientLayout;
             // Settings is shared by both portals, so the chrome is picked from
             // the signed-in role rather than fixed here.

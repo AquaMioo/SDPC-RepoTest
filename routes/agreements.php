@@ -32,6 +32,14 @@ Route::prefix('{current_team}')
         Route::post('agreements/{agreement}/change-requests', [AgreementChangeRequestController::class, 'store'])
             ->name('agreements.changes.store');
 
+        /*
+         * Both models are declared on the controller in the order the URL
+         * carries them, and the controller checks that the milestone belongs
+         * to the agreement. Route-level scopeBindings() cannot do that job
+         * here: it would also try to resolve `{agreement}` through
+         * `{current_team}`, and for a student the current team is their own,
+         * never the business the contract is with.
+         */
         Route::patch('agreements/{agreement}/milestones/{milestone}', [AgreementMilestoneController::class, 'update'])
             ->name('agreements.milestones.update');
     });

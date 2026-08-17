@@ -9,6 +9,7 @@ use App\Http\Requests\Agreements\SaveAgreementRequest;
 use App\Models\Agreement;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,14 @@ use Inertia\Response;
  */
 class AgreementController extends Controller
 {
+    /**
+     * How far surviving milestones are parked while a new order is written.
+     *
+     * Positions are unique per agreement and SaveAgreementRequest caps a
+     * schedule at 12, so anything past that clears every real position.
+     */
+    private const POSITION_PARKING_OFFSET = 100;
+
     /**
      * Create a new controller instance.
      */
@@ -139,11 +148,25 @@ class AgreementController extends Controller
      * agreed to, and keeping orphaned milestones would leave the schedule
      * showing work that is no longer in the contract.
      *
+     * The order of operations is load-bearing. `(agreement_id, position)` is
+     * unique, so writing the new order straight over the old one collides the
+     * moment two milestones swap places, or a fresh row is given a position
+     * that a row further down the list is about to free. Dropping the removed
+     * rows first and parking the survivors out of the numbering leaves every
+     * final position empty before anything claims it.
+     *
      * @param  array<int, array<string, mixed>>  $milestones
      */
     protected function syncMilestones(Agreement $agreement, array $milestones): void
     {
-        $keptIds = [];
+        $submittedIds = collect($milestones)
+            ->pluck('id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        $agreement->milestones()->whereNotIn('id', $submittedIds)->delete();
+        $agreement->milestones()->increment('position', self::POSITION_PARKING_OFFSET);
 
         foreach (array_values($milestones) as $index => $milestone) {
             $attributes = [
@@ -156,26 +179,23 @@ class AgreementController extends Controller
             ];
 
             $existing = isset($milestone['id'])
-                ? $agreement->milestones()->find($milestone['id'])
+                ? $agreement->milestones()->whereKey($milestone['id'])->first()
                 : null;
 
             if ($existing !== null) {
                 $existing->update($attributes);
-                $keptIds[] = $existing->id;
 
                 continue;
             }
 
-            $keptIds[] = $agreement->milestones()->create($attributes)->id;
+            $agreement->milestones()->create($attributes);
         }
-
-        $agreement->milestones()->whereNotIn('id', $keptIds)->delete();
     }
 
     /**
      * Get every agreement the given user is a party to.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Agreement>
+     * @return Builder<Agreement>
      */
     protected function visibleTo(User $user)
     {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\CredentialStatus;
 use App\Enums\UserStatus;
+use App\Enums\VerificationProvider;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ReviewCredentialRequest;
 use App\Models\StudentCredential;
@@ -22,7 +23,7 @@ class AdminCredentialController extends Controller
     public function index(): Response
     {
         $credentials = StudentCredential::query()
-            ->with('user:id,name,email,role,status')
+            ->with(['user:id,name,email,role,status', 'user.studentVerifications'])
             ->latest('id')
             ->get()
             ->sortBy(fn (StudentCredential $credential): int => match ($credential->status) {
@@ -49,12 +50,42 @@ class AdminCredentialController extends Controller
                 'submittedAt' => $credential->created_at?->diffForHumans(),
                 'reviewedAt' => $credential->reviewed_at?->diffForHumans(),
                 'awaitingDecision' => $credential->status === CredentialStatus::NeedsReview,
+                /*
+                 * Supporting evidence, and nothing more. The decision on this
+                 * page is still the administrator's: a SheerID pass does not
+                 * approve an account and its absence does not refuse one.
+                 */
+                'thirdPartyVerification' => $this->thirdPartyEvidence($credential),
             ])
             ->all();
 
         return Inertia::render('admin/credentials', [
             'credentials' => $credentials,
         ]);
+    }
+
+    /**
+     * Summarise any third-party check held against the submitting student.
+     *
+     * Read-only on this screen. It is one more thing a reviewer can weigh, in
+     * the same way the automated file checks are — not an answer.
+     *
+     * @return array<string, string|null>|null
+     */
+    protected function thirdPartyEvidence(StudentCredential $credential): ?array
+    {
+        $verification = $credential->user?->studentVerifications
+            ->firstWhere('provider', VerificationProvider::SheerId);
+
+        if ($verification === null) {
+            return null;
+        }
+
+        return [
+            'provider' => $verification->provider->label(),
+            'statusLabel' => $verification->status->label(),
+            'verifiedAt' => $verification->verified_at?->toFormattedDateString(),
+        ];
     }
 
     /**

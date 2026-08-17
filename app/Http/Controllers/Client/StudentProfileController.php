@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\Project;
+use App\Models\StudentPortfolioItem;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -27,7 +28,7 @@ class StudentProfileController extends Controller
 
         abort_if($profile === null, 404);
 
-        $profile->load(['school', 'course', 'skills']);
+        $profile->load(['school', 'course', 'skills', 'portfolioItems.skills']);
 
         $links = $user->applications()
             ->whereHas('project', fn ($query) => $query->where('team_id', $request->user()->current_team_id))
@@ -50,6 +51,30 @@ class StudentProfileController extends Controller
                 'rating' => (float) $profile->rating_average,
                 'completedProjects' => $profile->completed_projects_count,
                 'skills' => $profile->skills->map->only(['name', 'type']),
+                'location' => $profile->location,
+                'weeklyHours' => $profile->weekly_hours,
+                'availabilityNote' => $profile->availability_note,
+                'responseTimeHours' => $profile->response_time_hours,
+                'hourlyRate' => $profile->hourly_rate,
+                'educationNote' => $profile->education_note,
+                /*
+                 * Student Background History. This is the evidence a client
+                 * reads before hiring, and until the student module could
+                 * write it there was nothing here but a single link.
+                 */
+                'portfolio' => $profile->portfolioItems
+                    ->map(fn (StudentPortfolioItem $item): array => [
+                        'id' => $item->id,
+                        'title' => $item->title,
+                        'role' => $item->role,
+                        'description' => $item->description,
+                        'year' => $item->year,
+                        'url' => $item->url,
+                        'repositoryUrl' => $item->repository_url,
+                        'skills' => $item->skills->pluck('name')->values()->all(),
+                    ])
+                    ->values()
+                    ->all(),
             ],
             /** Lets the profile screen show "already invited" instead of a dead invite button. */
             'existingApplications' => $links->map(fn (Application $application) => [

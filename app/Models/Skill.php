@@ -56,6 +56,28 @@ class Skill extends Model
     }
 
     /**
+     * Resolve a list of typed-in names to skill ids, minting what is new.
+     *
+     * Everything that syncs a skill pivot — a posting's requirements, a
+     * student's claimed skills, the technologies on a portfolio piece — goes
+     * through here, so "laravel" and "Laravel" cannot become two rows in one
+     * place and one row in another.
+     *
+     * @param  array<int, mixed>  $names
+     * @return list<int>
+     */
+    public static function idsForNames(array $names, SkillType $type = SkillType::General): array
+    {
+        return array_values(collect($names)
+            ->filter(fn (mixed $name): bool => is_string($name))
+            ->map(fn (string $name): string => trim($name))
+            ->filter()
+            ->unique()
+            ->map(fn (string $name): int => static::findOrCreateByName($name, $type)->id)
+            ->all());
+    }
+
+    /**
      * Get the projects requiring this skill.
      *
      * @return BelongsToMany<Project, $this>

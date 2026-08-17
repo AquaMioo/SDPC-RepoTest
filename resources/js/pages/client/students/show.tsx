@@ -29,6 +29,22 @@ type Props = {
         rating: number;
         completedProjects: number;
         skills: { name: string; type: string }[];
+        location: string | null;
+        weeklyHours: number | null;
+        availabilityNote: string | null;
+        responseTimeHours: number | null;
+        hourlyRate: number | null;
+        educationNote: string | null;
+        portfolio: {
+            id: number;
+            title: string;
+            role: string | null;
+            description: string | null;
+            year: number | null;
+            url: string | null;
+            repositoryUrl: string | null;
+            skills: string[];
+        }[];
     };
     existingApplications: {
         projectId: number;
@@ -137,6 +153,81 @@ export default function StudentProfile({
                                     <Tag key={skill.name} variant="accent">
                                         {skill.name}
                                     </Tag>
+                                ))}
+                            </div>
+                        </Panel>
+                    )}
+
+                    {student.portfolio.length > 0 && (
+                        <Panel padding="lg" gap="lg">
+                            <div>
+                                <h6 className="m-0">Featured portfolio</h6>
+                                <p className="m-0 text-[12.5px] text-muted-foreground">
+                                    Work {student.name} has already shipped.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col gap-4">
+                                {student.portfolio.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="flex flex-col gap-1.5 border-t border-[var(--color-divider)] pt-3 first:border-0 first:pt-0"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-heading text-[16px]">
+                                                {item.title}
+                                            </span>
+                                            {item.role && (
+                                                <Tag variant="neutral">
+                                                    {item.role}
+                                                </Tag>
+                                            )}
+                                            {item.year && (
+                                                <span className="text-[11.5px] text-muted-foreground">
+                                                    {item.year}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {item.description && (
+                                            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+                                                {item.description}
+                                            </p>
+                                        )}
+
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            {item.skills.map((skill) => (
+                                                <Tag
+                                                    key={skill}
+                                                    variant="outline"
+                                                >
+                                                    {skill}
+                                                </Tag>
+                                            ))}
+                                            {item.repositoryUrl && (
+                                                <a
+                                                    href={item.repositoryUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer noopener"
+                                                    className="flex items-center gap-1 text-[12px] hover:underline"
+                                                >
+                                                    <GithubLogoIcon />
+                                                    Repository
+                                                </a>
+                                            )}
+                                            {item.url && (
+                                                <a
+                                                    href={item.url}
+                                                    target="_blank"
+                                                    rel="noreferrer noopener"
+                                                    className="flex items-center gap-1 text-[12px] hover:underline"
+                                                >
+                                                    <LinkSimpleIcon />
+                                                    Live
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         </Panel>
@@ -257,6 +348,35 @@ export default function StudentProfile({
                         <div className="text-[12px] text-muted-foreground">
                             {student.completedProjects} completed project
                             {student.completedProjects === 1 ? '' : 's'}
+                        </div>
+                    </Panel>
+
+                    <Panel padding="lg" gap="sm">
+                        <PanelKicker>Availability</PanelKicker>
+                        <div className="flex items-center gap-2 text-[12.5px]">
+                            <span
+                                className={`size-2 rounded-full ${student.isAvailable ? 'bg-primary' : 'bg-muted-foreground'}`}
+                            />
+                            {student.availabilityNote ??
+                                (student.isAvailable
+                                    ? 'Open to a project this term'
+                                    : 'Not taking new work')}
+                        </div>
+                        <div className="text-[11.5px] text-muted-foreground">
+                            {[
+                                student.weeklyHours
+                                    ? `≈ ${student.weeklyHours} hrs/week`
+                                    : null,
+                                student.hourlyRate
+                                    ? `₱ ${student.hourlyRate}/hr`
+                                    : null,
+                                student.responseTimeHours
+                                    ? `responds within ${student.responseTimeHours} hrs`
+                                    : null,
+                                student.location,
+                            ]
+                                .filter(Boolean)
+                                .join(' · ') || 'Not stated yet'}
                         </div>
                     </Panel>
 

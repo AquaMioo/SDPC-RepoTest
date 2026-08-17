@@ -125,13 +125,6 @@ class SaveProject
      */
     protected function syncSkills(Project $project, array $names): void
     {
-        $ids = collect($names)
-            ->map(fn (string $name) => trim($name))
-            ->filter()
-            ->unique()
-            ->map(fn (string $name) => Skill::findOrCreateByName($name, SkillType::General)->id)
-            ->all();
-
-        $project->skills()->sync($ids);
+        $project->skills()->sync(Skill::idsForNames($names, SkillType::General));
     }
 }

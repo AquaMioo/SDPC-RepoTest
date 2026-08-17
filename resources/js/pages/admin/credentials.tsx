@@ -27,6 +27,16 @@ type Credential = {
     submittedAt: string | null;
     reviewedAt: string | null;
     awaitingDecision: boolean;
+    /**
+     * Supporting evidence only — a third party's answer about enrolment. Null
+     * unless that check is configured and this student started one. The
+     * decision on this screen is still the administrator's.
+     */
+    thirdPartyVerification: {
+        provider: string;
+        statusLabel: string;
+        verifiedAt: string | null;
+    } | null;
 };
 
 const MUTED = (pct: number) =>
@@ -136,6 +146,16 @@ export default function AdminCredentials({
                             {credential.submittedAt &&
                                 ` · submitted ${credential.submittedAt}`}
                         </div>
+
+                        {credential.thirdPartyVerification && (
+                            <div style={{ fontSize: 11.5, color: MUTED(45) }}>
+                                {credential.thirdPartyVerification.provider}:{' '}
+                                {credential.thirdPartyVerification.statusLabel.toLowerCase()}
+                                {credential.thirdPartyVerification.verifiedAt &&
+                                    ` ${credential.thirdPartyVerification.verifiedAt}`}
+                                {' · supporting evidence, not a decision'}
+                            </div>
+                        )}
 
                         {credential.reason && (
                             <p

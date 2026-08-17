@@ -11,6 +11,7 @@ use App\Models\Agreement;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\User;
+use App\Notifications\Agreements\AgreementSigned;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -152,7 +153,7 @@ class AgreementSigningTest extends TestCase
         $this->actingAs($owner)
             ->post($this->signUrl($owner, $agreement), $this->signature('Samuel Clemens'));
 
-        Notification::assertSentTo($student, \App\Notifications\Agreements\AgreementSigned::class);
+        Notification::assertSentTo($student, AgreementSigned::class);
     }
 
     public function test_a_student_cannot_rewrite_the_terms(): void

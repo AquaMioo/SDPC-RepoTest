@@ -6,6 +6,7 @@ use App\Actions\Billing\RecordTransaction;
 use App\Enums\MilestoneStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Agreements\UpdateMilestoneRequest;
+use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
@@ -22,13 +23,26 @@ class AgreementMilestoneController extends Controller
 {
     /**
      * Move a milestone into the status the acting party chose.
+     *
+     * Both route models are declared, in the order the URL carries them.
+     * Leaving `$agreement` out does not make it optional — Laravel fills the
+     * parameters positionally, so the agreement id lands in `$milestone` and
+     * the request dies on a type error.
      */
     public function update(
         UpdateMilestoneRequest $request,
         Team $currentTeam,
+        Agreement $agreement,
         AgreementMilestone $milestone,
         RecordTransaction $recordTransaction,
     ): RedirectResponse {
+        /*
+         * The URL says which contract this is. A milestone id belonging to a
+         * different one must not resolve just because the id exists — without
+         * this, the only thing standing between the two is that nobody tried.
+         */
+        abort_unless($milestone->agreement_id === $agreement->id, 404);
+
         $status = $request->status();
 
         $milestone->update([
