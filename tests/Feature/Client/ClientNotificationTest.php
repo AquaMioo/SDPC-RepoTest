@@ -116,7 +116,7 @@ class ClientNotificationTest extends TestCase
         Notification::assertSentTo($student, StudentAccepted::class);
     }
 
-    public function test_the_team_is_notified_when_the_first_student_is_accepted(): void
+    public function test_accepting_a_student_drafts_an_agreement_without_starting_the_project(): void
     {
         Notification::fake();
 
@@ -130,16 +130,15 @@ class ClientNotificationTest extends TestCase
         app(RespondToApplication::class)
             ->handle($application, ApplicationStatus::Accepted, $owner);
 
-        $this->assertSame(ProjectStatus::InProgress, $project->refresh()->status);
+        // Acceptance is an offer of terms, not the start of work. The posting
+        // only moves once both sides have signed — see SignAgreement.
+        $this->assertSame(ProjectStatus::Open, $project->refresh()->status);
+        $this->assertNotNull($application->refresh()->agreement);
 
-        Notification::assertSentTo(
-            $owner,
-            ProjectStatusChanged::class,
-            fn (ProjectStatusChanged $notification) => $notification->previousStatus === ProjectStatus::Open,
-        );
+        Notification::assertNotSentTo($owner, ProjectStatusChanged::class);
     }
 
-    public function test_a_second_acceptance_does_not_announce_the_start_again(): void
+    public function test_a_second_acceptance_reuses_nothing_and_drafts_its_own_agreement(): void
     {
         Notification::fake();
 
@@ -149,24 +148,20 @@ class ClientNotificationTest extends TestCase
             'status' => ProjectStatus::Open,
         ]);
 
-        // The first acceptance is what starts the work; a posting no longer
-        // declares a headcount, so there is nothing to be understaffed
-        // against. What must not happen is announcing the start twice.
-        app(RespondToApplication::class)->handle(
-            Application::factory()->create(['project_id' => $project->id]),
-            ApplicationStatus::Accepted,
-            $owner,
+        $first = Application::factory()->create(['project_id' => $project->id]);
+        $second = Application::factory()->create(['project_id' => $project->id]);
+
+        app(RespondToApplication::class)->handle($first, ApplicationStatus::Accepted, $owner);
+        app(RespondToApplication::class)->handle($second, ApplicationStatus::Accepted, $owner);
+
+        // One contract per student, never a shared one, and neither of them
+        // announces a project start that has not happened yet.
+        $this->assertNotSame(
+            $first->refresh()->agreement->id,
+            $second->refresh()->agreement->id,
         );
 
-        $this->assertSame(ProjectStatus::InProgress, $project->refresh()->status);
-
-        Notification::fake();
-
-        app(RespondToApplication::class)->handle(
-            Application::factory()->create(['project_id' => $project->id]),
-            ApplicationStatus::Accepted,
-            $owner,
-        );
+        $this->assertSame(ProjectStatus::Open, $project->refresh()->status);
 
         Notification::assertNotSentTo($owner, ProjectStatusChanged::class);
     }

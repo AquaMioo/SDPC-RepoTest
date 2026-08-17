@@ -49,6 +49,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read StudentProfile|null $studentProfile
  * @property-read Collection<int, Application> $applications
  * @property-read Collection<int, StudentCredential> $studentCredentials
+ * @property-read Collection<int, Agreement> $agreements
+ * @property-read Collection<int, StudentVerification> $studentVerifications
  */
 #[Fillable(['name', 'first_name', 'last_name', 'email', 'password', 'google_id', 'avatar', 'current_team_id'])]
 #[Hidden(['password', 'google_id', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -192,6 +194,45 @@ class User extends Authenticatable implements PasskeyUser
     public function applications(): HasMany
     {
         return $this->hasMany(Application::class);
+    }
+
+    /**
+     * Get the contracts the student is a party to.
+     *
+     * @return HasMany<Agreement, $this>
+     */
+    public function agreements(): HasMany
+    {
+        /* Named for the role it plays, so the column has to be spelled out. */
+        return $this->hasMany(Agreement::class, 'student_id');
+    }
+
+    /**
+     * Get the third-party verifications held against this account.
+     *
+     * @return HasMany<StudentVerification, $this>
+     */
+    public function studentVerifications(): HasMany
+    {
+        return $this->hasMany(StudentVerification::class);
+    }
+
+    /**
+     * Determine if the student may wear a verified badge.
+     *
+     * Two independent paths earn it and neither is required: an administrator
+     * accepting the uploaded credential, or the optional third-party check
+     * coming back verified. This is presentation only — what a student may
+     * actually do is still decided by isVerifiedForOperating().
+     */
+    public function isVerifiedStudent(): bool
+    {
+        if ($this->latestStudentCredential?->status === CredentialStatus::Verified) {
+            return true;
+        }
+
+        return $this->studentVerifications
+            ->contains(fn (StudentVerification $verification): bool => $verification->isConfirmed());
     }
 
     /**

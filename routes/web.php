@@ -46,5 +46,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 require __DIR__.'/messaging.php';
+require __DIR__.'/agreements.php';
+require __DIR__.'/billing.php';
 require __DIR__.'/student.php';
 require __DIR__.'/client.php';

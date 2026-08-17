@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
 
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\Notification;
  * @property-read Project $project
  * @property-read User $student
  * @property-read User|null $responder
+ * @property-read Agreement|null $agreement
  */
 #[Fillable([
     'project_id', 'user_id', 'status', 'source', 'cover_letter',
@@ -92,6 +95,32 @@ class Application extends Model
     public function responder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'responded_by');
+    }
+
+    /**
+     * Get the contract this application produced.
+     *
+     * Drafted the moment the client accepts, which is why an accepted
+     * application always has one and a pending application never does.
+     *
+     * The latest version, not the first: a change request supersedes the terms
+     * by writing a new row, and every screen wants the one in force.
+     *
+     * @return HasOne<Agreement, $this>
+     */
+    public function agreement(): HasOne
+    {
+        return $this->hasOne(Agreement::class)->latestOfMany('version');
+    }
+
+    /**
+     * Get every version of the contract, oldest first.
+     *
+     * @return HasMany<Agreement, $this>
+     */
+    public function agreements(): HasMany
+    {
+        return $this->hasMany(Agreement::class)->orderBy('version');
     }
 
     /**

@@ -160,6 +160,19 @@ class Project extends Model
     }
 
     /**
+     * Get every contract drawn up against the project.
+     *
+     * One per accepted student, plus any superseded versions, so this is a
+     * `hasMany` even where a single-student project usually holds one row.
+     *
+     * @return HasMany<Agreement, $this>
+     */
+    public function agreements(): HasMany
+    {
+        return $this->hasMany(Agreement::class);
+    }
+
+    /**
      * Scope the query to a single owning team.
      *
      * @param  Builder<$this>  $query

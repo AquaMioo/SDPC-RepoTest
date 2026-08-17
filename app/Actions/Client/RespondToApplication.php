@@ -2,28 +2,34 @@
 
 namespace App\Actions\Client;
 
+use App\Actions\Agreements\DraftAgreement;
 use App\Enums\ApplicationStatus;
-use App\Enums\ProjectStatus;
 use App\Models\Application;
 use App\Models\User;
-use App\Notifications\Client\ProjectStatusChanged;
 use App\Notifications\Client\StudentAccepted;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 class RespondToApplication
 {
+    /**
+     * Create a new action instance.
+     */
+    public function __construct(private DraftAgreement $draftAgreement) {}
+
     /**
      * Move an application into the status the client chose.
      */
     public function handle(Application $application, ApplicationStatus $status, User $responder): Application
     {
         /*
-         * A student holds one build at a time, and acceptance is the moment
-         * work starts — so the cap is enforced here rather than only where a
-         * student applies. A client can still invite and shortlist somebody
-         * who is busy; they just cannot put them on a second project.
+         * A student holds one build at a time. The cap binds at acceptance
+         * rather than at signing, even though signing is what starts the work:
+         * a student who has been accepted is spoken for, and letting a second
+         * client accept them while the first agreement is being drawn up would
+         * hand them two contracts to choose between.
+         *
+         * A client can still invite and shortlist somebody who is busy.
          */
         if ($status === ApplicationStatus::Accepted && $application->student->holdsProjectInHand()) {
             throw ValidationException::withMessages([
@@ -41,40 +47,18 @@ class RespondToApplication
             if ($status === ApplicationStatus::Accepted) {
                 $application->student->notify(new StudentAccepted($application));
 
-                $this->startProjectIfFullyStaffed($application);
+                /*
+                 * Acceptance no longer starts the project. It produces the
+                 * contract the two sides negotiate and sign, and the second
+                 * signature is what moves the posting into progress — see
+                 * App\Actions\Agreements\SignAgreement. The vision document
+                 * puts the Terms and Agreements Form before collaboration
+                 * begins, and this is that ordering made real.
+                 */
+                $this->draftAgreement->handle($application);
             }
 
             return $application->refresh();
         });
-    }
-
-    /**
-     * Move the posting into progress on the first acceptance.
-     *
-     * A posting no longer states how many students it wants, so there is no
-     * headcount to be "fully staffed" against. Accepting somebody is the
-     * moment the work starts, and intake stays open afterwards — the client
-     * may still want more people, and can pause applications themselves.
-     */
-    protected function startProjectIfFullyStaffed(Application $application): void
-    {
-        $project = $application->project;
-
-        $acceptedCount = $project->applications()
-            ->where('status', ApplicationStatus::Accepted)
-            ->count();
-
-        if ($acceptedCount !== 1 || $project->status === ProjectStatus::InProgress) {
-            return;
-        }
-
-        $previousStatus = $project->status;
-
-        $project->update(['status' => ProjectStatus::InProgress]);
-
-        Notification::send(
-            $project->team->members,
-            new ProjectStatusChanged($project->refresh(), $previousStatus),
-        );
     }
 }
