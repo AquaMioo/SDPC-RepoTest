@@ -2,10 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Enums\BudgetType;
-use App\Enums\ExperienceLevel;
 use App\Enums\ProjectStatus;
-use App\Enums\ProjectVisibility;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
@@ -44,18 +41,6 @@ class ProjectFactory extends Factory
                 'Retail & grocery', 'Logistics', 'Food service',
                 'Healthcare', 'Education', 'Other',
             ]),
-            'budget_type' => BudgetType::Fixed,
-            'budget_amount' => fake()->numberBetween(8_000, 80_000),
-            'hide_budget' => false,
-            'start_date' => now()->addWeek(),
-            'target_delivery_date' => now()->addMonths(2),
-            'application_deadline' => now()->addWeeks(2),
-            'expected_completion_date' => now()->addMonths(3),
-            'weekly_commitment' => fake()->randomElement(['Up to 10 hrs', '10–20 hrs', '20+ hrs']),
-            'team_size' => fake()->numberBetween(1, 5),
-            'experience_level' => ExperienceLevel::Any,
-            'open_to_capstone_groups' => true,
-            'visibility' => ProjectVisibility::AllStudents,
             'status' => ProjectStatus::Open,
             'applications_open' => true,
             'published_at' => now(),

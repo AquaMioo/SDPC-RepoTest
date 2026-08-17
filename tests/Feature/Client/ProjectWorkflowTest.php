@@ -7,7 +7,6 @@ use App\Enums\TeamRole;
 use App\Enums\VerificationStatus;
 use App\Models\ClientProfile;
 use App\Models\Project;
-use App\Models\ProjectMilestone;
 use App\Models\Skill;
 use App\Models\Team;
 use App\Models\User;
@@ -71,25 +70,17 @@ class ProjectWorkflowTest extends TestCase
         $this->assertNotNull($project->published_at);
     }
 
-    public function test_publishing_attaches_skills_and_milestones(): void
+    public function test_publishing_attaches_skills(): void
     {
         $user = User::factory()->verifiedBusiness()->create();
 
         $this->actingAs($user)->post($this->url('projects.store', $user), $this->validPayload([
             'skills' => ['Laravel', 'MySQL', 'Laravel'],
-            'milestones' => [
-                ['title' => 'Design approval', 'due_date' => '2026-04-10', 'amount' => 8000],
-                ['title' => 'Turnover', 'due_date' => '2026-05-22', 'amount' => 6000],
-            ],
         ]));
 
         $project = Project::query()->firstOrFail();
 
         $this->assertSame(2, $project->skills()->count(), 'Duplicate skill names should collapse.');
-        $this->assertSame(
-            ['Design approval', 'Turnover'],
-            $project->milestones->pluck('title')->all(),
-        );
     }
 
     public function test_a_draft_is_not_stamped_as_published(): void
@@ -101,20 +92,6 @@ class ProjectWorkflowTest extends TestCase
         ]));
 
         $this->assertNull(Project::query()->firstOrFail()->published_at);
-    }
-
-    public function test_a_project_cannot_be_created_with_a_deadline_after_delivery(): void
-    {
-        $user = User::factory()->verifiedBusiness()->create();
-
-        $this->actingAs($user)
-            ->post($this->url('projects.store', $user), $this->validPayload([
-                'application_deadline' => '2026-06-01',
-                'target_delivery_date' => '2026-05-01',
-            ]))
-            ->assertSessionHasErrors('application_deadline');
-
-        $this->assertSame(0, Project::query()->count());
     }
 
     public function test_a_client_can_update_their_project(): void
@@ -199,12 +176,14 @@ class ProjectWorkflowTest extends TestCase
     public function test_duplicating_a_project_creates_an_independent_draft(): void
     {
         $user = User::factory()->verifiedBusiness()->create();
-        $project = Project::factory()->create([
+
+        // Archived, because the copy is a new posting and the one-at-a-time
+        // cap has to be clear before any of those can be made.
+        $project = Project::factory()->archived()->create([
             'team_id' => $user->current_team_id,
             'title' => 'Inventory System',
         ]);
         $project->skills()->attach(Skill::factory()->count(2)->create());
-        ProjectMilestone::factory()->create(['project_id' => $project->id]);
 
         $this->actingAs($user)
             ->post($this->url('projects.duplicate', $user, ['project' => $project]))
@@ -217,7 +196,6 @@ class ProjectWorkflowTest extends TestCase
         $this->assertSame(ProjectStatus::Draft, $copy->status);
         $this->assertNull($copy->published_at);
         $this->assertSame(2, $copy->skills()->count());
-        $this->assertSame(1, $copy->milestones()->count());
     }
 
     public function test_a_client_can_delete_their_project(): void
@@ -276,18 +254,6 @@ class ProjectWorkflowTest extends TestCase
             'category' => 'Management / inventory system',
             'industry' => 'Retail & grocery',
             'skills' => ['Laravel'],
-            'team_size' => 3,
-            'experience_level' => 'any',
-            'open_to_capstone_groups' => true,
-            'budget_type' => 'fixed',
-            'budget_amount' => 28000,
-            'hide_budget' => false,
-            'start_date' => '2026-03-30',
-            'target_delivery_date' => '2026-05-22',
-            'application_deadline' => '2026-04-15',
-            'weekly_commitment' => '10-20 hrs',
-            'milestones' => [],
-            'visibility' => 'all_students',
             'status' => ProjectStatus::PendingReview->value,
         ], $overrides);
     }

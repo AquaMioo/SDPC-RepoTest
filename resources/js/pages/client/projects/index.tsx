@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { PlusIcon, UsersThreeIcon } from '@phosphor-icons/react';
+import { InfoIcon, PlusIcon, UsersThreeIcon } from '@phosphor-icons/react';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
@@ -13,15 +13,10 @@ import type { Paginated, ProjectListItem } from '@/types/client';
 
 type Props = {
     projects: Paginated<ProjectListItem>;
+    canCreate: boolean;
 };
 
-const pesos = new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 0,
-});
-
-export default function ProjectsIndex({ projects }: Props) {
+export default function ProjectsIndex({ projects, canCreate }: Props) {
     const team = useCurrentTeam();
 
     return (
@@ -37,13 +32,33 @@ export default function ProjectsIndex({ projects }: Props) {
                             {projects.total === 1 ? '' : 's'} from {team.name}
                         </div>
                     </div>
-                    <Button asChild>
-                        <Link href={projectsCreate.url(team.slug)}>
-                            <PlusIcon />
-                            Post a project
-                        </Link>
-                    </Button>
+                    {canCreate && (
+                        <Button asChild>
+                            <Link href={projectsCreate.url(team.slug)}>
+                                <PlusIcon />
+                                Post a project
+                            </Link>
+                        </Button>
+                    )}
                 </div>
+
+                {/*
+                 * One posting at a time, so the board says why the post button
+                 * is gone rather than leaving a client hunting for it.
+                 * `.card` is unlayered CSS and wins over Tailwind's
+                 * flex-direction, hence the inner row instead of `flex-row`.
+                 */}
+                {!canCreate && projects.total > 0 && (
+                    <Panel className="mb-4">
+                        <div className="flex items-center gap-2.5">
+                            <InfoIcon className="shrink-0 text-muted-foreground" />
+                            <p className="m-0 text-[12.5px] text-muted-foreground">
+                                You can run one project at a time. Complete or
+                                archive your current posting to start a new one.
+                            </p>
+                        </div>
+                    </Panel>
+                )}
 
                 {projects.data.length === 0 ? (
                     <Panel padding="lg" gap="lg" className="items-start">
@@ -53,17 +68,24 @@ export default function ProjectsIndex({ projects }: Props) {
                             student developers. Postings are screened by an
                             administrator before they go live.
                         </p>
-                        <Button asChild>
-                            <Link href={projectsCreate.url(team.slug)}>
-                                <PlusIcon />
-                                Post a project
-                            </Link>
-                        </Button>
+                        {canCreate && (
+                            <Button asChild>
+                                <Link href={projectsCreate.url(team.slug)}>
+                                    <PlusIcon />
+                                    Post a project
+                                </Link>
+                            </Button>
+                        )}
                     </Panel>
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {projects.data.map((project) => (
-                            <Panel key={project.slug} padding="lg" gap="lg">
+                            <Panel
+                                key={project.slug}
+                                padding="lg"
+                                gap="lg"
+                                className="h-full"
+                            >
                                 <div className="flex items-start gap-2">
                                     <Link
                                         href={projectsShow.url({
@@ -104,13 +126,15 @@ export default function ProjectsIndex({ projects }: Props) {
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+                                {/* Pinned to the bottom so the applicant row
+                                    lines up across cards whose skill lists
+                                    are different lengths. */}
+                                <div className="mt-auto flex items-center gap-3 text-[12px] text-muted-foreground">
                                     <span className="mr-auto">
-                                        {project.budgetAmount === null
-                                            ? 'Budget hidden'
-                                            : pesos.format(
-                                                  project.budgetAmount,
-                                              )}
+                                        {project.applicationsCount} applicant
+                                        {project.applicationsCount === 1
+                                            ? ''
+                                            : 's'}
                                     </span>
                                     <Link
                                         href={applicantsIndex.url({

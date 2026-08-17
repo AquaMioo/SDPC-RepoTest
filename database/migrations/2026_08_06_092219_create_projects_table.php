@@ -1,9 +1,6 @@
 <?php
 
-use App\Enums\BudgetType;
-use App\Enums\ExperienceLevel;
 use App\Enums\ProjectStatus;
-use App\Enums\ProjectVisibility;
 use App\Models\Course;
 use App\Models\School;
 use App\Models\Team;
@@ -32,7 +29,8 @@ return new class extends Migration
             $table->string('category')->index();
             $table->string('industry')->nullable()->index();
 
-            $table->string('budget_type')->default(BudgetType::Fixed->value);
+            /* Literals: these columns and their enums are dropped later. */
+            $table->string('budget_type')->default('fixed');
             $table->unsignedInteger('budget_amount')->nullable();
             $table->boolean('hide_budget')->default(false);
 
@@ -43,10 +41,12 @@ return new class extends Migration
             $table->string('weekly_commitment')->nullable();
 
             $table->unsignedTinyInteger('team_size')->default(1);
-            $table->string('experience_level')->default(ExperienceLevel::Any->value);
+            $table->string('experience_level')->default('any');
             $table->boolean('open_to_capstone_groups')->default(true);
 
-            $table->string('visibility')->default(ProjectVisibility::AllStudents->value)->index();
+            /* Dropped later by simplify_project_posting_fields; the literal keeps
+               this migration runnable after the enum was deleted. */
+            $table->string('visibility')->default('all_students')->index();
             $table->foreignIdFor(School::class, 'preferred_school_id')->nullable()->constrained('schools')->nullOnDelete();
             $table->foreignIdFor(Course::class, 'preferred_course_id')->nullable()->constrained('courses')->nullOnDelete();
             $table->unsignedTinyInteger('preferred_year_level')->nullable();

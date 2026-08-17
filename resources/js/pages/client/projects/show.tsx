@@ -18,32 +18,13 @@ type Props = {
         industry: string | null;
         statusLabel: string;
         isEditable: boolean;
-        budgetAmount: number | null;
-        hideBudget: boolean;
-        startDate: string | null;
-        targetDeliveryDate: string | null;
-        applicationDeadline: string | null;
-        weeklyCommitment: string | null;
-        teamSize: number;
         applicationsOpen: boolean;
         isAcceptingApplications: boolean;
         skills: string[];
-        milestones: {
-            title: string;
-            dueDate: string | null;
-            amount: number | null;
-            isCompleted: boolean;
-        }[];
         attachments: { id: number; name: string; size: string }[];
     };
     applicantCounts: { total: number; pending: number; accepted: number };
 };
-
-const pesos = new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 0,
-});
 
 export default function ShowProject({ project, applicantCounts }: Props) {
     const team = useCurrentTeam();
@@ -52,19 +33,6 @@ export default function ShowProject({ project, applicantCounts }: Props) {
     const facts = [
         { label: 'Category', value: project.category },
         { label: 'Industry', value: project.industry },
-        { label: 'Team size', value: `${project.teamSize} student(s)` },
-        { label: 'Weekly commitment', value: project.weeklyCommitment },
-        { label: 'Preferred start', value: project.startDate },
-        { label: 'Target delivery', value: project.targetDeliveryDate },
-        { label: 'Application deadline', value: project.applicationDeadline },
-        {
-            label: 'Budget',
-            value: project.hideBudget
-                ? 'Hidden from public listing'
-                : project.budgetAmount !== null
-                  ? pesos.format(project.budgetAmount)
-                  : null,
-        },
     ].filter((fact) => fact.value);
 
     return (
@@ -126,35 +94,6 @@ export default function ShowProject({ project, applicantCounts }: Props) {
                             </>
                         )}
                     </Panel>
-
-                    {project.milestones.length > 0 && (
-                        <Panel padding="lg" gap="lg">
-                            <h6 className="m-0">Milestones</h6>
-                            <div className="flex flex-col gap-2.5">
-                                {project.milestones.map((milestone) => (
-                                    <div
-                                        key={milestone.title}
-                                        className="flex items-center gap-3 text-[13px]"
-                                    >
-                                        <span className="mr-auto">
-                                            {milestone.title}
-                                        </span>
-                                        <span className="text-[12px] text-muted-foreground">
-                                            {milestone.dueDate}
-                                        </span>
-                                        <span className="text-[12px]">
-                                            {milestone.amount !== null
-                                                ? pesos.format(milestone.amount)
-                                                : '—'}
-                                        </span>
-                                        {milestone.isCompleted && (
-                                            <Tag variant="accent">Done</Tag>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </Panel>
-                    )}
 
                     <Panel padding="lg" gap="lg">
                         <h6 className="m-0">Details</h6>

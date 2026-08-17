@@ -1,23 +1,12 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-mod="{{ request()->is('admin*') ? 'admin' : 'user' }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-mod="{{ request()->is('admin*') ? 'admin' : 'user' }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
-        <script>
-            (function() {
-                const appearance = '{{ $appearance ?? "system" }}';
-
-                if (appearance === 'system') {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-                    if (prefersDark) {
-                        document.documentElement.classList.add('dark');
-                    }
-                }
-            })();
-        </script>
+        {{-- There is deliberately no appearance preference. data-mod above is the
+             only palette switch: the user app is light, the admin portal is dark,
+             and neither follows the visitor's OS. --}}
 
         {{-- Nocturne paints the whole viewport. The ground is set here so overscroll
              and the pre-hydration frame match the design instead of flashing white.

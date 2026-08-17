@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Models\Team;
@@ -27,7 +28,7 @@ Route::pattern('current_team', '(?!(?:'.implode('|', array_map(
  * The landing page is deliberately public: it is the platform's shop window and
  * must render for signed-out visitors.
  */
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', HomeController::class)->name('home');
 
 require __DIR__.'/auth.php';
 require __DIR__.'/admin.php';
@@ -44,4 +45,6 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');
 });
 
+require __DIR__.'/messaging.php';
+require __DIR__.'/student.php';
 require __DIR__.'/client.php';

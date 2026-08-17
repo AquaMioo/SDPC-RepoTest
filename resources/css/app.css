@@ -102,8 +102,17 @@
  * The design ships two palettes with different accent hues: olive in light,
  * teal-green in dark. Both are mapped onto the app's existing semantic tokens
  * so shared primitives pick the design up without per-component overrides.
+ *
+ * The second selector is load bearing. The user app is a light-only design, but
+ * `.dark` lands on <html> from the visitor's OS preference, and portalled
+ * primitives — tooltips, dropdowns, dialogs, popovers — render into <body>,
+ * outside the layout element that carries data-mod. Without this they read the
+ * dark tokens while sitting over a light page: #0c1614 text on #3f8f70, which
+ * is what made the nav tooltips unreadable. `html[data-mod='user']` outweighs
+ * `.dark`, so the whole document — portals included — stays on one palette.
  */
-:root {
+:root,
+html[data-mod='user'] {
     --brand-100: #2f3928;
     --brand-200: #46543a;
     --brand-300: #64764f;
@@ -169,7 +178,16 @@
 /*
  * SDPC dark theme — ported from the platform design's :root block.
  */
-.dark {
+/*
+ * The admin portal's palette.
+ *
+ * There is no light/dark preference on this platform — the user app is light
+ * and the admin portal is dark, both fixed by the design. This used to hang
+ * off a `.dark` class driven by the visitor's OS, which meant the admin portal
+ * changed colour depending on whose laptop it was opened on. Keying it to
+ * data-mod instead makes each portal wear exactly one palette.
+ */
+html[data-mod='admin'] {
     --brand-100: #eaf8f1;
     --brand-200: #cbeddd;
     --brand-300: #ade2c8;

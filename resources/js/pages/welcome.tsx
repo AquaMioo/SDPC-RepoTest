@@ -10,8 +10,6 @@ import {
     SealCheckIcon,
     SmileyIcon,
     SparkleIcon,
-    StarHalfIcon,
-    StarIcon,
     StudentIcon,
     UserIcon,
     UsersThreeIcon,
@@ -54,11 +52,32 @@ const FADING_RULE: React.CSSProperties = {
         'linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent)',
 };
 
+type Stats = {
+    students: number;
+    projectsCompleted: number;
+    clientSatisfaction: number | null;
+    clients: number;
+};
+
+type TestimonialItem = {
+    quote: string;
+    name: string;
+    role: string | null;
+};
+
 /**
  * The public landing page. Reachable signed out — it is the platform's shop
  * window, so it renders for guests and never redirects to login.
+ *
+ * Every figure comes from HomeController. Nothing here is written by hand.
  */
-export default function Welcome() {
+export default function Welcome({
+    stats,
+    testimonials,
+}: {
+    stats: Stats;
+    testimonials: TestimonialItem[];
+}) {
     return (
         <PublicLayout>
             <Head title="SDPC — Student Developer Project Connection" />
@@ -189,31 +208,16 @@ export default function Welcome() {
                             </Btn>
                         </div>
 
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 12,
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    gap: 2,
-                                    color: 'var(--color-accent)',
-                                    fontSize: 15,
-                                }}
-                            >
-                                <StarIcon weight="fill" />
-                                <StarIcon weight="fill" />
-                                <StarIcon weight="fill" />
-                                <StarIcon weight="fill" />
-                                <StarHalfIcon weight="fill" />
-                            </div>
-                            <span style={{ fontSize: 13, color: MUTED(55) }}>
-                                4.7 average from 205 surveyed students
-                            </span>
-                        </div>
+                        {/*
+                         * The star rating that used to sit here was invented,
+                         * and nothing in the schema records a review to
+                         * replace it with. It comes back when there is a real
+                         * average to print.
+                         */}
+                        <p style={{ fontSize: 13, color: MUTED(55), margin: 0 }}>
+                            Free for students and for businesses in San Jose Del
+                            Monte.
+                        </p>
                     </div>
 
                     <div
@@ -299,71 +303,74 @@ export default function Welcome() {
                 >
                     <Stat
                         icon={<StudentIcon />}
-                        value="205"
-                        label="Students surveyed"
+                        value={stats.students}
+                        label={stats.students === 1 ? 'Student' : 'Students'}
                     />
                     <Stat
                         icon={<BriefcaseIcon />}
-                        value="48"
+                        value={stats.projectsCompleted}
                         label="Projects completed"
                     />
                     <Stat
                         icon={<SmileyIcon />}
-                        value="94%"
+                        value={
+                            stats.clientSatisfaction === null
+                                ? null
+                                : `${stats.clientSatisfaction}%`
+                        }
                         label="Client satisfaction"
                     />
                     <Stat
                         icon={<BuildingsIcon />}
-                        value="32"
-                        label="Local clients"
+                        value={stats.clients}
+                        label={
+                            stats.clients === 1 ? 'Local client' : 'Local clients'
+                        }
                     />
                 </div>
             </div>
 
-            {/* ── testimonials ── */}
-            <div
-                style={{
-                    maxWidth: 1240,
-                    margin: '0 auto',
-                    padding: '64px 32px 72px',
-                }}
-            >
-                <h3 style={{ margin: '0 0 6px' }}>What our clients say</h3>
-                <p
-                    style={{
-                        fontSize: 13.5,
-                        color: MUTED(55),
-                        margin: '0 0 26px',
-                    }}
-                >
-                    From businesses in San Jose Del Monte who hired a student
-                    team.
-                </p>
-
+            {/*
+             * ── testimonials ──
+             *
+             * Absent entirely until a client writes one. An empty heading over
+             * an empty row reads as something broken; no section reads as a
+             * page that simply has not got there yet.
+             */}
+            {testimonials.length > 0 && (
                 <div
                     style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(3,1fr)',
-                        gap: 20,
+                        maxWidth: 1240,
+                        margin: '0 auto',
+                        padding: '64px 32px 72px',
                     }}
                 >
-                    <Testimonial
-                        quote="We had a POS spec sitting in a folder for two years. A student team scoped it in a week and shipped in eight."
-                        name="Lolene Javier"
-                        role="Owner, Javier Hardware"
-                    />
-                    <Testimonial
-                        quote="The progress board settled my biggest worry. I could see the build move every day without chasing anyone."
-                        name="Shiah Carly"
-                        role="Manager, Grocery Store"
-                    />
-                    <Testimonial
-                        quote="Matching suggested three students. The first one we messaged already knew our inventory problem."
-                        name="Nano Buyani"
-                        role="Founder, HandyGo"
-                    />
+                    <h3 style={{ margin: '0 0 6px' }}>What our clients say</h3>
+                    <p
+                        style={{
+                            fontSize: 13.5,
+                            color: MUTED(55),
+                            margin: '0 0 26px',
+                        }}
+                    >
+                        From businesses in San Jose Del Monte who hired a
+                        student team.
+                    </p>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns:
+                                'repeat(auto-fit,minmax(300px,1fr))',
+                            gap: 20,
+                        }}
+                    >
+                        {testimonials.map((testimonial, index) => (
+                            <Testimonial key={index} {...testimonial} />
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* ── footer ── */}
             <div style={FOOTER_BAND}>
@@ -439,13 +446,19 @@ function ValueCell({ icon, label }: { icon: ReactNode; label: string }) {
     );
 }
 
+/**
+ * One figure in the stat band.
+ *
+ * A null value renders as a dash: it means nothing has been measured yet,
+ * which is not the same claim as zero.
+ */
 function Stat({
     icon,
     value,
     label,
 }: {
     icon: ReactNode;
-    value: string;
+    value: string | number | null;
     label: string;
 }) {
     return (
@@ -459,9 +472,10 @@ function Stat({
                         fontFamily: 'var(--font-heading)',
                         fontSize: 24,
                         lineHeight: 1,
+                        opacity: value === null ? 0.45 : 1,
                     }}
                 >
-                    {value}
+                    {value ?? '—'}
                 </div>
                 <div
                     style={{
@@ -477,15 +491,7 @@ function Stat({
     );
 }
 
-function Testimonial({
-    quote,
-    name,
-    role,
-}: {
-    quote: string;
-    name: string;
-    role: string;
-}) {
+function Testimonial({ quote, name, role }: TestimonialItem) {
     return (
         <div className="card elev-sm" style={{ padding: 20, gap: 16 }}>
             <p
@@ -510,7 +516,11 @@ function Testimonial({
                 </span>
                 <div>
                     <div style={{ fontSize: 13.5 }}>{name}</div>
-                    <div style={{ fontSize: 11, color: MUTED(50) }}>{role}</div>
+                    {role !== null && (
+                        <div style={{ fontSize: 11, color: MUTED(50) }}>
+                            {role}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

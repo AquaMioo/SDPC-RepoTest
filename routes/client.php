@@ -6,6 +6,7 @@ use App\Http\Controllers\Client\ProjectApplicationController;
 use App\Http\Controllers\Client\ProjectController;
 use App\Http\Controllers\Client\RecruitController;
 use App\Http\Controllers\Client\StudentProfileController;
+use App\Http\Controllers\Client\TestimonialController;
 use App\Http\Middleware\EnsureAccountIsVerified;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Http\Middleware\EnsureUserIsClient;
@@ -56,4 +57,15 @@ Route::prefix('{current_team}')
 
         Route::get('business-profile', [ClientProfileController::class, 'edit'])->name('client-profile.edit');
         Route::patch('business-profile', [ClientProfileController::class, 'update'])->name('client-profile.update');
+
+        /*
+         * Speaking publicly waits for `verified` for the same reason posting
+         * work does: the landing page carries these quotes as the platform's
+         * own social proof, so the business behind one has to be a business an
+         * administrator has actually accepted. Taking one down never waits for
+         * anything — a business that loses its verification can still retract
+         * what it said.
+         */
+        Route::put('testimonial', [TestimonialController::class, 'update'])->middleware($verified)->name('testimonial.update');
+        Route::delete('testimonial', [TestimonialController::class, 'destroy'])->name('testimonial.destroy');
     });

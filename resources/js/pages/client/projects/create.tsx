@@ -13,14 +13,18 @@ import {
     CATEGORIES,
     INDUSTRIES,
     projectFormCompletion,
-    WEEKLY_COMMITMENTS,
 } from '@/types/client';
 
 type Props = {
     options: ProjectFormOptions;
+    /** False when projects.auto_approve skips the admin review queue. */
+    reviewedBeforeGoingLive: boolean;
 };
 
-export default function CreateProject({ options }: Props) {
+export default function CreateProject({
+    options,
+    reviewedBeforeGoingLive,
+}: Props) {
     const team = useCurrentTeam();
 
     const form = useForm<ProjectFormValues>({
@@ -30,21 +34,6 @@ export default function CreateProject({ options }: Props) {
         category: CATEGORIES[0],
         industry: INDUSTRIES[0],
         skills: [],
-        team_size: 1,
-        experience_level: options.experienceLevels[0]?.value ?? 'any',
-        open_to_capstone_groups: true,
-        budget_type: options.budgetTypes[0]?.value ?? 'fixed',
-        budget_amount: null,
-        hide_budget: false,
-        start_date: '',
-        target_delivery_date: '',
-        application_deadline: '',
-        weekly_commitment: WEEKLY_COMMITMENTS[0],
-        milestones: [],
-        visibility: options.visibilities[0]?.value ?? 'all_students',
-        preferred_school_id: null,
-        preferred_course_id: null,
-        preferred_year_level: null,
         status: 'pending_review',
     });
 
@@ -90,8 +79,9 @@ export default function CreateProject({ options }: Props) {
 
                     <div className="flex flex-wrap items-center gap-2.5">
                         <span className="mr-auto text-[11.5px] text-muted-foreground">
-                            Postings are screened by the platform admin before
-                            they go live.
+                            {reviewedBeforeGoingLive
+                                ? 'Postings are screened by the platform admin before they go live.'
+                                : 'Publishing puts this straight on the student board.'}
                         </span>
                         <Button
                             type="button"
@@ -121,8 +111,11 @@ export default function CreateProject({ options }: Props) {
                         </div>
 
                         <p className="m-0 text-[12.5px] leading-relaxed opacity-85">
-                            Matching runs once an administrator approves the
-                            posting. A fuller brief produces stronger matches.
+                            {reviewedBeforeGoingLive
+                                ? 'Matching runs once an administrator approves the posting.'
+                                : 'Matching runs as soon as you publish.'}{' '}
+                            A fuller brief produces stronger matches — the words
+                            you use here are what students are ranked against.
                         </p>
 
                         <Meter
@@ -160,7 +153,7 @@ export default function CreateProject({ options }: Props) {
                                 training the turnover needs.
                             </div>
                             <div>
-                                Keep milestones to three or four. Fewer, larger
+                                Keep the brief tight. Fewer, clearer
                                 checkpoints are easier to approve.
                             </div>
                         </div>

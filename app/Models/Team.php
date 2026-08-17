@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Membership> $memberships
  * @property-read Collection<int, User> $members
  * @property-read ClientProfile|null $clientProfile
+ * @property-read Testimonial|null $testimonial
  * @property-read Collection<int, Project> $projects
  */
 #[Fillable(['name', 'slug', 'is_personal'])]
@@ -138,6 +139,16 @@ class Team extends Model
     public function clientProfile(): HasOne
     {
         return $this->hasOne(ClientProfile::class);
+    }
+
+    /**
+     * Get what this business says about working with a student team.
+     *
+     * @return HasOne<Testimonial, $this>
+     */
+    public function testimonial(): HasOne
+    {
+        return $this->hasOne(Testimonial::class);
     }
 
     /**

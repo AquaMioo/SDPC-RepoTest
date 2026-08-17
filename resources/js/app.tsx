@@ -1,7 +1,6 @@
 import { createInertiaApp } from '@inertiajs/react';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { initializeTheme } from '@/hooks/use-appearance';
 import AdminLayout from '@/layouts/admin-layout';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
@@ -25,7 +24,11 @@ createInertiaApp({
                 return AdminLayout;
             case name.startsWith('auth/'):
                 return AuthLayout;
+            // Client, student and the messaging they share all wear the same
+            // shell; it picks its nav from the signed-in role.
             case name.startsWith('client/'):
+            case name.startsWith('student/'):
+            case name.startsWith('messaging/'):
                 return ClientLayout;
             // Settings is shared by both portals, so the chrome is picked from
             // the signed-in role rather than fixed here.
@@ -50,5 +53,3 @@ createInertiaApp({
     },
 });
 
-// This will set light / dark mode on load...
-initializeTheme();

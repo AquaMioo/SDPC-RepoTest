@@ -15,14 +15,19 @@ import {
 } from '@/components/ui/tooltip';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { useMod } from '@/hooks/use-mod';
+import { dashboard } from '@/routes';
 import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
+import { index as messagesIndex } from '@/routes/messages';
 import { edit as profileEdit } from '@/routes/profile';
 import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
+import { workflow as studentWorkflow } from '@/routes/student';
+import { index as studentBoard } from '@/routes/student/board';
 
 type SharedProps = {
     auth?: { user?: { name: string; role: string } | null; role?: string | null };
+    unreadMessages?: number;
 };
 
 type NavItem = {
@@ -70,11 +75,22 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
 
     useMod('user');
 
+    /** Each role's own front door — the client module 403s a student. */
+    const home = isStudent
+        ? dashboard.url(team.slug)
+        : clientDashboard.url(team.slug);
+
+    /*
+     * The student links point at routes/student.php, never at the client
+     * module's — everything under routes/client.php sits behind
+     * EnsureUserIsClient, so sending a student to Recruit or Projects would
+     * abort with a 403.
+     */
     const navigation: NavItem[] = isStudent
         ? [
-              { label: 'Dashboard', href: clientDashboard.url(team.slug) },
-              { label: 'Get Client', href: recruitIndex.url(team.slug) },
-              { label: 'Workflow', href: projectsIndex.url(team.slug) },
+              { label: 'Dashboard', href: dashboard.url(team.slug) },
+              { label: 'Get Client', href: studentBoard.url(team.slug) },
+              { label: 'Workflow', href: studentWorkflow.url(team.slug) },
               {
                   label: 'Performance',
                   pending: 'Arrives with the Payments module',
@@ -128,7 +144,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         padding: '14px 32px',
                     }}
                 >
-                    <Link href={clientDashboard.url(team.slug)} style={BRAND}>
+                    <Link href={home} style={BRAND}>
                         SDPCC
                     </Link>
 
@@ -169,7 +185,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                     >
                         <IconAction
                             label="Messages"
-                            pending="Arrives with the Messaging module"
+                            href={messagesIndex.url(team.slug)}
+                            badge={page.props.unreadMessages ?? 0}
                         >
                             <ChatCircleIcon />
                         </IconAction>
@@ -179,12 +196,21 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         >
                             <BellIcon />
                         </IconAction>
-                        <IconAction
-                            label="Business profile"
-                            href={clientProfileEdit.url(team.slug)}
-                        >
-                            <UserCircleIcon />
-                        </IconAction>
+                        {isStudent ? (
+                            <IconAction
+                                label="Your profile"
+                                href={profileEdit.url()}
+                            >
+                                <UserCircleIcon />
+                            </IconAction>
+                        ) : (
+                            <IconAction
+                                label="Business profile"
+                                href={clientProfileEdit.url(team.slug)}
+                            >
+                                <UserCircleIcon />
+                            </IconAction>
+                        )}
                         <IconAction label="Settings" href={profileEdit.url()}>
                             <GearSixIcon />
                         </IconAction>
@@ -249,11 +275,14 @@ function IconAction({
     label,
     href,
     pending,
+    badge = 0,
     children,
 }: {
     label: string;
     href?: string;
     pending?: string;
+    /** Unread count; anything above zero paints a dot on the icon. */
+    badge?: number;
     children: ReactNode;
 }) {
     if (!href) {
@@ -276,13 +305,38 @@ function IconAction({
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <Btn asChild icon variant="bare" style={{ color: 'var(--color-text)' }}>
-                    <Link href={href} aria-label={label}>
+                <Btn
+                    asChild
+                    icon
+                    variant="bare"
+                    style={{ color: 'var(--color-text)', position: 'relative' }}
+                >
+                    <Link
+                        href={href}
+                        aria-label={
+                            badge > 0 ? `${label} (${badge} unread)` : label
+                        }
+                    >
                         {children}
+                        {badge > 0 && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: 2,
+                                    right: 2,
+                                    minWidth: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    background: 'var(--color-accent)',
+                                }}
+                            />
+                        )}
                     </Link>
                 </Btn>
             </TooltipTrigger>
-            <TooltipContent>{label}</TooltipContent>
+            <TooltipContent>
+                {badge > 0 ? `${label} · ${badge} unread` : label}
+            </TooltipContent>
         </Tooltip>
     );
 }

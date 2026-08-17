@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminIssueController;
 use App\Http\Controllers\Admin\AdminLoginController;
 use App\Http\Controllers\Admin\AdminOverviewController;
+use App\Http\Controllers\Admin\AdminPostingController;
 use App\Http\Controllers\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
@@ -49,6 +50,17 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
             ->name('businesses.permit');
         Route::patch('businesses/{business}', [AdminBusinessController::class, 'update'])
             ->name('businesses.update');
+
+        /*
+         * The third review queue. A posting sits in pending_review until it is
+         * approved here, and the student board only lists open postings — so
+         * skipping this screen means nothing a client writes ever reaches a
+         * student.
+         */
+        Route::get('postings', [AdminPostingController::class, 'index'])
+            ->name('postings.index');
+        Route::patch('postings/{posting}', [AdminPostingController::class, 'update'])
+            ->name('postings.update');
 
         Route::get('credentials', [AdminCredentialController::class, 'index'])
             ->name('credentials.index');

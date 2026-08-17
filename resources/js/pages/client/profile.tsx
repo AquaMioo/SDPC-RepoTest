@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { update as clientProfileUpdate } from '@/routes/client-profile';
+import {
+    destroy as testimonialDestroy,
+    update as testimonialUpdate,
+} from '@/routes/testimonial';
 
 type Props = {
     profile: {
@@ -26,10 +30,21 @@ type Props = {
         verificationTagVariant: string;
         completion: number;
     };
+    testimonial: {
+        body: string;
+        authorTitle: string | null;
+        updatedAt: string | null;
+    } | null;
+    canPublishTestimonial: boolean;
     canUpdate: boolean;
 };
 
-export default function ClientProfilePage({ profile, canUpdate }: Props) {
+export default function ClientProfilePage({
+    profile,
+    testimonial,
+    canPublishTestimonial,
+    canUpdate,
+}: Props) {
     const team = useCurrentTeam();
 
     const { data, setData, post, processing, errors, recentlySuccessful } =
@@ -48,6 +63,16 @@ export default function ClientProfilePage({ profile, canUpdate }: Props) {
             logo: null as File | null,
             permit: null as File | null,
         });
+
+    /*
+     * Kept out of the profile form on purpose: this one is public copy on the
+     * landing page, saved and withdrawn on its own, and a client should be
+     * able to pull a quote down without re-submitting their whole business.
+     */
+    const quote = useForm({
+        body: testimonial?.body ?? '',
+        author_title: testimonial?.authorTitle ?? '',
+    });
 
     return (
         <>
@@ -340,6 +365,115 @@ export default function ClientProfilePage({ profile, canUpdate }: Props) {
                         </Panel>
                     )}
                 </aside>
+            </form>
+
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    quote.put(testimonialUpdate.url(team.slug), {
+                        preserveScroll: true,
+                    });
+                }}
+                className="mx-auto max-w-[1060px] px-8 pb-[72px]"
+            >
+                <Panel padding="lg" gap="lg">
+                    <div className="flex items-end gap-4">
+                        <div className="mr-auto">
+                            <h6 className="m-0">Your words on the homepage</h6>
+                            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+                                Tell visitors what working with a student team
+                                was like. It appears on the public landing page
+                                under your business name, and stays there until
+                                you remove it.
+                            </p>
+                        </div>
+                        {testimonial?.updatedAt && (
+                            <Tag variant="accent">
+                                Live since {testimonial.updatedAt}
+                            </Tag>
+                        )}
+                    </div>
+
+                    {!canPublishTestimonial && (
+                        <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+                            Your business needs to be verified before your
+                            quote can go on the homepage.
+                        </p>
+                    )}
+
+                    <Field label="What you would tell another business" error={quote.errors.body}>
+                        {(props) => (
+                            <textarea
+                                {...props}
+                                className="min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                maxLength={400}
+                                disabled={!canPublishTestimonial}
+                                placeholder="We had a spec sitting in a folder for two years…"
+                                value={quote.data.body}
+                                onChange={(e) =>
+                                    quote.setData('body', e.target.value)
+                                }
+                            />
+                        )}
+                    </Field>
+
+                    <div className="grid gap-3.5 sm:grid-cols-2">
+                        <Field
+                            label="Your role at the business"
+                            error={quote.errors.author_title}
+                        >
+                            {(props) => (
+                                <Input
+                                    {...props}
+                                    placeholder="Owner"
+                                    disabled={!canPublishTestimonial}
+                                    value={quote.data.author_title}
+                                    onChange={(e) =>
+                                        quote.setData(
+                                            'author_title',
+                                            e.target.value,
+                                        )
+                                    }
+                                />
+                            )}
+                        </Field>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                        <span className="mr-auto text-[12px] text-muted-foreground">
+                            {quote.recentlySuccessful
+                                ? 'Saved.'
+                                : `${quote.data.body.length}/400`}
+                        </span>
+
+                        {testimonial !== null && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() =>
+                                    quote.delete(
+                                        testimonialDestroy.url(team.slug),
+                                        { preserveScroll: true },
+                                    )
+                                }
+                            >
+                                Remove from homepage
+                            </Button>
+                        )}
+
+                        <Button
+                            type="submit"
+                            disabled={quote.processing || !canPublishTestimonial}
+                            className="px-5"
+                        >
+                            {quote.processing
+                                ? 'Saving…'
+                                : testimonial === null
+                                  ? 'Publish'
+                                  : 'Update'}
+                        </Button>
+                    </div>
+                </Panel>
             </form>
         </>
     );

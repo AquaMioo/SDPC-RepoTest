@@ -36,10 +36,12 @@ class RespondToApplication
     }
 
     /**
-     * Move the posting into progress once the requested team size is met.
+     * Move the posting into progress on the first acceptance.
      *
-     * Intake closes at the same time so late applicants are not left waiting
-     * on a decision that will never come.
+     * A posting no longer states how many students it wants, so there is no
+     * headcount to be "fully staffed" against. Accepting somebody is the
+     * moment the work starts, and intake stays open afterwards — the client
+     * may still want more people, and can pause applications themselves.
      */
     protected function startProjectIfFullyStaffed(Application $application): void
     {
@@ -49,16 +51,13 @@ class RespondToApplication
             ->where('status', ApplicationStatus::Accepted)
             ->count();
 
-        if ($acceptedCount < $project->team_size) {
+        if ($acceptedCount !== 1 || $project->status === ProjectStatus::InProgress) {
             return;
         }
 
         $previousStatus = $project->status;
 
-        $project->update([
-            'status' => ProjectStatus::InProgress,
-            'applications_open' => false,
-        ]);
+        $project->update(['status' => ProjectStatus::InProgress]);
 
         Notification::send(
             $project->team->members,

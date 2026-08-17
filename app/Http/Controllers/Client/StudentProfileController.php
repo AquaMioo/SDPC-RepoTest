@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Client;
 
 use App\Enums\ApplicationStatus;
+use App\Enums\ProjectStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Models\Application;
+use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -26,6 +29,11 @@ class StudentProfileController extends Controller
 
         $profile->load(['school', 'course', 'skills']);
 
+        $links = $user->applications()
+            ->whereHas('project', fn ($query) => $query->where('team_id', $request->user()->current_team_id))
+            ->with('project:id,slug,title')
+            ->get();
+
         return Inertia::render('client/students/show', [
             'student' => [
                 'id' => $user->id,
@@ -38,23 +46,40 @@ class StudentProfileController extends Controller
                 'githubUrl' => $profile->github_url,
                 'portfolioUrl' => $profile->portfolio_url,
                 'isAvailable' => $profile->is_available,
-                'hourlyRate' => $profile->hourly_rate,
+                /** Deliberately not sent — see RecruitController::toCard(). */
                 'rating' => (float) $profile->rating_average,
                 'completedProjects' => $profile->completed_projects_count,
                 'skills' => $profile->skills->map->only(['name', 'type']),
             ],
             /** Lets the profile screen show "already invited" instead of a dead invite button. */
-            'existingApplications' => $user->applications()
-                ->whereHas('project', fn ($query) => $query->where('team_id', $request->user()->current_team_id))
-                ->with('project:id,slug,title')
-                ->get()
-                ->map(fn ($application) => [
-                    'projectSlug' => $application->project->slug,
-                    'projectTitle' => $application->project->title,
-                    'status' => $application->status->value,
-                    'statusLabel' => $application->status->label(),
-                    'isAccepted' => $application->status === ApplicationStatus::Accepted,
-                ]),
+            'existingApplications' => $links->map(fn (Application $application) => [
+                'projectId' => $application->project->id,
+                'projectSlug' => $application->project->slug,
+                'projectTitle' => $application->project->title,
+                'status' => $application->status->value,
+                'statusLabel' => $application->status->label(),
+                'isAccepted' => $application->status === ApplicationStatus::Accepted,
+            ])->values(),
+
+            /*
+             * The postings this student is not already on. Without these the
+             * screen could show a profile but offer nothing to do with it,
+             * which is what the recruit flow used to dead-end into.
+             */
+            'invitableProjects' => Project::query()
+                ->forTeam($request->user()->currentTeam)
+                ->whereIn('status', [ProjectStatus::Open, ProjectStatus::PendingReview, ProjectStatus::InProgress])
+                ->whereNotIn('id', $links->pluck('project.id'))
+                ->orderBy('title')
+                ->get(['id', 'slug', 'title'])
+                ->map(fn (Project $project) => [
+                    'id' => $project->id,
+                    'slug' => $project->slug,
+                    'title' => $project->title,
+                ])
+                ->values(),
+
+            'canInvite' => $request->user()->isVerifiedForOperating(),
         ]);
     }
 }

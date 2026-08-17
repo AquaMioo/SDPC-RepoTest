@@ -4,6 +4,7 @@ namespace App\Services\Recommendation;
 
 use App\Models\Project;
 use App\Models\Recommendation;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
@@ -28,6 +29,25 @@ class StoredRecommendationService implements RecommendationService
             ->get()
             ->mapWithKeys(fn (Recommendation $recommendation) => [
                 $recommendation->user_id => [
+                    'score' => (float) $recommendation->score,
+                    'compatibility' => $recommendation->compatibility_percentage,
+                    'reason' => $recommendation->reason ?? [],
+                ],
+            ]);
+    }
+
+    /**
+     * Get recommendation scores for a student, keyed by project id.
+     *
+     * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
+     */
+    public function scoresForStudent(User $student): Collection
+    {
+        return Recommendation::query()
+            ->where('user_id', $student->id)
+            ->get()
+            ->mapWithKeys(fn (Recommendation $recommendation) => [
+                $recommendation->project_id => [
                     'score' => (float) $recommendation->score,
                     'compatibility' => $recommendation->compatibility_percentage,
                     'reason' => $recommendation->reason ?? [],

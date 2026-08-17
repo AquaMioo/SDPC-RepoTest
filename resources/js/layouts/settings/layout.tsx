@@ -1,7 +1,6 @@
 import { Link } from '@inertiajs/react';
 import {
     LockSimpleIcon,
-    PaletteIcon,
     SignOutIcon,
     UserIcon,
     UsersThreeIcon,
@@ -11,7 +10,6 @@ import type { ComponentType, PropsWithChildren, ReactNode } from 'react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { toUrl } from '@/lib/utils';
 import { logout } from '@/routes';
-import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import { index as teams } from '@/routes/teams';
@@ -69,7 +67,6 @@ type SettingsNavItem = NavItem & { icon: ComponentType<{ size?: number }> };
 const navItems: SettingsNavItem[] = [
     { title: 'Account', href: editProfile(), icon: UserIcon },
     { title: 'Security', href: editSecurity(), icon: LockSimpleIcon },
-    { title: 'Appearance', href: editAppearance(), icon: PaletteIcon },
 ];
 
 const teamItems: SettingsNavItem[] = [

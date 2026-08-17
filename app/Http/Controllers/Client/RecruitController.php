@@ -5,15 +5,23 @@ namespace App\Http\Controllers\Client;
 use App\Data\StudentFilters;
 use App\Enums\SkillType;
 use App\Http\Controllers\Controller;
+use App\Models\Application;
 use App\Models\Course;
 use App\Models\Project;
 use App\Models\School;
 use App\Models\Skill;
 use App\Models\StudentProfile;
+use App\Models\Team;
 use App\Models\User;
+use App\Services\Matching\ScopeProfile;
+use App\Services\Matching\SkillInference;
+use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\RecommendationService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,15 +34,36 @@ class RecruitController extends Controller
     {
         $filters = StudentFilters::fromRequest($request);
         $project = $this->contextProject($request);
+        $scope = $this->scope($project, $filters->search);
 
-        $scores = $project !== null
-            ? $recommendations->scoresFor($project)
-            : collect();
+        /*
+         * A search box that does two jobs. "Reyes" is a name to filter on, but
+         * "POS to my website system" is a description of work — matching that
+         * against names and headlines finds nobody, which made the whole
+         * feature unreachable. When the words describe a scope, they rank
+         * instead of filter.
+         */
+        $isScopeSearch = $project === null
+            && $scope !== null
+            && $recommendations instanceof ComputedRecommendationService;
 
-        $students = $this->query($filters)
-            ->paginate(24)
-            ->withQueryString()
-            ->through(fn (StudentProfile $profile) => $this->toCard($profile, $scores->get($profile->user_id)));
+        $students = $isScopeSearch
+            ? $this->rankedByScope($filters, $scope, $recommendations, $request)
+            : $this->query($filters)->paginate(24)->withQueryString();
+
+        $scores = match (true) {
+            $project !== null => $recommendations->scoresFor($project),
+            $isScopeSearch => $recommendations->scoresForSearch($filters->search, $students->getCollection()),
+            default => collect(),
+        };
+
+        $threads = $this->openThreads($request->user()->currentTeam, $students->getCollection());
+
+        $students->through(fn (StudentProfile $profile) => $this->toCard(
+            $profile,
+            $scores->get($profile->user_id),
+            $threads->get($profile->user_id),
+        ));
 
         return Inertia::render('client/recruit', [
             'students' => $students,
@@ -49,7 +78,9 @@ class RecruitController extends Controller
                 'slug' => $project->slug,
                 'title' => $project->title,
             ],
-            'matchingEnabled' => $recommendations->isEnabled(),
+            /* True only when something was actually scored on this request. */
+            'matchingEnabled' => $scores->isNotEmpty(),
+            'scopeSkills' => $this->scopeSkills($project, $filters->search),
         ]);
     }
 
@@ -58,12 +89,12 @@ class RecruitController extends Controller
      *
      * @return Builder<StudentProfile>
      */
-    protected function query(StudentFilters $filters): Builder
+    protected function query(StudentFilters $filters, bool $applySearch = true): Builder
     {
         return StudentProfile::query()
             ->with(['user', 'school', 'course', 'skills'])
             ->when($filters->availableOnly, fn (Builder $query) => $query->available())
-            ->when($filters->search, fn (Builder $query, string $search) => $query
+            ->when($applySearch ? $filters->search : null, fn (Builder $query, string $search) => $query
                 ->where(fn (Builder $inner) => $inner
                     ->whereHas('user', fn (Builder $user) => $user->where('name', 'like', "%{$search}%"))
                     ->orWhere('headline', 'like', "%{$search}%")
@@ -119,12 +150,131 @@ class RecruitController extends Controller
     }
 
     /**
+     * Resolve the scope being matched against, if there is one.
+     */
+    protected function scope(?Project $project, ?string $search): ?ScopeProfile
+    {
+        $inference = app(SkillInference::class);
+
+        $scope = match (true) {
+            $project !== null => ScopeProfile::fromProject($project, $inference),
+            $search !== null => ScopeProfile::fromSearch($search, $inference),
+            default => null,
+        };
+
+        return $scope?->isMeaningful() === true ? $scope : null;
+    }
+
+    /**
+     * Rank students against a described scope, best fit first.
+     *
+     * Scoring happens before paging rather than after, or "best match" would
+     * only mean "best on whichever page you happen to be looking at".
+     *
+     * @return LengthAwarePaginator<int, StudentProfile>
+     */
+    protected function rankedByScope(
+        StudentFilters $filters,
+        ScopeProfile $scope,
+        ComputedRecommendationService $recommendations,
+        Request $request,
+    ): LengthAwarePaginator {
+        $candidates = $this->query($filters, applySearch: false)
+            /*
+             * Anyone holding at least one skill the scope calls for. Without
+             * this every student on the platform is a candidate, and the ones
+             * scoring near zero drown the ones who can do the work.
+             */
+            ->whereHas('skills', fn (Builder $skill) => $skill->whereIn('slug', $scope->allSkills()))
+            ->get();
+
+        $scores = $recommendations->scoresForSearch($scope->text, $candidates);
+
+        $ranked = $candidates
+            ->sortByDesc(fn (StudentProfile $profile) => $scores->get($profile->user_id)['compatibility'] ?? 0)
+            ->values();
+
+        $perPage = 24;
+        $page = max(1, (int) $request->query('page', 1));
+
+        return new LengthAwarePaginator(
+            $ranked->forPage($page, $perPage)->values(),
+            $ranked->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+    }
+
+    /**
+     * Get the skills the current scope implies, for the client to see.
+     *
+     * This is the half of the answer a percentage cannot give: searching "POS
+     * for my store" should say out loud that building one means payment
+     * integration and MySQL, so the client knows what they are shopping for.
+     *
+     * @return list<array{name: string, slug: string, isRequired: bool}>
+     */
+    protected function scopeSkills(?Project $project, ?string $search): array
+    {
+        $inference = app(SkillInference::class);
+
+        $scope = match (true) {
+            $project !== null => ScopeProfile::fromProject($project, $inference),
+            $search !== null => ScopeProfile::fromSearch($search, $inference),
+            default => null,
+        };
+
+        if ($scope === null || ! $scope->isMeaningful()) {
+            return [];
+        }
+
+        $required = $scope->requiredSkills->flip();
+
+        return Skill::query()
+            ->whereIn('slug', $scope->allSkills())
+            ->orderBy('name')
+            ->get(['slug', 'name'])
+            ->map(fn (Skill $skill) => [
+                'slug' => $skill->slug,
+                'name' => $skill->name,
+                'isRequired' => $required->has($skill->slug),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Map each listed student to a posting they can already be messaged through.
+     *
+     * A conversation needs an applications row behind it, so the grid's Message
+     * button is only live for students this team has already invited or hired.
+     * Without this the button would 403 for almost everyone on the page.
+     *
+     * @param  EloquentCollection<int, StudentProfile>  $profiles
+     * @return Collection<int, int>
+     */
+    protected function openThreads(Team $team, EloquentCollection $profiles): Collection
+    {
+        if ($profiles->isEmpty()) {
+            return collect();
+        }
+
+        return Application::query()
+            ->whereIn('user_id', $profiles->pluck('user_id'))
+            ->whereHas('project', fn (Builder $query) => $query->where('team_id', $team->id))
+            /* Ascending, so the newest row is the one left standing per student. */
+            ->orderBy('id')
+            ->pluck('project_id', 'user_id');
+    }
+
+    /**
      * Shape a student for the recruit grid.
      *
      * @param  array{score: float, compatibility: int, reason: array<string, mixed>}|null  $score
      * @return array<string, mixed>
      */
-    protected function toCard(StudentProfile $profile, ?array $score): array
+    protected function toCard(StudentProfile $profile, ?array $score, ?int $messageableProjectId = null): array
     {
         return [
             'id' => $profile->user_id,
@@ -135,10 +285,23 @@ class RecruitController extends Controller
             'yearLevel' => $profile->year_level,
             'rating' => (float) $profile->rating_average,
             'completedProjects' => $profile->completed_projects_count,
-            'hourlyRate' => $profile->hourly_rate,
+            /*
+             * No rate on the card. The work is a capstone build, and what the
+             * arrangement is gets settled between the two of them in messages,
+             * not advertised as an hourly price on a grid.
+             */
             'isAvailable' => $profile->is_available,
             'skills' => $profile->skills->take(4)->pluck('name'),
+            /** Null means the card sends them to the profile to invite first. */
+            'messageableProjectId' => $messageableProjectId,
             'compatibility' => $score['compatibility'] ?? null,
+            /*
+             * The reasoning, not just the number. A percentage on its own
+             * gives a client nothing to decide with.
+             */
+            'insight' => $score['reason']['insight'] ?? null,
+            'matchedSkills' => $score['reason']['matchedSkills'] ?? [],
+            'missingSkills' => $score['reason']['missingSkills'] ?? [],
         ];
     }
 

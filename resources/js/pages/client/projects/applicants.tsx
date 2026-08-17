@@ -5,6 +5,7 @@ import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { update as applicationsUpdate } from '@/routes/applications';
+import { store as messagesStore } from '@/routes/messages';
 import { show as studentsShow } from '@/routes/students';
 
 type Applicant = {
@@ -29,12 +30,19 @@ type Applicant = {
 };
 
 type Props = {
-    project: { slug: string; title: string; teamSize: number };
+    project: { id: number; slug: string; title: string; teamSize: number };
     applications: Applicant[];
 };
 
 export default function Applicants({ project, applications }: Props) {
     const team = useCurrentTeam();
+
+    /** Opens the thread for this posting and student, creating it if needed. */
+    const message = (application: Applicant) =>
+        router.post(messagesStore.url(team.slug), {
+            project_id: project.id,
+            user_id: application.student.id,
+        });
 
     const respond = (application: Applicant, status: string) => {
         router.patch(
@@ -55,8 +63,7 @@ export default function Applicants({ project, applications }: Props) {
                 <div className="mb-5">
                     <h3 className="m-0">Applicants</h3>
                     <div className="text-[13px] text-muted-foreground">
-                        {project.title} · looking for {project.teamSize} student
-                        {project.teamSize === 1 ? '' : 's'}
+                        {project.title}
                     </div>
                 </div>
 
@@ -154,6 +161,17 @@ export default function Applicants({ project, applications }: Props) {
                                         </p>
                                     </>
                                 )}
+
+                                <div className="flex flex-wrap gap-2">
+                                    {/* Available whatever the status: a
+                                        rejection is often worth a sentence. */}
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => message(application)}
+                                    >
+                                        Message
+                                    </Button>
+                                </div>
 
                                 {application.isActionable && (
                                     <div className="flex flex-wrap gap-2">

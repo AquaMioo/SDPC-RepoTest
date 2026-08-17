@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\VerifiesStudentCredentials;
 use App\Services\Credentials\AutomatedCredentialVerifier;
+use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\StoredRecommendationService;
 use Carbon\CarbonImmutable;
@@ -22,10 +23,13 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         /**
-         * Swap this binding for the AI module's implementation once scoring
-         * exists; nothing in the Client Module needs to change.
+         * Matching runs through this one binding, so both modules stay unaware
+         * of how a score was arrived at. See config/recommendations.php.
          */
-        $this->app->bind(RecommendationService::class, StoredRecommendationService::class);
+        $this->app->bind(RecommendationService::class, fn () => match (config('recommendations.driver')) {
+            'stored' => $this->app->make(StoredRecommendationService::class),
+            default => $this->app->make(ComputedRecommendationService::class),
+        });
 
         // Swap this binding to route credential checks at a real verification
         // provider. Everything else — controller, job, UI — stays as is.

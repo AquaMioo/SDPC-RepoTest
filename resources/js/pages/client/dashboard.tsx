@@ -17,6 +17,7 @@ import type { DashboardInvitation } from '@/types';
 
 type Props = {
     pendingInvitations?: DashboardInvitation[];
+    canPostProject: boolean;
     stats: {
         projectsPosted: number;
         activeProjects: number;
@@ -44,6 +45,7 @@ type Props = {
 
 export default function ClientDashboard({
     pendingInvitations = [],
+    canPostProject,
     stats,
     profileCompletion,
     recentActivity,
@@ -80,12 +82,15 @@ export default function ClientDashboard({
                             {team.name}
                         </div>
                     </div>
-                    <Button asChild>
-                        <Link href={projectsCreate.url(team.slug)}>
-                            <PlusIcon />
-                            Post a Job
-                        </Link>
-                    </Button>
+                    {/* Hidden while the team's one posting slot is taken. */}
+                    {canPostProject && (
+                        <Button asChild>
+                            <Link href={projectsCreate.url(team.slug)}>
+                                <PlusIcon />
+                                Post a Job
+                            </Link>
+                        </Button>
+                    )}
                 </div>
 
                 <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

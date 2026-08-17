@@ -29,11 +29,18 @@ class ProjectPolicy
 
     /**
      * Determine whether the user can post a new project.
+     *
+     * A team runs one project at a time. The slot is held by any posting that
+     * is not finished — a draft counts, because otherwise the drawer becomes a
+     * way around the cap — and comes back once the posting is completed,
+     * closed or archived. Duplicating routes through here too, so a copy
+     * cannot slip past it either.
      */
     public function create(User $user): bool
     {
         return $user->currentTeam !== null
-            && $user->hasTeamPermission($user->currentTeam, TeamPermission::ManageProjects);
+            && $user->hasTeamPermission($user->currentTeam, TeamPermission::ManageProjects)
+            && ! Project::query()->forTeam($user->currentTeam)->unfinished()->exists();
     }
 
     /**

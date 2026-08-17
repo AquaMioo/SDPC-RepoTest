@@ -12,6 +12,7 @@ use App\Models\TeamInvitation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,6 +27,11 @@ class ClientDashboardController extends Controller
 
         return Inertia::render('client/dashboard', [
             'stats' => $this->stats($team),
+            /*
+             * The post button is the one thing on this screen the posting cap
+             * can take away, so it has to know before it renders.
+             */
+            'canPostProject' => Gate::allows('create', Project::class),
             'profileCompletion' => $team->clientProfile?->completionPercentage() ?? 0,
             /**
              * Clients no longer pass through the generic dashboard, so the

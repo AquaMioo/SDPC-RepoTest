@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -48,6 +49,18 @@ class HandleInertiaRequests extends Middleware
                 'status' => $user?->status,
                 'isAdmin' => (bool) $user?->isAdmin(),
             ],
+            /*
+             * The header's chat icon carries this on every screen, so it is
+             * shared rather than passed page by page. Closured so the query
+             * only runs for a full page load, not a partial reload.
+             */
+            'unreadMessages' => fn (): int => $user === null
+                ? 0
+                : Conversation::query()
+                    ->forParticipant($user)
+                    ->get()
+                    ->filter(fn (Conversation $thread) => $thread->isUnreadFor($user))
+                    ->count(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'currentTeam' => fn () => $user?->currentTeam ? $user->toUserTeam($user->currentTeam) : null,
             'teams' => fn () => $user?->toUserTeams(includeCurrent: true) ?? [],

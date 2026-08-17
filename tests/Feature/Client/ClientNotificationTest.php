@@ -103,7 +103,6 @@ class ClientNotificationTest extends TestCase
         $student = User::factory()->student()->create();
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
-            'team_size' => 2,
         ]);
 
         $application = Application::factory()->create([
@@ -117,14 +116,13 @@ class ClientNotificationTest extends TestCase
         Notification::assertSentTo($student, StudentAccepted::class);
     }
 
-    public function test_the_team_is_notified_when_the_project_becomes_fully_staffed(): void
+    public function test_the_team_is_notified_when_the_first_student_is_accepted(): void
     {
         Notification::fake();
 
         $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
-            'team_size' => 1,
         ]);
 
         $application = Application::factory()->create(['project_id' => $project->id]);
@@ -141,22 +139,34 @@ class ClientNotificationTest extends TestCase
         );
     }
 
-    public function test_an_understaffed_project_does_not_announce_a_status_change(): void
+    public function test_a_second_acceptance_does_not_announce_the_start_again(): void
     {
         Notification::fake();
 
         $owner = User::factory()->verifiedBusiness()->create();
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
-            'team_size' => 3,
+            'status' => ProjectStatus::Open,
         ]);
 
-        $application = Application::factory()->create(['project_id' => $project->id]);
+        // The first acceptance is what starts the work; a posting no longer
+        // declares a headcount, so there is nothing to be understaffed
+        // against. What must not happen is announcing the start twice.
+        app(RespondToApplication::class)->handle(
+            Application::factory()->create(['project_id' => $project->id]),
+            ApplicationStatus::Accepted,
+            $owner,
+        );
 
-        app(RespondToApplication::class)
-            ->handle($application, ApplicationStatus::Accepted, $owner);
+        $this->assertSame(ProjectStatus::InProgress, $project->refresh()->status);
 
-        $this->assertSame(ProjectStatus::Open, $project->refresh()->status);
+        Notification::fake();
+
+        app(RespondToApplication::class)->handle(
+            Application::factory()->create(['project_id' => $project->id]),
+            ApplicationStatus::Accepted,
+            $owner,
+        );
 
         Notification::assertNotSentTo($owner, ProjectStatusChanged::class);
     }
@@ -239,12 +249,6 @@ class ClientNotificationTest extends TestCase
             'description' => 'Replace the spreadsheet used across three branches.',
             'category' => 'Management / inventory system',
             'skills' => ['Laravel'],
-            'team_size' => 3,
-            'experience_level' => 'any',
-            'budget_type' => 'fixed',
-            'budget_amount' => 28000,
-            'milestones' => [],
-            'visibility' => 'all_students',
             'status' => ProjectStatus::PendingReview->value,
         ], $overrides);
     }

@@ -1,14 +1,18 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import {
     GithubLogoIcon,
     LinkSimpleIcon,
     StarIcon,
     UserIcon,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
+import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { store as messagesStore } from '@/routes/messages';
 import { show as projectsShow } from '@/routes/projects';
+import { store as invitationsStore } from '@/routes/projects/invitations';
 
 type Props = {
     student: {
@@ -22,24 +26,59 @@ type Props = {
         githubUrl: string | null;
         portfolioUrl: string | null;
         isAvailable: boolean;
-        hourlyRate: number | null;
         rating: number;
         completedProjects: number;
         skills: { name: string; type: string }[];
     };
     existingApplications: {
+        projectId: number;
         projectSlug: string;
         projectTitle: string;
         statusLabel: string;
         isAccepted: boolean;
     }[];
+    invitableProjects: { id: number; slug: string; title: string }[];
+    canInvite: boolean;
 };
 
 export default function StudentProfile({
     student,
     existingApplications,
+    invitableProjects,
+    canInvite,
 }: Props) {
     const team = useCurrentTeam();
+    const [projectId, setProjectId] = useState(
+        invitableProjects[0]?.id.toString() ?? '',
+    );
+
+    const invite = useForm({ user_id: student.id });
+
+    /** Puts the student on the posting's applicant list as an invitation. */
+    const sendInvitation = () => {
+        const project = invitableProjects.find(
+            (candidate) => candidate.id.toString() === projectId,
+        );
+
+        if (project === undefined) {
+            return;
+        }
+
+        invite.post(
+            invitationsStore.url({
+                current_team: team.slug,
+                project: project.slug,
+            }),
+            { preserveScroll: true },
+        );
+    };
+
+    /** Opens the thread for this student and one of your postings. */
+    const message = (project: number) =>
+        router.post(messagesStore.url(team.slug), {
+            project_id: project,
+            user_id: student.id,
+        });
 
     return (
         <>
@@ -131,11 +170,79 @@ export default function StudentProfile({
                                         >
                                             {application.statusLabel}
                                         </Tag>
+                                        {/* The invitation is the introduction,
+                                            so a thread can open from here. */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                message(application.projectId)
+                                            }
+                                        >
+                                            Message
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
                         </Panel>
                     )}
+
+                    <Panel padding="lg" gap="lg">
+                        <div>
+                            <h6 className="m-0">Invite to a project</h6>
+                            <p className="m-0 text-[12.5px] text-muted-foreground">
+                                An invitation puts {student.name} on the
+                                posting's applicant list and opens a thread you
+                                can message them in.
+                            </p>
+                        </div>
+
+                        {!canInvite ? (
+                            <p className="m-0 text-[12.5px] text-muted-foreground">
+                                Your business needs to be verified before you
+                                can invite students.
+                            </p>
+                        ) : invitableProjects.length === 0 ? (
+                            <p className="m-0 text-[12.5px] text-muted-foreground">
+                                {existingApplications.length > 0
+                                    ? 'You have invited them to every posting you have open.'
+                                    : 'You have no open postings to invite them to yet.'}
+                            </p>
+                        ) : (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    className="input"
+                                    value={projectId}
+                                    onChange={(e) =>
+                                        setProjectId(e.target.value)
+                                    }
+                                >
+                                    {invitableProjects.map((project) => (
+                                        <option
+                                            key={project.id}
+                                            value={project.id}
+                                        >
+                                            {project.title}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Button
+                                    disabled={invite.processing}
+                                    onClick={sendInvitation}
+                                >
+                                    {invite.processing
+                                        ? 'Inviting…'
+                                        : 'Send invitation'}
+                                </Button>
+                            </div>
+                        )}
+
+                        {invite.errors.user_id && (
+                            <p className="m-0 text-[12.5px] text-destructive">
+                                {invite.errors.user_id}
+                            </p>
+                        )}
+                    </Panel>
                 </div>
 
                 <aside className="sticky top-[88px] flex flex-col gap-4">
@@ -151,11 +258,6 @@ export default function StudentProfile({
                             {student.completedProjects} completed project
                             {student.completedProjects === 1 ? '' : 's'}
                         </div>
-                        {student.hourlyRate !== null && (
-                            <div className="text-[13px]">
-                                ₱{student.hourlyRate} / hr
-                            </div>
-                        )}
                     </Panel>
 
                     {(student.githubUrl || student.portfolioUrl) && (

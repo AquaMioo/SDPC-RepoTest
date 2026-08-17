@@ -45,8 +45,35 @@ class ClientProfileController extends Controller
                 'verifiedAt' => $profile->verified_at?->toDateString(),
                 'completion' => $profile->completionPercentage(),
             ],
+            'testimonial' => $this->testimonialFor($request->user()->currentTeam),
+            /*
+             * Writing one is gated on verification the same way posting work
+             * is, so the screen can say why the box is disabled rather than
+             * bouncing the client off a middleware redirect.
+             */
+            'canPublishTestimonial' => $profile->isVerified(),
             'canUpdate' => Gate::allows('update', $profile),
         ]);
+    }
+
+    /**
+     * Shape the team's testimonial for the form, if it has written one.
+     *
+     * @return array{body: string, authorTitle: string|null, updatedAt: string|null}|null
+     */
+    protected function testimonialFor(Team $team): ?array
+    {
+        $testimonial = $team->testimonial;
+
+        if ($testimonial === null) {
+            return null;
+        }
+
+        return [
+            'body' => $testimonial->body,
+            'authorTitle' => $testimonial->author_title,
+            'updatedAt' => $testimonial->updated_at?->toDateString(),
+        ];
     }
 
     /**

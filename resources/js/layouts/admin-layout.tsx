@@ -11,7 +11,9 @@ import {
 import { useMod } from '@/hooks/use-mod';
 import { logout } from '@/routes';
 import { content, dashboard, issues } from '@/routes/admin';
+import { index as adminBusinesses } from '@/routes/admin/businesses';
 import { index as adminCredentials } from '@/routes/admin/credentials';
+import { index as adminPostings } from '@/routes/admin/postings';
 import { index as adminUsers } from '@/routes/admin/users';
 
 type NavItem = {
@@ -49,6 +51,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         { label: 'Overview', href: dashboard.url() },
         { label: 'Users', href: adminUsers.url() },
         { label: 'Credentials', href: adminCredentials.url() },
+        /* Both review queues had screens but no way to reach them. */
+        { label: 'Businesses', href: adminBusinesses.url() },
+        { label: 'Postings', href: adminPostings.url() },
         { label: 'Content', href: content.url() },
         { label: 'Issues', href: issues.url() },
         { label: 'Monitoring', pending: 'Arrives with the Monitoring module' },

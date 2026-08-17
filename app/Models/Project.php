@@ -3,10 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ApplicationStatus;
-use App\Enums\BudgetType;
-use App\Enums\ExperienceLevel;
 use App\Enums\ProjectStatus;
-use App\Enums\ProjectVisibility;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -31,21 +28,6 @@ use Illuminate\Support\Str;
  * @property string|null $objectives
  * @property string $category
  * @property string|null $industry
- * @property BudgetType $budget_type
- * @property int|null $budget_amount
- * @property bool $hide_budget
- * @property Carbon|null $start_date
- * @property Carbon|null $target_delivery_date
- * @property Carbon|null $application_deadline
- * @property Carbon|null $expected_completion_date
- * @property string|null $weekly_commitment
- * @property int $team_size
- * @property ExperienceLevel $experience_level
- * @property bool $open_to_capstone_groups
- * @property ProjectVisibility $visibility
- * @property int|null $preferred_school_id
- * @property int|null $preferred_course_id
- * @property int|null $preferred_year_level
  * @property ProjectStatus $status
  * @property bool $applications_open
  * @property Carbon|null $published_at
@@ -55,18 +37,13 @@ use Illuminate\Support\Str;
  * @property-read Team $team
  * @property-read User|null $creator
  * @property-read Collection<int, Skill> $skills
- * @property-read Collection<int, ProjectMilestone> $milestones
  * @property-read Collection<int, ProjectAttachment> $attachments
  * @property-read Collection<int, Application> $applications
  * @property-read Collection<int, Recommendation> $recommendations
  */
 #[Fillable([
     'team_id', 'created_by', 'title', 'slug', 'description', 'objectives',
-    'category', 'industry', 'budget_type', 'budget_amount', 'hide_budget',
-    'start_date', 'target_delivery_date', 'application_deadline',
-    'expected_completion_date', 'weekly_commitment', 'team_size',
-    'experience_level', 'open_to_capstone_groups', 'visibility',
-    'preferred_school_id', 'preferred_course_id', 'preferred_year_level',
+    'category', 'industry',
     'status', 'applications_open', 'published_at',
 ])]
 class Project extends Model
@@ -126,26 +103,6 @@ class Project extends Model
     }
 
     /**
-     * Get the school the client prefers applicants to come from.
-     *
-     * @return BelongsTo<School, $this>
-     */
-    public function preferredSchool(): BelongsTo
-    {
-        return $this->belongsTo(School::class, 'preferred_school_id');
-    }
-
-    /**
-     * Get the course the client prefers applicants to come from.
-     *
-     * @return BelongsTo<Course, $this>
-     */
-    public function preferredCourse(): BelongsTo
-    {
-        return $this->belongsTo(Course::class, 'preferred_course_id');
-    }
-
-    /**
      * Get the skills required by the project.
      *
      * @return BelongsToMany<Skill, $this>
@@ -155,16 +112,6 @@ class Project extends Model
         return $this->belongsToMany(Skill::class)
             ->withPivot('is_required')
             ->withTimestamps();
-    }
-
-    /**
-     * Get the project's payment and delivery milestones.
-     *
-     * @return HasMany<ProjectMilestone, $this>
-     */
-    public function milestones(): HasMany
-    {
-        return $this->hasMany(ProjectMilestone::class)->orderBy('position');
     }
 
     /**
@@ -237,6 +184,19 @@ class Project extends Model
     }
 
     /**
+     * Scope the query to postings that are not finished yet.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function unfinished(Builder $query): void
+    {
+        $query->whereIn('status', collect(ProjectStatus::cases())
+            ->filter(fn (ProjectStatus $status) => $status->isUnfinished())
+            ->map(fn (ProjectStatus $status) => $status->value));
+    }
+
+    /**
      * Scope the query to postings still counted as active work.
      *
      * @param  Builder<$this>  $query
@@ -257,8 +217,7 @@ class Project extends Model
             return false;
         }
 
-        return $this->application_deadline === null
-            || $this->application_deadline->endOfDay()->isFuture();
+        return true;
     }
 
     /**
@@ -269,17 +228,8 @@ class Project extends Model
     protected function casts(): array
     {
         return [
-            'budget_type' => BudgetType::class,
-            'experience_level' => ExperienceLevel::class,
-            'visibility' => ProjectVisibility::class,
             'status' => ProjectStatus::class,
-            'hide_budget' => 'boolean',
-            'open_to_capstone_groups' => 'boolean',
             'applications_open' => 'boolean',
-            'start_date' => 'date',
-            'target_delivery_date' => 'date',
-            'application_deadline' => 'date',
-            'expected_completion_date' => 'date',
             'published_at' => 'datetime',
         ];
     }

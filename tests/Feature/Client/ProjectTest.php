@@ -6,7 +6,6 @@ use App\Enums\ApplicationStatus;
 use App\Enums\ProjectStatus;
 use App\Models\Application;
 use App\Models\Project;
-use App\Models\ProjectMilestone;
 use App\Models\Skill;
 use App\Models\Team;
 use App\Models\User;
@@ -82,19 +81,9 @@ class ProjectTest extends TestCase
     public function test_an_open_project_accepts_applications(): void
     {
         $project = Project::factory()->create([
-            'application_deadline' => now()->addWeek(),
         ]);
 
         $this->assertTrue($project->isAcceptingApplications());
-    }
-
-    public function test_a_project_stops_accepting_applications_once_the_deadline_passes(): void
-    {
-        $project = Project::factory()->create([
-            'application_deadline' => now()->subDay(),
-        ]);
-
-        $this->assertFalse($project->isAcceptingApplications());
     }
 
     public function test_a_project_stops_accepting_applications_when_intake_is_paused(): void
@@ -133,27 +122,6 @@ class ProjectTest extends TestCase
 
         $this->assertCount(1, $scoped);
         $this->assertTrue($scoped->contains($mine));
-    }
-
-    public function test_milestones_are_returned_in_position_order(): void
-    {
-        $project = Project::factory()->create();
-
-        ProjectMilestone::factory()->create([
-            'project_id' => $project->id,
-            'title' => 'Turnover',
-            'position' => 2,
-        ]);
-        ProjectMilestone::factory()->create([
-            'project_id' => $project->id,
-            'title' => 'Design approval',
-            'position' => 0,
-        ]);
-
-        $this->assertSame(
-            ['Design approval', 'Turnover'],
-            $project->milestones->pluck('title')->all(),
-        );
     }
 
     public function test_skills_can_be_attached_to_a_project(): void

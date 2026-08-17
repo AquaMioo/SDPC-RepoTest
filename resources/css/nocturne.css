@@ -381,7 +381,13 @@ h5 { font-size: 16px; }
 h6 { font-size: 13px; }
 h6 { letter-spacing: 0.08em; text-transform: uppercase; }
 p { margin: 0 0 var(--space-3); }
-a { color: var(--color-accent); text-underline-offset: 3px; }
+/*
+ * Buttons opt out. This file is imported unlayered, so it outranks every
+ * Tailwind utility — a Link rendered as a Button (`asChild`) was taking the
+ * link colour instead of its variant's, which painted accent text onto an
+ * accent background and made the label vanish.
+ */
+a:not([data-slot='button']) { color: var(--color-accent); text-underline-offset: 3px; }
 img { display: block; max-width: 100%; }
 figure { margin: 0; }
 figcaption {
@@ -586,8 +592,8 @@ textarea.input { min-height: 90px; resize: vertical; }
   --shadow-lg: 0 0 0 1px #7d938c, 0 16px 40px rgba(0,0,0,0.65);
 }
 body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
-a { color: var(--color-accent); }
-a:hover { color: var(--color-accent-300); }
+a:not([data-slot='button']) { color: var(--color-accent); }
+a:not([data-slot='button']):hover { color: var(--color-accent-300); }
 [data-nav][aria-current="page"] { color: var(--color-accent); }
 [data-day][data-today="true"] { background: var(--color-accent); color: var(--color-bg); }
 [data-day][data-muted="true"] { opacity: 0.25; }

@@ -29,7 +29,6 @@ class SaveProject
             ]);
 
             $this->syncSkills($project, $attributes['skills'] ?? []);
-            $this->syncMilestones($project, $attributes['milestones'] ?? []);
 
             $project->refresh();
 
@@ -54,7 +53,6 @@ class SaveProject
             $project->update($this->projectAttributes($attributes, $project));
 
             $this->syncSkills($project, $attributes['skills'] ?? []);
-            $this->syncMilestones($project, $attributes['milestones'] ?? []);
 
             $project->refresh();
 
@@ -76,6 +74,24 @@ class SaveProject
     }
 
     /**
+     * Apply the posting-review setting to a submitted status.
+     *
+     * Submitting for review is the only status this touches. A draft stays a
+     * draft either way, and nothing here can move a posting that is already
+     * open, in progress or finished.
+     */
+    protected function resolveStatus(ProjectStatus $status): ProjectStatus
+    {
+        if ($status !== ProjectStatus::PendingReview) {
+            return $status;
+        }
+
+        return config('projects.auto_approve')
+            ? ProjectStatus::Open
+            : $status;
+    }
+
+    /**
      * Map validated input onto the project's own columns.
      *
      * @param  array<string, mixed>  $attributes
@@ -83,7 +99,7 @@ class SaveProject
      */
     protected function projectAttributes(array $attributes, ?Project $project = null): array
     {
-        $status = ProjectStatus::from($attributes['status']);
+        $status = $this->resolveStatus(ProjectStatus::from($attributes['status']));
 
         return [
             'title' => $attributes['title'],
@@ -91,21 +107,6 @@ class SaveProject
             'objectives' => $attributes['objectives'] ?? null,
             'category' => $attributes['category'],
             'industry' => $attributes['industry'] ?? null,
-            'team_size' => $attributes['team_size'],
-            'experience_level' => $attributes['experience_level'],
-            'open_to_capstone_groups' => $attributes['open_to_capstone_groups'] ?? false,
-            'budget_type' => $attributes['budget_type'],
-            'budget_amount' => $attributes['budget_amount'] ?? null,
-            'hide_budget' => $attributes['hide_budget'] ?? false,
-            'start_date' => $attributes['start_date'] ?? null,
-            'target_delivery_date' => $attributes['target_delivery_date'] ?? null,
-            'application_deadline' => $attributes['application_deadline'] ?? null,
-            'expected_completion_date' => $attributes['expected_completion_date'] ?? null,
-            'weekly_commitment' => $attributes['weekly_commitment'] ?? null,
-            'visibility' => $attributes['visibility'],
-            'preferred_school_id' => $attributes['preferred_school_id'] ?? null,
-            'preferred_course_id' => $attributes['preferred_course_id'] ?? null,
-            'preferred_year_level' => $attributes['preferred_year_level'] ?? null,
             'status' => $status,
             /**
              * Stamped the first time a posting leaves draft, and never reset,
@@ -132,24 +133,5 @@ class SaveProject
             ->all();
 
         $project->skills()->sync($ids);
-    }
-
-    /**
-     * Replace the project's milestones with the submitted set.
-     *
-     * @param  array<int, array<string, mixed>>  $milestones
-     */
-    protected function syncMilestones(Project $project, array $milestones): void
-    {
-        $project->milestones()->delete();
-
-        foreach (array_values($milestones) as $position => $milestone) {
-            $project->milestones()->create([
-                'title' => $milestone['title'],
-                'due_date' => $milestone['due_date'] ?? null,
-                'amount' => $milestone['amount'] ?? null,
-                'position' => $position,
-            ]);
-        }
     }
 }

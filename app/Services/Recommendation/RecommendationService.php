@@ -3,6 +3,7 @@
 namespace App\Services\Recommendation;
 
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
@@ -19,6 +20,17 @@ interface RecommendationService
      * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
      */
     public function scoresFor(Project $project): Collection;
+
+    /**
+     * Get recommendation scores for a student, keyed by project id.
+     *
+     * The same rows read from the other end: a recommendation is a
+     * project-and-student pair, so the student's board can rank briefs against
+     * them without a second table or a second scoring pass.
+     *
+     * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
+     */
+    public function scoresForStudent(User $student): Collection;
 
     /**
      * Determine if real scoring is available.

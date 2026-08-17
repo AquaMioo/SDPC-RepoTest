@@ -55,6 +55,18 @@ enum ProjectStatus: string
     }
 
     /**
+     * Determine if the posting is still work in hand rather than history.
+     *
+     * A team may only run one posting at a time, so everything from the draft
+     * drawer through active work holds their slot. Completed, closed and
+     * archived postings are finished business and give it back.
+     */
+    public function isUnfinished(): bool
+    {
+        return in_array($this, [self::Draft, self::PendingReview, self::Open, self::InProgress], true);
+    }
+
+    /**
      * Get the statuses that count as active work for dashboard totals.
      *
      * @return array<self>

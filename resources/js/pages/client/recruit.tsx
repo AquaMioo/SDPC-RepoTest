@@ -6,13 +6,13 @@ import {
     UserIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
-import Meter from '@/components/sdpc/meter';
 import { Panel, PanelAccent, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import ToggleField from '@/components/sdpc/toggle-field';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { store as messagesStore } from '@/routes/messages';
 import { index as recruitIndex } from '@/routes/recruit';
 import { show as studentsShow } from '@/routes/students';
 import type { Paginated, SelectOption, StudentCard } from '@/types/client';
@@ -39,6 +39,8 @@ type Props = {
     };
     context: { slug: string; title: string } | null;
     matchingEnabled: boolean;
+    /** What building the searched-for system actually takes. */
+    scopeSkills: { slug: string; name: string; isRequired: boolean }[];
 };
 
 export default function Recruit({
@@ -47,6 +49,7 @@ export default function Recruit({
     options,
     context,
     matchingEnabled,
+    scopeSkills,
 }: Props) {
     const team = useCurrentTeam();
     const [search, setSearch] = useState(filters.search ?? '');
@@ -66,6 +69,30 @@ export default function Recruit({
             },
             { preserveState: true, preserveScroll: true, replace: true },
         );
+    };
+
+    /*
+     * A thread needs an application row behind it, so Message only opens one
+     * for students already invited or hired. Everyone else goes to the
+     * profile, which is where the invitation that unlocks messaging lives —
+     * the button stays useful either way instead of 403ing.
+     */
+    const message = (student: StudentCard) => {
+        const profile = studentsShow.url({
+            current_team: team.slug,
+            user: student.id,
+        });
+
+        if (student.messageableProjectId === null) {
+            router.get(profile);
+
+            return;
+        }
+
+        router.post(messagesStore.url(team.slug), {
+            project_id: student.messageableProjectId,
+            user_id: student.id,
+        });
     };
 
     const toggleSkill = (slug: string) => {
@@ -107,7 +134,7 @@ export default function Recruit({
                             <Input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search skills, school, rate"
+                                placeholder="Search skills or school"
                                 aria-label="Search students"
                                 className="pl-8"
                             />
@@ -140,10 +167,17 @@ export default function Recruit({
                     ) : (
                         <div className="grid [grid-template-columns:repeat(auto-fill,minmax(215px,1fr))] gap-4">
                             {students.data.map((student) => (
+                                /*
+                                 * h-full + mt-auto on the button is what keeps
+                                 * a row of these aligned. Compatibility, the
+                                 * insight blurb and the skills row are all
+                                 * conditional, so without it every card in the
+                                 * row ends at a different height.
+                                 */
                                 <Panel
                                     key={student.id}
                                     padding="lg"
-                                    className="items-center text-center"
+                                    className="h-full items-center text-center"
                                 >
                                     <span className="grid size-16 place-items-center rounded-full bg-primary/15 text-3xl text-primary">
                                         <UserIcon />
@@ -153,30 +187,32 @@ export default function Recruit({
                                         <div className="text-[15px] font-semibold">
                                             {student.name}
                                         </div>
-                                        <div className="text-[12px] text-muted-foreground">
+                                        <div className="line-clamp-2 text-[12px] text-primary">
                                             {student.headline ?? student.course}
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-wrap justify-center gap-1.5">
-                                        {student.skills
-                                            .slice(0, 2)
-                                            .map((skill) => (
-                                                <Tag
-                                                    key={skill}
-                                                    variant="neutral"
-                                                >
-                                                    {skill}
-                                                </Tag>
-                                            ))}
-                                    </div>
+                                    {student.skills.length > 0 && (
+                                        <div className="flex flex-wrap justify-center gap-1.5">
+                                            {student.skills
+                                                .slice(0, 2)
+                                                .map((skill) => (
+                                                    <Tag
+                                                        key={skill}
+                                                        variant="neutral"
+                                                    >
+                                                        {skill}
+                                                    </Tag>
+                                                ))}
+                                        </div>
+                                    )}
 
                                     <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                                         <StarIcon
                                             weight="fill"
                                             className="text-primary"
                                         />
-                                        {student.rating} ·{' '}
+                                        {student.rating.toFixed(1)} ·{' '}
                                         {student.completedProjects} projects
                                     </div>
 
@@ -186,16 +222,35 @@ export default function Recruit({
                                         </Tag>
                                     )}
 
-                                    <Button asChild className="mt-0.5 w-full">
-                                        <Link
-                                            href={studentsShow.url({
-                                                current_team: team.slug,
-                                                user: student.id,
-                                            })}
+                                    {/* The reasoning, not just the number —
+                                        a percentage alone decides nothing. */}
+                                    {student.insight && (
+                                        <div className="rounded-md bg-primary/10 px-2.5 py-2 text-[11px] leading-relaxed">
+                                            <span className="text-primary">
+                                                Why
+                                            </span>{' '}
+                                            · {student.insight}
+                                        </div>
+                                    )}
+
+                                    <div className="mt-auto grid w-full grid-cols-2 gap-2">
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => message(student)}
                                         >
-                                            Profile
-                                        </Link>
-                                    </Button>
+                                            Message
+                                        </Button>
+                                        <Button asChild variant="outline">
+                                            <Link
+                                                href={studentsShow.url({
+                                                    current_team: team.slug,
+                                                    user: student.id,
+                                                })}
+                                            >
+                                                Profile
+                                            </Link>
+                                        </Button>
+                                    </div>
                                 </Panel>
                             ))}
                         </div>
@@ -208,22 +263,51 @@ export default function Recruit({
                             <div className="flex items-center gap-2">
                                 <SparkleIcon className="text-primary" />
                                 <PanelKicker className="mr-auto">
-                                    AI matching
+                                    Matching
                                 </PanelKicker>
                             </div>
                             <p className="m-0 text-[13px] leading-relaxed opacity-85">
-                                Ranking is weighted on skills, availability this
-                                term, and documented past work.
+                                {context
+                                    ? `Students are ranked against "${context.title}".`
+                                    : 'Students are ranked against what you described, best fit first.'}
                             </p>
-                            <Meter label="Skill match" value={92} />
+
+                            {scopeSkills.length > 0 && (
+                                <>
+                                    <PanelKicker>
+                                        Building this takes
+                                    </PanelKicker>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {scopeSkills.map((skill) => (
+                                            <Tag
+                                                key={skill.slug}
+                                                variant={
+                                                    skill.isRequired
+                                                        ? 'accent'
+                                                        : 'outline'
+                                                }
+                                            >
+                                                {skill.name}
+                                            </Tag>
+                                        ))}
+                                    </div>
+                                    <p className="m-0 text-[11.5px] leading-relaxed text-muted-foreground">
+                                        Read out of what you asked for. Filled
+                                        chips were named on the posting;
+                                        outlined ones are implied by the kind of
+                                        system.
+                                    </p>
+                                </>
+                            )}
                         </PanelAccent>
                     ) : (
                         <Panel padding="lg" gap="lg">
                             <PanelKicker>Matching</PanelKicker>
                             <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-                                Automatic ranking arrives with the AI module.
-                                Until then students are ordered by rating and
-                                completed work.
+                                Describe the system you want built, in your own
+                                words, and students are ranked by who can
+                                actually build it. Filtering against one of your
+                                postings does the same.
                             </p>
                         </Panel>
                     )}

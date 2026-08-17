@@ -4,9 +4,6 @@ export type SelectOption = {
 };
 
 export type ProjectFormOptions = {
-    budgetTypes: SelectOption[];
-    experienceLevels: SelectOption[];
-    visibilities: SelectOption[];
     schools: { id: number; name: string }[];
     courses: { id: number; name: string; abbreviation: string | null }[];
     skills: { name: string; type: string }[];
@@ -18,11 +15,9 @@ export type ProjectListItem = {
     category: string;
     status: string;
     statusLabel: string;
-    budgetAmount: number | null;
     applicationsOpen: boolean;
     applicationsCount: number;
     pendingApplicationsCount: number;
-    targetDeliveryDate: string | null;
     skills: string[];
 };
 
@@ -35,10 +30,18 @@ export type StudentCard = {
     yearLevel: number | null;
     rating: number;
     completedProjects: number;
-    hourlyRate: number | null;
     isAvailable: boolean;
     skills: string[];
+    /**
+     * The posting a thread can already be opened against, or null when the
+     * client has to invite them first. Messaging needs an application row.
+     */
+    messageableProjectId: number | null;
     compatibility: number | null;
+    /** One line on why this student fits, from the matching engine. */
+    insight: string | null;
+    matchedSkills: string[];
+    missingSkills: string[];
 };
 
 export type Paginated<T> = {
@@ -73,12 +76,6 @@ export const INDUSTRIES: readonly string[] = [
     'Other',
 ];
 
-export const WEEKLY_COMMITMENTS: readonly string[] = [
-    'Up to 10 hrs',
-    '10–20 hrs',
-    '20+ hrs',
-];
-
 export const TEAM_SIZES = [
     { value: 1, label: '1 student' },
     { value: 3, label: '2–3 students' },
@@ -90,9 +87,6 @@ type CompletionInput = {
     description: string;
     objectives: string;
     skills: string[];
-    budget_amount: number | null;
-    target_delivery_date: string;
-    milestones: unknown[];
 };
 
 /**
@@ -116,15 +110,6 @@ export function projectFormCompletion(data: CompletionInput): {
         },
         { label: 'List the objectives', done: Boolean(data.objectives.trim()) },
         { label: 'Add the required skills', done: data.skills.length > 0 },
-        { label: 'Set a budget', done: data.budget_amount !== null },
-        {
-            label: 'Set a target delivery date',
-            done: Boolean(data.target_delivery_date),
-        },
-        {
-            label: 'Break the work into milestones',
-            done: data.milestones.length > 0,
-        },
     ];
 
     const done = checklist.filter((item) => item.done).length;

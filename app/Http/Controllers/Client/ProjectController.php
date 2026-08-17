@@ -4,10 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Actions\Client\DuplicateProject;
 use App\Actions\Client\SaveProject;
-use App\Enums\BudgetType;
-use App\Enums\ExperienceLevel;
 use App\Enums\ProjectStatus;
-use App\Enums\ProjectVisibility;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\SaveProjectRequest;
 use App\Models\Course;
@@ -47,6 +44,11 @@ class ProjectController extends Controller
         return Inertia::render('client/projects/index', [
             'projects' => $projects,
             'statuses' => $this->statusOptions(),
+            /*
+             * One posting at a time, so the board hides the post button rather
+             * than walking the client into a 403 they cannot act on.
+             */
+            'canCreate' => Gate::allows('create', Project::class),
         ]);
     }
 
@@ -59,6 +61,13 @@ class ProjectController extends Controller
 
         return Inertia::render('client/projects/create', [
             'options' => $this->formOptions(),
+            /*
+             * The form tells the client what happens when they hit publish, so
+             * it has to know whether review is switched on. Hardcoded copy
+             * promised admin screening even when the posting went live
+             * immediately.
+             */
+            'reviewedBeforeGoingLive' => ! config('projects.auto_approve'),
         ]);
     }
 
@@ -86,7 +95,7 @@ class ProjectController extends Controller
     {
         Gate::authorize('view', $project);
 
-        $project->load(['skills', 'milestones', 'attachments', 'creator', 'preferredSchool', 'preferredCourse']);
+        $project->load(['skills', 'attachments', 'creator']);
 
         return Inertia::render('client/projects/show', [
             'project' => $this->toDetail($project),
@@ -105,7 +114,7 @@ class ProjectController extends Controller
     {
         Gate::authorize('update', $project);
 
-        $project->load(['skills', 'milestones']);
+        $project->load(['skills']);
 
         return Inertia::render('client/projects/edit', [
             'project' => $this->toDetail($project),
@@ -196,11 +205,9 @@ class ProjectController extends Controller
             'category' => $project->category,
             'status' => $project->status->value,
             'statusLabel' => $project->status->label(),
-            'budgetAmount' => $project->hide_budget ? null : $project->budget_amount,
             'applicationsOpen' => $project->isAcceptingApplications(),
             'applicationsCount' => $project->applications_count,
             'pendingApplicationsCount' => $project->pending_applications_count,
-            'targetDeliveryDate' => $project->target_delivery_date?->toDateString(),
             'skills' => $project->skills->pluck('name'),
         ];
     }
@@ -222,30 +229,9 @@ class ProjectController extends Controller
             'status' => $project->status->value,
             'statusLabel' => $project->status->label(),
             'isEditable' => $project->status->isEditable(),
-            'budgetType' => $project->budget_type->value,
-            'budgetAmount' => $project->budget_amount,
-            'hideBudget' => $project->hide_budget,
-            'startDate' => $project->start_date?->toDateString(),
-            'targetDeliveryDate' => $project->target_delivery_date?->toDateString(),
-            'applicationDeadline' => $project->application_deadline?->toDateString(),
-            'expectedCompletionDate' => $project->expected_completion_date?->toDateString(),
-            'weeklyCommitment' => $project->weekly_commitment,
-            'teamSize' => $project->team_size,
-            'experienceLevel' => $project->experience_level->value,
-            'openToCapstoneGroups' => $project->open_to_capstone_groups,
-            'visibility' => $project->visibility->value,
-            'preferredSchoolId' => $project->preferred_school_id,
-            'preferredCourseId' => $project->preferred_course_id,
-            'preferredYearLevel' => $project->preferred_year_level,
             'applicationsOpen' => $project->applications_open,
             'isAcceptingApplications' => $project->isAcceptingApplications(),
             'skills' => $project->skills->pluck('name'),
-            'milestones' => $project->milestones->map(fn ($milestone) => [
-                'title' => $milestone->title,
-                'dueDate' => $milestone->due_date?->toDateString(),
-                'amount' => $milestone->amount,
-                'isCompleted' => $milestone->isCompleted(),
-            ]),
             'attachments' => $project->attachments->map(fn ($attachment) => [
                 'id' => $attachment->id,
                 'name' => $attachment->original_name,
@@ -263,9 +249,6 @@ class ProjectController extends Controller
     protected function formOptions(): array
     {
         return [
-            'budgetTypes' => BudgetType::options(),
-            'experienceLevels' => ExperienceLevel::options(),
-            'visibilities' => ProjectVisibility::options(),
             'schools' => School::query()->orderBy('name')->get(['id', 'name']),
             'courses' => Course::query()->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'skills' => Skill::query()->orderBy('name')->get(['name', 'type']),

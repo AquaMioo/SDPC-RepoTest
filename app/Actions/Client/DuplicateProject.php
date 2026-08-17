@@ -37,15 +37,6 @@ class DuplicateProject
                 ])->all(),
             );
 
-            foreach ($project->milestones as $milestone) {
-                $copy->milestones()->create([
-                    'title' => $milestone->title,
-                    'due_date' => $milestone->due_date,
-                    'amount' => $milestone->amount,
-                    'position' => $milestone->position,
-                ]);
-            }
-
             return $copy->refresh();
         });
     }

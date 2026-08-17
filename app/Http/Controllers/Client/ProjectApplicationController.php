@@ -33,9 +33,10 @@ class ProjectApplicationController extends Controller
 
         return Inertia::render('client/projects/applicants', [
             'project' => [
+                /* The messaging endpoint keys on the id, not the slug. */
+                'id' => $project->id,
                 'slug' => $project->slug,
                 'title' => $project->title,
-                'teamSize' => $project->team_size,
                 'isAcceptingApplications' => $project->isAcceptingApplications(),
             ],
             'applications' => $applications,

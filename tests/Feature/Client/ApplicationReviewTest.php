@@ -2,10 +2,14 @@
 
 namespace Tests\Feature\Client;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ApplicationReviewTest extends TestCase
 {
+    /* The landing page counts rows now, so it needs tables to count. */
+    use RefreshDatabase;
+
     /**
      * A basic feature test example.
      */
