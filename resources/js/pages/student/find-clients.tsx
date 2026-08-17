@@ -40,6 +40,8 @@ type Props = {
         skills: { slug: string; name: string }[];
     }[];
     canApply: boolean;
+    /** One student, one build — true while they already have work. */
+    holdsProjectInHand: boolean;
     matchingEnabled: boolean;
     highlight: {
         title: string;
@@ -64,6 +66,7 @@ export default function FindClients({
     sorts,
     skillGroups,
     canApply,
+    holdsProjectInHand,
     matchingEnabled,
     highlight,
 }: Props) {
@@ -122,6 +125,21 @@ export default function FindClients({
                             You can read every brief here. Applying opens up
                             once an administrator has verified your student
                             credential.
+                        </span>
+                    </Panel>
+                )}
+
+                {/* Browsing stays open while they build — applying does not. */}
+                {canApply && holdsProjectInHand && (
+                    <Panel
+                        padding="md"
+                        gap="sm"
+                        style={{ marginBottom: 18 }}
+                    >
+                        <span style={{ fontSize: 12.5, color: MUTED(70) }}>
+                            You already have a project in hand. Browse all you
+                            like — applying opens up again once that build is
+                            finished.
                         </span>
                     </Panel>
                 )}

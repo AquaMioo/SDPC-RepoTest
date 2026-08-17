@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Concerns\HasTeams;
+use App\Enums\ApplicationStatus;
 use App\Enums\CredentialStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
@@ -191,6 +192,24 @@ class User extends Authenticatable implements PasskeyUser
     public function applications(): HasMany
     {
         return $this->hasMany(Application::class);
+    }
+
+    /**
+     * Determine if the student already has a build in hand.
+     *
+     * One student, one project — the platform exists to bridge a student to a
+     * client, not to stack work on whoever answers first. Being accepted onto
+     * a posting that is not finished is what counts as taken; once it is
+     * completed, closed or archived they are free to take the next one.
+     *
+     * The mirror of the client's one-posting cap in ProjectPolicy::create().
+     */
+    public function holdsProjectInHand(): bool
+    {
+        return $this->applications()
+            ->where('status', ApplicationStatus::Accepted)
+            ->whereHas('project', fn (Builder $query) => $query->unfinished())
+            ->exists();
     }
 
     /**

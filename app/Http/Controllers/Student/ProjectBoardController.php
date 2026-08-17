@@ -91,6 +91,8 @@ class ProjectBoardController extends Controller
             ],
             'skillGroups' => $this->skillGroups(),
             'canApply' => $student->isVerifiedForOperating(),
+            /* One build at a time, so the board says so before they try. */
+            'holdsProjectInHand' => $student->holdsProjectInHand(),
             /*
              * Drives the analysis panel. True only when something was actually
              * scored on this request — a brief with nothing to go on gets no
@@ -177,6 +179,7 @@ class ProjectBoardController extends Controller
                 'appliedAt' => $application->created_at?->format('j M Y'),
             ],
             'canApply' => $student->isVerifiedForOperating(),
+            'holdsProjectInHand' => $student->holdsProjectInHand(),
         ]);
     }
 
@@ -192,6 +195,13 @@ class ProjectBoardController extends Controller
         if (! $project->isAcceptingApplications()) {
             throw ValidationException::withMessages([
                 'application' => 'This posting is no longer taking applications.',
+            ]);
+        }
+
+        /* One student, one build. See User::holdsProjectInHand(). */
+        if ($student->holdsProjectInHand()) {
+            throw ValidationException::withMessages([
+                'application' => 'You already have a project in hand. Finish it before taking on another.',
             ]);
         }
 

@@ -34,6 +34,8 @@ type Props = {
         appliedAt: string | null;
     } | null;
     canApply: boolean;
+    /** One student, one build — true while they already have work. */
+    holdsProjectInHand: boolean;
 };
 
 /**
@@ -43,6 +45,7 @@ export default function StudentProject({
     project,
     application,
     canApply,
+    holdsProjectInHand,
 }: Props) {
     const team = useCurrentTeam();
 
@@ -131,7 +134,7 @@ export default function StudentProject({
                         )}
                     </Panel>
 
-                    {isOpen && canApply && (
+                    {isOpen && canApply && !holdsProjectInHand && (
                         <Panel padding="lg" gap="lg">
                             <PanelKicker>Apply</PanelKicker>
 
@@ -250,6 +253,11 @@ export default function StudentProject({
                             <span style={{ fontSize: 12.5, color: MUTED(70) }}>
                                 Applying waits until an administrator has
                                 verified your student credential.
+                            </span>
+                        ) : holdsProjectInHand ? (
+                            <span style={{ fontSize: 12.5, color: MUTED(70) }}>
+                                You already have a project in hand. Finish it
+                                before taking on another.
                             </span>
                         ) : (
                             <span style={{ fontSize: 12.5, color: MUTED(70) }}>

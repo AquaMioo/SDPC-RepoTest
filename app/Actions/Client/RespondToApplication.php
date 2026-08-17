@@ -10,6 +10,7 @@ use App\Notifications\Client\ProjectStatusChanged;
 use App\Notifications\Client\StudentAccepted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 
 class RespondToApplication
 {
@@ -18,6 +19,18 @@ class RespondToApplication
      */
     public function handle(Application $application, ApplicationStatus $status, User $responder): Application
     {
+        /*
+         * A student holds one build at a time, and acceptance is the moment
+         * work starts — so the cap is enforced here rather than only where a
+         * student applies. A client can still invite and shortlist somebody
+         * who is busy; they just cannot put them on a second project.
+         */
+        if ($status === ApplicationStatus::Accepted && $application->student->holdsProjectInHand()) {
+            throw ValidationException::withMessages([
+                'status' => $application->student->name.' is already building another project and cannot take this one on yet.',
+            ]);
+        }
+
         return DB::transaction(function () use ($application, $status, $responder) {
             $application->update([
                 'status' => $status,
