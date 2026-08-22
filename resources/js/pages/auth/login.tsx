@@ -10,7 +10,7 @@ import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
 import { Spinner } from '@/components/ui/spinner';
-import { register } from '@/routes';
+import { appeal, register } from '@/routes';
 import { redirect as googleRedirect } from '@/routes/google';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
@@ -264,6 +264,20 @@ export default function Login({
                             Register
                         </Link>
                     </Btn>
+                </div>
+
+                {/* A deactivated account is turned away by AuthenticateUser
+                    with a message and nowhere to go. This is where it goes. */}
+                <div
+                    style={{
+                        textAlign: 'center',
+                        fontSize: 11.5,
+                        color: MUTED,
+                    }}
+                >
+                    <Link href={appeal.url()} data-test="appeal-link">
+                        Account restricted or deactivated? Appeal the decision
+                    </Link>
                 </div>
             </div>
         </>

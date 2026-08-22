@@ -5,10 +5,17 @@ import { Btn } from '@/components/sdpc/btn';
 import { store as reportStore } from '@/routes/reports';
 
 type Props = {
-    /** The account being reported. */
-    userId: number;
+    /** The account being reported. Omitted when a posting is. */
+    userId?: number;
     /** Their name, so the dialog can say who this is about. */
-    userName: string;
+    userName?: string;
+    /**
+     * Set to report a posting instead of an account. The server resolves who
+     * is answerable for it — the browser is not trusted to name them.
+     */
+    projectId?: number;
+    /** The posting's title, so the dialog can say what this is about. */
+    projectTitle?: string;
     categories: { value: string; label: string }[];
 };
 
@@ -16,22 +23,28 @@ const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
 /**
- * Report an account to the administrators.
+ * Report an account, or one of its postings, to the administrators.
  *
- * Filing a report changes nothing about the reported account — it puts a row
- * in the admin queue and says so plainly, so nobody expects a button here to
- * remove someone.
+ * Filing a report changes nothing about the reported account and takes no
+ * posting off the board — it puts a row in the admin queue and says so plainly,
+ * so nobody expects a button here to remove someone.
  */
 export default function ReportAccountDialog({
     userId,
     userName,
+    projectId,
+    projectTitle,
     categories,
 }: Props) {
     const [open, setOpen] = useState(false);
 
+    const aboutPosting = projectId !== undefined;
+    const subject = aboutPosting ? projectTitle : userName;
+
     const { data, setData, post, processing, errors, reset, clearErrors } =
         useForm({
             reported_user_id: userId,
+            reported_project_id: projectId,
             category: categories[0]?.value ?? '',
             description: '',
         });
@@ -56,7 +69,7 @@ export default function ReportAccountDialog({
                 style={{ fontSize: 12.5, padding: '5px 12px' }}
                 onClick={() => setOpen(true)}
             >
-                Report account
+                {aboutPosting ? 'Report posting' : 'Report account'}
             </Btn>
 
             {open && (
@@ -68,7 +81,7 @@ export default function ReportAccountDialog({
                 >
                     <div className="dialog">
                         <div className="dialog-title" id="report-title">
-                            Report {userName}
+                            Report {subject}
                         </div>
 
                         <div
@@ -145,7 +158,11 @@ export default function ReportAccountDialog({
                                 }}
                             >
                                 This goes to the administrators for review. It
-                                does not remove or notify the account.
+                                does not{' '}
+                                {aboutPosting
+                                    ? 'take the posting off the board'
+                                    : 'remove or notify the account'}
+                                .
                             </p>
                         </div>
 

@@ -46,23 +46,33 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
         /*
          * The one review queue left. A posting sits in pending_review until it
          * is approved here, and the student board only lists open postings — so
-         * skipping this screen means nothing a client writes ever reaches a
+         * skipping this decision means nothing a client writes ever reaches a
          * student.
          *
          * Credentials and business permits used to be reviewed here too. They
          * are not any more: a student is checked by the verification provider,
          * and a business is verified on registration.
+         *
+         * There is no index route: the queue is drawn by the dashboard
+         * overview, which is where content management lives too.
          */
-        Route::get('postings', [AdminPostingController::class, 'index'])
-            ->name('postings.index');
         Route::patch('postings/{posting}', [AdminPostingController::class, 'update'])
             ->name('postings.update');
 
-        Route::get('content', [AdminContentController::class, 'index'])->name('content');
+        /* Same as postings: edited on the dashboard overview, saved here. */
         Route::put('content', [AdminContentController::class, 'update'])->name('content.update');
+
         Route::get('issues', [AdminIssueController::class, 'index'])->name('issues');
         Route::patch('issues/{issue}', [AdminIssueController::class, 'update'])->name('issues.update');
 
-        Route::get('monitoring', AdminMonitoringController::class)->name('monitoring');
+        /*
+         * Monitoring. The roster of accounts currently held back, and the
+         * appeals they have written about it — an account under monitoring
+         * with nothing written still shows, or the status becomes one an
+         * administrator sets and then loses track of.
+         */
+        Route::get('monitoring', [AdminMonitoringController::class, 'index'])->name('monitoring');
+        Route::patch('monitoring/appeals/{appeal}', [AdminMonitoringController::class, 'decide'])
+            ->name('appeals.update');
     });
 });

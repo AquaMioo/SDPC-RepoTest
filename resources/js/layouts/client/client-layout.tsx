@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import type { CSSProperties, ReactNode } from 'react';
 
+import AccountStatusBanner from '@/components/account-status-banner';
 import { Btn } from '@/components/sdpc/btn';
 import {
     Tooltip,
@@ -228,6 +229,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                     }}
                 />
             </header>
+
+            <AccountStatusBanner />
 
             <main>{children}</main>
         </div>

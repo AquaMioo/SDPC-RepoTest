@@ -27,3 +27,25 @@ export type AdminStats = {
     pendingReview: number;
     deactivated: number;
 };
+
+/** A row in the posting review queue, built by App\Support\AdminPostingQueue. */
+export type AdminPosting = {
+    slug: string;
+    title: string;
+    description: string;
+    category: string;
+    business: string;
+    city: string | null;
+    skills: string[];
+    status: string;
+    statusLabel: string;
+    publishedAt: string | null;
+    awaitingDecision: boolean;
+};
+
+/** The three blocks of copy an administrator maintains. */
+export type SiteContentDraft = {
+    announcements: string;
+    rules: string;
+    policies: string;
+};

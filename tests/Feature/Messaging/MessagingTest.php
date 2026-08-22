@@ -9,11 +9,15 @@ use App\Events\MessageSent;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Broadcasting\BroadcastException;
+use Illuminate\Contracts\Broadcasting\Broadcaster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
@@ -761,6 +765,112 @@ class MessagingTest extends TestCase
 
         // A thread that does not exist is not a thread anyone may listen to.
         $this->assertFalse($channel->join($client, 999999));
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * A broadcaster that is not there
+     * ---------------------------------------------------------------------
+     *
+     * MessageSent is ShouldBroadcastNow, so it goes out on the request rather
+     * than through a worker. Reverb is a separate process someone has to
+     * start, and when it was not listening the broadcast threw after the
+     * message had already been committed — so the sender got an error page for
+     * a message that had in fact been sent. The live update is a courtesy on
+     * top of a write that already succeeded, and is treated as one.
+     */
+
+    public function test_a_message_still_sends_when_the_broadcaster_is_unreachable(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        $this->breakTheBroadcaster();
+
+        $this->actingAs($client)
+            ->from(route('messages.show', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $conversation,
+            ]))
+            ->post(route('messages.send', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $conversation,
+            ]), ['body' => 'Reverb is not running, but this must still arrive.'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('messages', [
+            'conversation_id' => $conversation->id,
+            'user_id' => $client->id,
+            'body' => 'Reverb is not running, but this must still arrive.',
+        ]);
+    }
+
+    public function test_editing_reacting_and_removing_survive_an_unreachable_broadcaster(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+        $message = $thread->messages()->create(['user_id' => $client->id, 'body' => 'Teh meeting is at 3']);
+
+        $this->breakTheBroadcaster();
+
+        /*
+         * Each side walks in through its own team's URL. Borrowing the other
+         * side's would be turned away by EnsureTeamMembership long before the
+         * broadcaster was reached, and the test would prove nothing.
+         */
+        $asClient = ['current_team' => $client->currentTeam, 'conversation' => $thread, 'message' => $message];
+        $asStudent = ['current_team' => $student->currentTeam, 'conversation' => $thread, 'message' => $message];
+
+        $this->actingAs($client)
+            ->patch(route('messages.edit', $asClient), ['body' => 'The meeting is at 3'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('The meeting is at 3', $message->fresh()->body);
+
+        $this->actingAs($student)
+            ->post(route('messages.react', $asStudent), ['emoji' => MessageReaction::ALLOWED[0]])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $message->reactions()->count());
+
+        $this->actingAs($client)
+            ->delete(route('messages.remove', $asClient))
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($message->fresh()->isRemoved());
+    }
+
+    /**
+     * Point broadcasting at a driver that cannot deliver, the way an unstarted
+     * Reverb behaves: the write succeeds and the announcement throws.
+     */
+    private function breakTheBroadcaster(): void
+    {
+        Broadcast::extend('unreachable', fn (): Broadcaster => new class implements Broadcaster
+        {
+            public function auth($request)
+            {
+                return true;
+            }
+
+            public function validAuthenticationResponse($request, $result)
+            {
+                return $result;
+            }
+
+            public function broadcast(array $channels, $event, array $payload = []): void
+            {
+                throw new BroadcastException(
+                    'Pusher error: cURL error 7: Failed to connect to localhost port 8080.',
+                );
+            }
+        });
+
+        config([
+            'broadcasting.default' => 'unreachable',
+            'broadcasting.connections.unreachable' => ['driver' => 'unreachable'],
+        ]);
     }
 
     /**

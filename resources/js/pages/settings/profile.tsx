@@ -2,6 +2,10 @@ import { Form, Head, Link, usePage } from '@inertiajs/react';
 import { UserIcon } from '@phosphor-icons/react';
 
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
+import AccountAppealCard, {
+    type AccountStatus,
+    type AppealState,
+} from '@/components/account-appeal-card';
 import DeleteUser from '@/components/delete-user';
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
@@ -54,11 +58,16 @@ export default function Profile({
     mustVerifyEmail,
     status,
     studentVerification,
+    accountStatus,
+    appeal,
 }: {
     mustVerifyEmail: boolean;
     status?: string;
     /** Null unless the optional third-party check is configured. */
     studentVerification?: StudentVerification | null;
+    accountStatus: AccountStatus;
+    /** The most recent appeal this account filed, if it filed one. */
+    appeal: AppealState | null;
 }) {
     const { auth } = usePage<PageProps>().props;
 
@@ -367,6 +376,8 @@ export default function Profile({
                     </div>
                 </div>
             )}
+
+            <AccountAppealCard accountStatus={accountStatus} appeal={appeal} />
 
             <div style={{ marginTop: 24 }}>
                 <DeleteUser />

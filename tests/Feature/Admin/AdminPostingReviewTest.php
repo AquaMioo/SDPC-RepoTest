@@ -29,12 +29,32 @@ class AdminPostingReviewTest extends TestCase
         Project::factory()->create(['status' => ProjectStatus::PendingReview]);
 
         $this->actingAs(User::factory()->admin()->create())
-            ->get(route('admin.postings.index'))
+            ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('admin/postings')
+                ->component('admin/dashboard')
                 ->has('postings', 1)
                 ->where('postings.0.awaitingDecision', true));
+    }
+
+    public function test_the_standalone_postings_screen_is_gone(): void
+    {
+        // The queue lives on the dashboard overview now. The decision endpoint
+        // stayed put; only the screen was folded in.
+        $this->actingAs(User::factory()->admin()->create())
+            ->get('/admin/postings')
+            ->assertNotFound();
+    }
+
+    public function test_the_dashboard_also_carries_the_content_blocks(): void
+    {
+        // Content management folded into the same screen, so a page that
+        // renders the queue without the copy would be half a merge.
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('content')
+                ->has('postings'));
     }
 
     public function test_a_draft_is_not_in_the_queue(): void
@@ -43,21 +63,21 @@ class AdminPostingReviewTest extends TestCase
 
         // A draft has not been submitted, so there is nothing to decide.
         $this->actingAs(User::factory()->admin()->create())
-            ->get(route('admin.postings.index'))
+            ->get(route('admin.dashboard'))
             ->assertInertia(fn (AssertableInertia $page) => $page->has('postings', 0));
     }
 
     public function test_a_client_can_not_reach_the_queue(): void
     {
         $this->actingAs(User::factory()->client()->approved()->create())
-            ->get(route('admin.postings.index'))
+            ->get(route('admin.dashboard'))
             ->assertForbidden();
     }
 
     public function test_a_student_can_not_reach_the_queue(): void
     {
         $this->actingAs(User::factory()->student()->approved()->create())
-            ->get(route('admin.postings.index'))
+            ->get(route('admin.dashboard'))
             ->assertForbidden();
     }
 
@@ -76,7 +96,7 @@ class AdminPostingReviewTest extends TestCase
         ]);
 
         $this->actingAs(User::factory()->admin()->create())
-            ->from(route('admin.postings.index'))
+            ->from(route('admin.dashboard'))
             ->patch(route('admin.postings.update', ['posting' => $project]), [
                 'status' => ProjectStatus::Open->value,
             ])
@@ -100,7 +120,7 @@ class AdminPostingReviewTest extends TestCase
         $project = Project::factory()->create(['status' => ProjectStatus::Open]);
 
         $this->actingAs(User::factory()->admin()->create())
-            ->from(route('admin.postings.index'))
+            ->from(route('admin.dashboard'))
             ->patch(route('admin.postings.update', ['posting' => $project]), [
                 'status' => ProjectStatus::Closed->value,
             ]);
@@ -114,7 +134,7 @@ class AdminPostingReviewTest extends TestCase
 
         // Completing a project is the client's call, not a review decision.
         $this->actingAs(User::factory()->admin()->create())
-            ->from(route('admin.postings.index'))
+            ->from(route('admin.dashboard'))
             ->patch(route('admin.postings.update', ['posting' => $project]), [
                 'status' => ProjectStatus::Completed->value,
             ])
@@ -151,7 +171,7 @@ class AdminPostingReviewTest extends TestCase
 
         // 3. The administrator approves it.
         $this->actingAs($admin)
-            ->from(route('admin.postings.index'))
+            ->from(route('admin.dashboard'))
             ->patch(route('admin.postings.update', ['posting' => $project]), [
                 'status' => ProjectStatus::Open->value,
             ])

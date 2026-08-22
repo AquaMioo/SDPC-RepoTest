@@ -55,6 +55,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Collection<int, StudentCredential> $studentCredentials
  * @property-read Collection<int, Agreement> $agreements
  * @property-read Collection<int, StudentVerification> $studentVerifications
+ * @property-read Collection<int, Appeal> $appeals
+ * @property-read Appeal|null $latestAppeal
  */
 #[Fillable(['name', 'first_name', 'last_name', 'email', 'password', 'google_id', 'avatar', 'current_team_id'])]
 #[Hidden(['password', 'google_id', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -256,6 +258,48 @@ class User extends Authenticatable implements PasskeyUser
     {
         /* Named for the role it plays, so the column has to be spelled out. */
         return $this->hasMany(Agreement::class, 'student_id');
+    }
+
+    /**
+     * Get the appeals this account has filed against decisions about it.
+     *
+     * @return HasMany<Appeal, $this>
+     */
+    public function appeals(): HasMany
+    {
+        return $this->hasMany(Appeal::class);
+    }
+
+    /**
+     * Get the most recent appeal, whether or not it has been decided.
+     *
+     * @return HasOne<Appeal, $this>
+     */
+    public function latestAppeal(): HasOne
+    {
+        return $this->hasOne(Appeal::class)->latestOfMany();
+    }
+
+    /**
+     * Determine if an appeal from this account is waiting on an administrator.
+     *
+     * One open appeal at a time: filing again while the first is unread lets
+     * an account bury its own queue position, and says nothing new.
+     */
+    public function hasPendingAppeal(): bool
+    {
+        return $this->appeals()->pending()->exists();
+    }
+
+    /**
+     * Determine if the account is in a state there is anything to appeal.
+     *
+     * Pending and approved accounts have had no decision taken against them,
+     * so there is nothing for them to answer.
+     */
+    public function mayAppeal(): bool
+    {
+        return $this->status->restrictsActions() || $this->isDeactivated();
     }
 
     /**

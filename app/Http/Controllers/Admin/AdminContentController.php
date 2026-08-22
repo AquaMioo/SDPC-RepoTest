@@ -9,20 +9,9 @@ use App\Models\SiteContent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class AdminContentController extends Controller
 {
-    /**
-     * Show the content management screen.
-     */
-    public function index(): Response
-    {
-        return Inertia::render('admin/content', [
-            'content' => SiteContent::allKeyed(),
-        ]);
-    }
-
     /**
      * Save every block of copy.
      *

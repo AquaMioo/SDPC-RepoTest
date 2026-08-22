@@ -31,6 +31,11 @@ export type StudentCard = {
     rating: number;
     completedProjects: number;
     isAvailable: boolean;
+    /** Presentation only — what they may do answers to the credential. */
+    isVerified: boolean;
+    location: string | null;
+    /** Up to two documented portfolio titles, or empty. */
+    highlights: string[];
     skills: string[];
     /**
      * The posting a thread can already be opened against, or null when the

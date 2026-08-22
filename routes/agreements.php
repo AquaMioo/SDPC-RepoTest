@@ -4,6 +4,7 @@ use App\Http\Controllers\Agreements\AgreementChangeRequestController;
 use App\Http\Controllers\Agreements\AgreementController;
 use App\Http\Controllers\Agreements\AgreementMilestoneController;
 use App\Http\Controllers\Agreements\AgreementSignatureController;
+use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 
@@ -22,14 +23,25 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class])
     ->group(function () {
+        /*
+         * An account under monitoring may read a contract it is party to and
+         * keep reporting progress on one already signed, but may not agree to
+         * new terms. Milestones are deliberately left open below: freezing
+         * them would punish the other signatory for a decision that is not
+         * theirs, and stall work that is already under way.
+         */
+        $trusted = EnsureAccountIsNotMonitored::class;
+
         Route::get('agreements', [AgreementController::class, 'index'])->name('agreements.index');
         Route::get('agreements/{agreement}', [AgreementController::class, 'show'])->name('agreements.show');
         Route::get('agreements/{agreement}/contract', [AgreementController::class, 'contract'])->name('agreements.contract');
-        Route::patch('agreements/{agreement}', [AgreementController::class, 'update'])->name('agreements.update');
+        Route::patch('agreements/{agreement}', [AgreementController::class, 'update'])->middleware($trusted)->name('agreements.update');
 
         Route::post('agreements/{agreement}/signatures', [AgreementSignatureController::class, 'store'])
+            ->middleware($trusted)
             ->name('agreements.signatures.store');
         Route::post('agreements/{agreement}/change-requests', [AgreementChangeRequestController::class, 'store'])
+            ->middleware($trusted)
             ->name('agreements.changes.store');
 
         /*

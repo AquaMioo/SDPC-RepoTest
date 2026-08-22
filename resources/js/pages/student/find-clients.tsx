@@ -1,5 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { MagnifyingGlassIcon, SparkleIcon } from '@phosphor-icons/react';
+import {
+    CheckCircleIcon,
+    MagnifyingGlassIcon,
+    SparkleIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
@@ -19,6 +23,8 @@ type ProjectCard = {
     summary: string;
     category: string;
     client: string;
+    city: string | null;
+    isBusinessVerified: boolean;
     postedAt: string | null;
     skills: string[];
     applicants: number;
@@ -167,32 +173,48 @@ export default function FindClients({
                         flexWrap: 'wrap',
                     }}
                 >
-                    <div style={{ display: 'flex', gap: 4 }}>
-                        {sorts.map((sort) => (
-                            <button
-                                key={sort.value}
-                                type="button"
-                                data-tab=""
-                                aria-current={
-                                    filters.sort === sort.value
-                                        ? 'page'
-                                        : undefined
-                                }
-                                onClick={() => go({ sort: sort.value })}
-                                style={{
-                                    background: 'none',
-                                    border: 0,
-                                    font: 'inherit',
-                                    fontSize: 12.5,
-                                    padding: '6px 12px',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: 'pointer',
-                                    color: 'var(--color-text)',
-                                }}
-                            >
-                                {sort.label}
-                            </button>
-                        ))}
+                    {/* A segmented control rather than loose links: these
+                        are one choice, and only one can be current. */}
+                    <div
+                        role="tablist"
+                        aria-label="Order briefs"
+                        style={{
+                            display: 'flex',
+                            gap: 2,
+                            padding: 3,
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--color-divider)',
+                        }}
+                    >
+                        {sorts.map((sort) => {
+                            const isCurrent = filters.sort === sort.value;
+
+                            return (
+                                <button
+                                    key={sort.value}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={isCurrent}
+                                    onClick={() => go({ sort: sort.value })}
+                                    style={{
+                                        background: isCurrent
+                                            ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)'
+                                            : 'none',
+                                        border: 0,
+                                        font: 'inherit',
+                                        fontSize: 12.5,
+                                        padding: '6px 14px',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: 'pointer',
+                                        color: isCurrent
+                                            ? 'var(--color-accent)'
+                                            : MUTED(70),
+                                    }}
+                                >
+                                    {sort.label}
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <form
@@ -272,25 +294,20 @@ export default function FindClients({
                         </span>
                     </Panel>
                 ) : (
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns:
-                                'repeat(auto-fill,minmax(240px,1fr))',
-                            gap: 16,
-                        }}
-                    >
-                        {projects.data.map((project) => (
-                            <BriefCard
+                    <Panel padding="lg" gap="none">
+                        {projects.data.map((project, index) => (
+                            <BriefRow
                                 key={project.slug}
                                 project={project}
+                                isFirst={index === 0}
+                                canApply={canApply && !holdsProjectInHand}
                                 href={boardShow.url({
                                     current_team: team.slug,
                                     project: project.slug,
                                 })}
                             />
                         ))}
-                    </div>
+                    </Panel>
                 )}
 
                 {projects.links.length > 3 && (
@@ -494,59 +511,97 @@ function MatchPanel({ highlight }: { highlight: NonNullable<Props['highlight']> 
     );
 }
 
-function BriefCard({
+/**
+ * One brief, as a full-width row.
+ *
+ * Everything drawn here is a column that exists. The design also sketched a
+ * difficulty level and a "8-10 weeks" duration; both were dropped from
+ * projects by an earlier migration, so they are absent rather than invented —
+ * and there is no bookmark table behind the design's save icon, so that is
+ * absent too.
+ */
+function BriefRow({
     project,
     href,
+    isFirst,
+    canApply,
 }: {
     project: ProjectCard;
     href: string;
+    isFirst: boolean;
+    /** False while the student is unverified or already building something. */
+    canApply: boolean;
 }) {
     return (
-        <Panel padding="md" gap="sm">
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <Link
-                    href={href}
-                    style={{
-                        fontFamily: 'var(--font-heading)',
-                        fontSize: 16,
-                        marginRight: 'auto',
-                        color: 'var(--color-text)',
-                        textDecoration: 'none',
-                    }}
-                >
-                    {project.title}
-                </Link>
-                {project.postedAt && (
-                    <span style={{ fontSize: 10.5, color: MUTED(68) }}>
-                        {project.postedAt}
-                    </span>
-                )}
+        <article
+            data-test="brief-row"
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                padding: isFirst ? '0 0 20px' : '20px 0',
+                borderTop: isFirst ? undefined : '1px solid var(--color-divider)',
+            }}
+        >
+            <div style={{ fontSize: 11.5, color: MUTED(60) }}>
+                {project.postedAt ? `Posted ${project.postedAt}` : 'Not yet published'}
+                {' · '}
+                {project.client}
+                {project.city ? ` · ${project.city}` : ''}
             </div>
 
-            <div style={{ fontSize: 11, color: MUTED(68) }}>
-                {project.client}
+            <Link
+                href={href}
+                style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: 19,
+                    lineHeight: 1.25,
+                    color: 'var(--color-text)',
+                    textDecoration: 'none',
+                }}
+            >
+                {project.title}
+            </Link>
+
+            <div style={{ fontSize: 11.5, color: MUTED(60) }}>
+                {project.category}
+                {' · '}
+                {project.applicants} applicant
+                {project.applicants === 1 ? '' : 's'}
             </div>
 
             <p
                 style={{
                     margin: 0,
-                    fontSize: 12.5,
-                    lineHeight: 1.55,
-                    color: MUTED(62),
+                    maxWidth: '78ch',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    color: MUTED(72),
                 }}
             >
                 {project.summary}
             </p>
 
+            {project.skills.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {project.skills.map((skill) => (
+                        <Tag key={skill} variant="outline">
+                            {skill}
+                        </Tag>
+                    ))}
+                </div>
+            )}
+
             {project.insight && (
                 <div
                     style={{
-                        padding: '8px 10px',
+                        padding: '8px 11px',
                         borderRadius: 'var(--radius-sm)',
                         background:
                             'color-mix(in srgb, var(--color-accent) 12%, transparent)',
-                        fontSize: 11,
+                        fontSize: 11.5,
                         lineHeight: 1.5,
+                        maxWidth: '78ch',
                     }}
                 >
                     <span style={{ color: 'var(--color-accent)' }}>
@@ -558,29 +613,58 @@ function BriefCard({
 
             <div
                 style={{
-                    height: 1,
-                    background: 'var(--color-divider)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    flexWrap: 'wrap',
                     marginTop: 2,
                 }}
-            />
+            >
+                {project.isBusinessVerified && (
+                    <span
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontSize: 11.5,
+                            color: MUTED(70),
+                        }}
+                    >
+                        <CheckCircleIcon
+                            weight="fill"
+                            style={{ color: 'var(--color-accent)' }}
+                        />
+                        Business verified
+                    </span>
+                )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ marginRight: 'auto' }}>
+                {project.compatibility !== null && (
+                    <Tag variant="accent">{project.compatibility}% match</Tag>
+                )}
+
+                <span style={{ marginLeft: 'auto' }}>
                     {project.hasApplied ? (
                         <Tag variant="accent">Applied</Tag>
-                    ) : project.compatibility !== null ? (
-                        <Tag variant="accent">
-                            {project.compatibility}% match
-                        </Tag>
                     ) : (
-                        <span style={{ fontSize: 11, color: MUTED(60) }}>
-                            {project.applicants} applicant
-                            {project.applicants === 1 ? '' : 's'}
-                        </span>
+                        /*
+                         * A link, not a one-click apply: applying needs a
+                         * cover letter, and that form lives on the brief.
+                         */
+                        <Btn
+                            asChild={canApply}
+                            variant="secondary"
+                            disabled={!canApply}
+                            title={
+                                canApply
+                                    ? undefined
+                                    : 'Applying opens up once your credential is verified and you have no build in hand.'
+                            }
+                        >
+                            {canApply ? <Link href={href}>Apply</Link> : 'Apply'}
+                        </Btn>
                     )}
                 </span>
-
             </div>
-        </Panel>
+        </article>
     );
 }

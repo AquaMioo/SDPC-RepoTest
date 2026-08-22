@@ -43,6 +43,15 @@ return [
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                //
+                // Bounded on purpose. Reverb is a separate process, and when
+                // it is not listening the default behaviour is to sit on the
+                // connection for seconds — which a message send would wait
+                // out before App\Actions\Messaging\AnnounceMessage could
+                // even catch the failure. Failing fast keeps the chat quick
+                // when the socket is down rather than merely working.
+                'connect_timeout' => 2,
+                'timeout' => 4,
             ],
         ],
 
@@ -61,6 +70,15 @@ return [
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                //
+                // Bounded on purpose. Reverb is a separate process, and when
+                // it is not listening the default behaviour is to sit on the
+                // connection for seconds — which a message send would wait
+                // out before App\Actions\Messaging\AnnounceMessage could
+                // even catch the failure. Failing fast keeps the chat quick
+                // when the socket is down rather than merely working.
+                'connect_timeout' => 2,
+                'timeout' => 4,
             ],
         ],
 

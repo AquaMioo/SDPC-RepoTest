@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Messaging;
 
+use App\Actions\Messaging\AnnounceMessage;
 use App\Enums\UserRole;
-use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Messaging\EditMessageRequest;
 use App\Http\Requests\Messaging\ReactToMessageRequest;
@@ -33,6 +33,8 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  */
 class ConversationController extends Controller
 {
+    public function __construct(private readonly AnnounceMessage $announce) {}
+
     /**
      * Show the inbox, with one thread open.
      */
@@ -180,8 +182,12 @@ class ConversationController extends Controller
         /*
          * Broadcast after the transaction commits. Firing inside it would let
          * the other side be told about a message that a rollback then undid.
+         *
+         * Through AnnounceMessage rather than dispatched directly: the message
+         * is already saved, so a broadcaster that is down must not turn a
+         * delivered message into an error page.
          */
-        MessageSent::dispatch($message);
+        $this->announce->handle($message);
 
         return back();
     }
@@ -213,7 +219,7 @@ class ConversationController extends Controller
             'edited_at' => now(),
         ])->save();
 
-        MessageSent::dispatch($message);
+        $this->announce->handle($message);
 
         return back();
     }
@@ -245,7 +251,7 @@ class ConversationController extends Controller
 
         $message->reactions()->delete();
 
-        MessageSent::dispatch($message);
+        $this->announce->handle($message);
 
         return back();
     }
@@ -279,7 +285,7 @@ class ConversationController extends Controller
         if ($existing !== null) {
             $existing->delete();
 
-            MessageSent::dispatch($message);
+            $this->announce->handle($message);
 
             return back();
         }
@@ -289,7 +295,7 @@ class ConversationController extends Controller
             'emoji' => $emoji,
         ]);
 
-        MessageSent::dispatch($message);
+        $this->announce->handle($message);
 
         return back();
     }

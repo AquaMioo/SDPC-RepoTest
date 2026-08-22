@@ -59,7 +59,7 @@ class AdminAuthenticationTest extends TestCase
         // membership instead of reaching the admin controllers.
         $admin = User::factory()->admin()->create();
 
-        foreach (['admin.dashboard', 'admin.overview', 'admin.users.index', 'admin.content', 'admin.issues'] as $name) {
+        foreach (['admin.dashboard', 'admin.overview', 'admin.users.index', 'admin.issues', 'admin.monitoring'] as $name) {
             $this->actingAs($admin)
                 ->get(route($name))
                 ->assertOk();

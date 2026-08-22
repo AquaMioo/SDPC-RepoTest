@@ -7,6 +7,7 @@ use App\Http\Controllers\Student\ProjectProcessController;
 use App\Http\Controllers\Student\StudentProfileController;
 use App\Http\Controllers\Student\StudentVerificationController;
 use App\Http\Controllers\Student\WorkflowController;
+use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureAccountIsVerified;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Http\Middleware\EnsureUserIsStudent;
@@ -43,9 +44,11 @@ Route::prefix('{current_team}')
         /*
          * Browsing is open to any student, the same way the client module lets
          * an unverified business look around. Applying is what waits for an
-         * administrator to accept the credential.
+         * administrator to accept the credential — and for the account not
+         * being under monitoring, which is the same question asked from the
+         * other direction: proved, and still trusted.
          */
-        $verified = EnsureAccountIsVerified::class;
+        $verified = [EnsureAccountIsVerified::class, EnsureAccountIsNotMonitored::class];
 
         Route::get('find-clients', [ProjectBoardController::class, 'index'])->name('student.board.index');
         Route::get('find-clients/{project}', [ProjectBoardController::class, 'show'])->name('student.board.show');

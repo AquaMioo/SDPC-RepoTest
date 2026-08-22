@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\AppealController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Teams\TeamController;
@@ -14,6 +15,16 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    /*
+     * Account Information → Review Appeal. Deliberately in the `auth`-only
+     * group, with no verification or monitoring gate on it: an account under
+     * review must be able to answer the review, and gating the appeal behind
+     * the state being appealed would close the only door out of it.
+     */
+    Route::post('settings/appeal', [AppealController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('profile.appeal.store');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

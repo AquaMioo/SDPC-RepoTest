@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
@@ -6,15 +6,10 @@ import { Btn } from '@/components/sdpc/btn';
 import { Textarea } from '@/components/sdpc/input';
 import { Spinner } from '@/components/ui/spinner';
 import { update } from '@/routes/admin/content';
-
-type Draft = {
-    announcements: string;
-    rules: string;
-    policies: string;
-};
+import type { SiteContentDraft } from '@/types/admin';
 
 type Props = {
-    content?: Partial<Record<keyof Draft, string | null>>;
+    content?: Partial<Record<keyof SiteContentDraft, string | null>>;
 };
 
 const MUTED = (pct: number) =>
@@ -27,27 +22,24 @@ const MUTED = (pct: number) =>
  * preview reads the draft rather than the saved copy, so it shows what saving
  * would publish, not what is already published.
  */
-export default function AdminContent({ content }: Props) {
-    const [draft, setDraft] = useState<Draft>({
+export default function ContentEditor({ content }: Props) {
+    const [draft, setDraft] = useState<SiteContentDraft>({
         announcements: content?.announcements ?? '',
         rules: content?.rules ?? '',
         policies: content?.policies ?? '',
     });
 
-    const edit = (key: keyof Draft, value: string) =>
+    const edit = (key: keyof SiteContentDraft, value: string) =>
         setDraft((current) => ({ ...current, [key]: value }));
 
     return (
-        <div
-            style={{
-                maxWidth: 1180,
-                margin: '0 auto',
-                padding: '30px 32px 72px',
-            }}
-        >
-            <Head title="Content management" />
-
-            <h3 style={{ margin: '0 0 20px' }}>Content management</h3>
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+                <h6 style={{ margin: 0 }}>Content management</h6>
+                <div style={{ fontSize: 12.5, color: MUTED(55) }}>
+                    Announcements, platform rules and system policies
+                </div>
+            </div>
 
             <div
                 style={{
@@ -71,9 +63,7 @@ export default function AdminContent({ content }: Props) {
                                 placeholder="e.g. Milestone escrow is now live for extension payments…"
                                 value={draft.announcements}
                                 error={errors.announcements}
-                                onChange={(value) =>
-                                    edit('announcements', value)
-                                }
+                                onChange={(value) => edit('announcements', value)}
                             />
                             <EditorField
                                 name="rules"
@@ -110,10 +100,7 @@ export default function AdminContent({ content }: Props) {
 
                                 {recentlySuccessful && (
                                     <span
-                                        style={{
-                                            fontSize: 12,
-                                            color: MUTED(65),
-                                        }}
+                                        style={{ fontSize: 12, color: MUTED(65) }}
                                         data-test="content-saved"
                                     >
                                         Saved.
@@ -135,7 +122,7 @@ export default function AdminContent({ content }: Props) {
                     <Preview label="Policies" value={draft.policies} />
                 </div>
             </div>
-        </div>
+        </section>
     );
 }
 

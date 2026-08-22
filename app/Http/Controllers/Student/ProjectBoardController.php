@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Student;
 
 use App\Enums\ApplicationSource;
 use App\Enums\ApplicationStatus;
+use App\Enums\IssueCategory;
 use App\Enums\ProjectStatus;
 use App\Enums\SkillType;
 use App\Http\Controllers\Controller;
@@ -17,6 +18,7 @@ use App\Services\Recommendation\RecommendationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -58,7 +60,7 @@ class ProjectBoardController extends Controller
          * way stays reachable by URL — Workflow links back to it — but it does
          * not belong on a page headed "find a client".
          */
-        $projects = $this->visibleTo($student)
+        $query = $this->visibleTo($student)
             ->where('applications_open', true)
             ->where('status', ProjectStatus::Open)
             ->when($search !== '', fn (Builder $query) => $query
@@ -72,11 +74,19 @@ class ProjectBoardController extends Controller
                 }
             })
             ->with(['team.clientProfile', 'skills'])
-            ->withCount('applications')
-            ->latest('published_at')
-            ->paginate(12)
-            ->withQueryString()
-            ->through(fn (Project $project) => $this->toCard($project, $applied, $scores));
+            ->withCount('applications');
+
+        /*
+         * "Recommended" only means something once there are scores to rank by.
+         * Until then — and whenever the student asks for newest — the board is
+         * ordered by the database, which is both cheaper and the only honest
+         * order available.
+         */
+        $projects = $sort === self::SORT_RECOMMENDED && $scores->isNotEmpty()
+            ? $this->rankedByScore($query, $scores, $request)
+            : $query->latest('published_at')->paginate(12)->withQueryString();
+
+        $projects->through(fn (Project $project) => $this->toCard($project, $applied, $scores));
 
         return Inertia::render('student/find-clients', [
             'projects' => $projects,
@@ -101,6 +111,39 @@ class ProjectBoardController extends Controller
             'matchingEnabled' => $scores->isNotEmpty(),
             'highlight' => $this->highlight($projects->getCollection(), $scores),
         ]);
+    }
+
+    /**
+     * Order the board by how well each posting fits this student.
+     *
+     * Scored before paging rather than after, or "recommended" would only mean
+     * "best on whichever page you happen to be looking at" — the same reason
+     * RecruitController ranks before it pages. Published date breaks ties so
+     * two equally good fits still come back in a stable order.
+     *
+     * @param  Builder<Project>  $query
+     * @param  Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>  $scores
+     * @return LengthAwarePaginator<int, Project>
+     */
+    protected function rankedByScore(Builder $query, Collection $scores, Request $request): LengthAwarePaginator
+    {
+        $ranked = $query->get()
+            ->sortByDesc(fn (Project $project): array => [
+                $scores->get($project->id)['compatibility'] ?? -1,
+                $project->published_at?->getTimestamp() ?? 0,
+            ])
+            ->values();
+
+        $perPage = 12;
+        $page = max(1, (int) $request->query('page', 1));
+
+        return new LengthAwarePaginator(
+            $ranked->forPage($page, $perPage)->values(),
+            $ranked->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
     }
 
     /**
@@ -180,6 +223,13 @@ class ProjectBoardController extends Controller
             ],
             'canApply' => $student->isVerifiedForOperating(),
             'holdsProjectInHand' => $student->holdsProjectInHand(),
+            /*
+             * Reporting a posting is open to any signed in student, verified
+             * or not — a misleading listing is worth hearing about before the
+             * reporter's own credential has been read.
+             */
+            'projectId' => $project->id,
+            'reportCategories' => IssueCategory::postingOptions(),
         ]);
     }
 
@@ -293,6 +343,15 @@ class ProjectBoardController extends Controller
             'category' => $project->category,
             'industry' => $project->industry,
             'client' => $project->team->clientProfile?->business_name ?? $project->team->name,
+            /* Where the business is, when it has said. */
+            'city' => $project->team->clientProfile?->city,
+            /*
+             * The permit an administrator accepted, shown as a badge. It is
+             * the same check that decides whether a client may post at all,
+             * so a listing on this board is always from a verified business —
+             * saying so out loud is what a student is looking for.
+             */
+            'isBusinessVerified' => $project->team->clientProfile?->isVerified() ?? false,
             'skills' => $project->skills->pluck('name')->all(),
             'applicants' => $project->applications_count ?? $project->applications()->count(),
             'isAcceptingApplications' => $project->isAcceptingApplications(),

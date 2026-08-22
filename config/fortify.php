@@ -161,7 +161,15 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        /*
+         * Registration is deliberately absent. Client and student sign up runs
+         * through App\Http\Controllers\Auth\RegistrationController instead,
+         * which sends a code to the address on the form and creates nothing
+         * until it comes back. Fortify creates the account and signs the person
+         * in on the same request, and there is no seam in that where an address
+         * can be proved first. Removing the feature frees the `register` and
+         * `register.store` route names for that controller.
+         */
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([

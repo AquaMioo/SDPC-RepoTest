@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $reporter_id
  * @property int $reported_user_id
+ * @property int|null $reported_project_id
  * @property IssueCategory $category
  * @property string $description
  * @property IssueStatus $status
@@ -28,9 +29,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read User $reporter
  * @property-read User $reportedUser
+ * @property-read Project|null $reportedProject
  * @property-read User|null $handler
  */
-#[Fillable(['reporter_id', 'reported_user_id', 'category', 'description', 'status'])]
+#[Fillable(['reporter_id', 'reported_user_id', 'reported_project_id', 'category', 'description', 'status'])]
 class Issue extends Model
 {
     /** @use HasFactory<IssueFactory> */
@@ -68,6 +70,27 @@ class Issue extends Model
     public function reportedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reported_user_id');
+    }
+
+    /**
+     * The posting the report is about, when it is about one.
+     *
+     * Null for the ordinary case of one account reporting another. When it is
+     * set, reported_user_id still names the account behind the posting.
+     *
+     * @return BelongsTo<Project, $this>
+     */
+    public function reportedProject(): BelongsTo
+    {
+        return $this->belongsTo(Project::class, 'reported_project_id');
+    }
+
+    /**
+     * Determine if the report names a posting rather than only an account.
+     */
+    public function isAboutPosting(): bool
+    {
+        return $this->reported_project_id !== null;
     }
 
     /**

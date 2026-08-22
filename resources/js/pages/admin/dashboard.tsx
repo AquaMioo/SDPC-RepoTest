@@ -1,18 +1,39 @@
 import { Head, Link } from '@inertiajs/react';
 
+import ContentEditor from '@/components/admin/content-editor';
+import PostingReviewList from '@/components/admin/posting-review-list';
 import { Btn } from '@/components/sdpc/btn';
 import { overview } from '@/routes/admin';
 import { index as adminUsers } from '@/routes/admin/users';
-import type { AdminStats } from '@/types/admin';
+import type {
+    AdminPosting,
+    AdminStats,
+    SiteContentDraft,
+} from '@/types/admin';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
+const RULE: React.CSSProperties = {
+    height: 1,
+    background: 'var(--color-divider)',
+    margin: '28px 0 24px',
+};
+
+type Props = {
+    stats: AdminStats;
+    postings: AdminPosting[];
+    content?: Partial<Record<keyof SiteContentDraft, string | null>>;
+};
+
 /**
- * The admin landing screen after sign in — a condensed read of platform health
- * with a way through to the full overview.
+ * The dashboard overview — the administrator's one working screen.
+ *
+ * Postings review and content management used to be screens of their own. The
+ * scope names neither, so both live here now: platform health first, then the
+ * posting queue, then the copy. Their write endpoints are unchanged.
  */
-export default function AdminDashboard({ stats }: { stats: AdminStats }) {
+export default function AdminDashboard({ stats, postings, content }: Props) {
     return (
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}>
             <Head title="Admin dashboard" />
@@ -86,6 +107,14 @@ export default function AdminDashboard({ stats }: { stats: AdminStats }) {
                     </Btn>
                 </div>
             )}
+
+            <div style={RULE} />
+
+            <PostingReviewList postings={postings} />
+
+            <div style={RULE} />
+
+            <ContentEditor content={content} />
         </div>
     );
 }

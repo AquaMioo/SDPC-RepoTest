@@ -10,11 +10,12 @@ use App\Models\TeamInvitation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Feature\Auth\Concerns\CompletesRegistration;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
-    use RefreshDatabase;
+    use CompletesRegistration, RefreshDatabase;
 
     public function test_registration_screen_can_be_rendered()
     {
@@ -47,7 +48,7 @@ class RegistrationTest extends TestCase
 
     public function test_new_client_users_can_register()
     {
-        $response = $this->post(route('register.store'), [
+        $response = $this->completeRegistration([
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
@@ -80,7 +81,7 @@ class RegistrationTest extends TestCase
 
     public function test_new_student_users_can_register()
     {
-        $this->post(route('register.store'), [
+        $this->completeRegistration([
             'first_name' => 'Kristiane',
             'last_name' => 'Dela Pena',
             'email' => 'student@example.com',

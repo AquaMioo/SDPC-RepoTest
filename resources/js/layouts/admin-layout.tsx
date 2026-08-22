@@ -10,8 +10,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useMod } from '@/hooks/use-mod';
 import { logout } from '@/routes';
-import { content, dashboard, issues, monitoring } from '@/routes/admin';
-import { index as adminPostings } from '@/routes/admin/postings';
+import { dashboard, issues, monitoring } from '@/routes/admin';
 import { index as adminUsers } from '@/routes/admin/users';
 
 type NavItem = {
@@ -52,9 +51,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
          * Credentials and Businesses are gone. Enrolment is checked by the
          * verification provider and a business is verified on registration, so
          * neither queue had anything left for an administrator to decide.
+         *
+         * Postings and Content are gone from the nav too, but not from the
+         * app: both fold into the Overview screen, which is what the scope
+         * calls the Dashboard Overview.
          */
-        { label: 'Postings', href: adminPostings.url() },
-        { label: 'Content', href: content.url() },
         { label: 'Issues', href: issues.url() },
         { label: 'Monitoring', href: monitoring.url() },
     ];

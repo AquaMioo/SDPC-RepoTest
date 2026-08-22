@@ -4,18 +4,28 @@ import { useState } from 'react';
 import { Btn } from '@/components/sdpc/btn';
 import { update as resolveIssue } from '@/routes/admin/issues';
 
+type IssueAction = 'warn' | 'monitor' | 'remove_access' | 'close_posting';
+
 type Issue = {
     id: number;
     title: string;
     reporter: string;
     reportedUser: string;
     reportedUserStatus: string;
+    /** Null unless the complaint is about a posting rather than a person. */
+    reportedPosting: {
+        title: string;
+        statusLabel: string;
+        closed: boolean;
+    } | null;
     reportedOn: string | null;
     description: string;
     status: string;
     resolved: boolean;
     resolution: string | null;
     handledBy: string | null;
+    /** What this report may be closed with — set by IssueResolution. */
+    actions: { value: IssueAction; label: string }[];
 };
 
 type Props = {
@@ -28,14 +38,16 @@ const MUTED = (pct: number) =>
 /**
  * Reports and issues.
  *
- * Real rows: clients and students file these against an account, and "Remove
- * access" deactivates the reported account through the same UserStatus the
- * Users screen sets.
+ * Real rows: clients and students file these against an account or one of its
+ * postings. Every action here sets state that already exists elsewhere —
+ * "Place under monitoring" and "Remove access" set the same UserStatus the
+ * Users screen sets, "Close posting" the same ProjectStatus the posting queue
+ * sets — so a decision means the same thing wherever it is taken.
  */
 export default function AdminIssues({ issues }: Props) {
     const [pending, setPending] = useState<{
         issue: Issue;
-        action: 'warn' | 'remove_access';
+        action: IssueAction;
     } | null>(null);
 
     const [processing, setProcessing] = useState(false);
@@ -101,8 +113,8 @@ export default function AdminIssues({ issues }: Props) {
                     <b style={{ color: 'var(--color-text)' }}>
                         Nothing reported.
                     </b>{' '}
-                    Reports filed by clients and students against an account
-                    arrive here.
+                    Reports filed by clients and students against an account or
+                    a posting arrive here.
                 </p>
             )}
 
@@ -145,6 +157,35 @@ export default function AdminIssues({ issues }: Props) {
                                 : ''}
                         </div>
 
+                        {issue.reportedPosting && (
+                            <div
+                                style={{
+                                    padding: '8px 11px',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: MUTED(5),
+                                    fontSize: 12,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                }}
+                                data-test="reported-posting"
+                            >
+                                <span className="card-kicker">Posting</span>
+                                <span style={{ marginRight: 'auto' }}>
+                                    {issue.reportedPosting.title}
+                                </span>
+                                <span
+                                    className={
+                                        issue.reportedPosting.closed
+                                            ? 'tag tag-neutral'
+                                            : 'tag tag-outline'
+                                    }
+                                >
+                                    {issue.reportedPosting.statusLabel}
+                                </span>
+                            </div>
+                        )}
+
                         <p
                             style={{
                                 margin: 0,
@@ -158,35 +199,33 @@ export default function AdminIssues({ issues }: Props) {
 
                         {!issue.resolved && (
                             <div
-                                style={{ display: 'flex', gap: 8, marginTop: 4 }}
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    marginTop: 4,
+                                    flexWrap: 'wrap',
+                                }}
                             >
-                                <Btn
-                                    variant="primary"
-                                    style={{
-                                        fontSize: 12.5,
-                                        padding: '5px 12px',
-                                    }}
-                                    onClick={() =>
-                                        setPending({ issue, action: 'warn' })
-                                    }
-                                >
-                                    Warn user
-                                </Btn>
-                                <Btn
-                                    variant="secondary"
-                                    style={{
-                                        fontSize: 12.5,
-                                        padding: '5px 12px',
-                                    }}
-                                    onClick={() =>
-                                        setPending({
-                                            issue,
-                                            action: 'remove_access',
-                                        })
-                                    }
-                                >
-                                    Remove access
-                                </Btn>
+                                {issue.actions.map((action, index) => (
+                                    <Btn
+                                        key={action.value}
+                                        variant={
+                                            index === 0 ? 'primary' : 'secondary'
+                                        }
+                                        style={{
+                                            fontSize: 12.5,
+                                            padding: '5px 12px',
+                                        }}
+                                        onClick={() =>
+                                            setPending({
+                                                issue,
+                                                action: action.value,
+                                            })
+                                        }
+                                    >
+                                        {action.label}
+                                    </Btn>
+                                ))}
                             </div>
                         )}
                     </div>
@@ -205,9 +244,7 @@ export default function AdminIssues({ issues }: Props) {
                             Confirm this action?
                         </div>
                         <div className="dialog-body">
-                            {pending.action === 'warn'
-                                ? `This closes the report against ${pending.issue.reportedUser} with a warning. Their account keeps its access.`
-                                : `This deactivates ${pending.issue.reportedUser} and closes the report. They cannot sign in until an administrator restores them on the Users page.`}
+                            {consequenceOf(pending.action, pending.issue)}
                         </div>
                         <div className="dialog-actions">
                             <Btn
@@ -230,4 +267,23 @@ export default function AdminIssues({ issues }: Props) {
             )}
         </div>
     );
+}
+
+/**
+ * Spell out what confirming would actually do.
+ *
+ * Every one of these is a state another screen also sets, so the wording names
+ * where it can be undone rather than implying this queue owns it.
+ */
+function consequenceOf(action: IssueAction, issue: Issue): string {
+    switch (action) {
+        case 'warn':
+            return `This closes the report against ${issue.reportedUser} with a warning. Their account keeps its access.`;
+        case 'monitor':
+            return `This puts ${issue.reportedUser} under monitoring and closes the report. They can still sign in and look around, but cannot post, apply, hire or sign until an administrator restores them on the Users page. They may appeal.`;
+        case 'remove_access':
+            return `This deactivates ${issue.reportedUser} and closes the report. They cannot sign in until an administrator restores them on the Users page.`;
+        case 'close_posting':
+            return `This takes "${issue.reportedPosting?.title}" off the student board and closes the report. ${issue.reportedUser} keeps their access — close the report against them separately if that is warranted.`;
+    }
 }

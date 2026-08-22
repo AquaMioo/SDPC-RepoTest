@@ -7,6 +7,7 @@ use App\Http\Controllers\Client\ProjectController;
 use App\Http\Controllers\Client\RecruitController;
 use App\Http\Controllers\Client\StudentProfileController;
 use App\Http\Controllers\Client\TestimonialController;
+use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureAccountIsVerified;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Http\Middleware\EnsureUserIsClient;
@@ -28,13 +29,15 @@ Route::prefix('{current_team}')
          * Reading stays open to any client: looking around the module is how a
          * new business decides whether to finish signing up at all. Posting
          * work and hiring wait for `verified`, which is only granted once an
-         * administrator has accepted the business permit.
+         * administrator has accepted the business permit — and for the account
+         * not being under monitoring, which is the same question asked from
+         * the other direction: proved, and still trusted.
          *
          * The gate is applied per route rather than as a group because order
          * matters here — Project binds on its slug, so `projects/create` has
          * to stay ahead of `projects/{project}` or it is read as a slug.
          */
-        $verified = EnsureAccountIsVerified::class;
+        $verified = [EnsureAccountIsVerified::class, EnsureAccountIsNotMonitored::class];
 
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::get('projects/create', [ProjectController::class, 'create'])->middleware($verified)->name('projects.create');

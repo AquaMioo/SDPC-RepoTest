@@ -10,51 +10,20 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
-use Inertia\Response;
 
 /**
  * Review of postings, the third queue alongside business permits and student
  * credentials.
  *
  * A client publishes into `pending_review`, not straight onto the board. This
- * screen is what moves it to `open`, which is the only status the student
- * board lists — without a decision here a posting is written but never seen.
+ * decision is what moves it to `open`, which is the only status the student
+ * board lists — without it a posting is written but never seen.
+ *
+ * The queue itself is drawn by the dashboard overview and built by
+ * App\Support\AdminPostingQueue; this controller is only the decision.
  */
 class AdminPostingController extends Controller
 {
-    /**
-     * Show every posting that has been submitted, waiting ones first.
-     */
-    public function index(): Response
-    {
-        $postings = Project::query()
-            ->with(['team.clientProfile', 'skills'])
-            ->whereNot('status', ProjectStatus::Draft)
-            ->latest('published_at')
-            ->get()
-            ->sortBy(fn (Project $project): int => $project->status === ProjectStatus::PendingReview ? 0 : 1)
-            ->values()
-            ->map(fn (Project $project): array => [
-                'slug' => $project->slug,
-                'title' => $project->title,
-                'description' => str($project->description)->limit(240)->toString(),
-                'category' => $project->category,
-                'business' => $project->team->clientProfile?->business_name ?? $project->team->name,
-                'city' => $project->team->clientProfile?->city,
-                'skills' => $project->skills->pluck('name')->all(),
-                'status' => $project->status->value,
-                'statusLabel' => $project->status->label(),
-                'publishedAt' => $project->published_at?->diffForHumans(),
-                'awaitingDecision' => $project->status === ProjectStatus::PendingReview,
-            ])
-            ->all();
-
-        return Inertia::render('admin/postings', [
-            'postings' => $postings,
-        ]);
-    }
-
     /**
      * Record the administrator's decision on a posting.
      *

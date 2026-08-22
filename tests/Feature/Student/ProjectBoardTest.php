@@ -359,6 +359,93 @@ class ProjectBoardTest extends TestCase
                 ->where('filters.sort', 'recommended'));
     }
 
+    /*
+     * ---------------------------------------------------------------------
+     * The order the board comes back in
+     * ---------------------------------------------------------------------
+     *
+     * The sort was read off the query string and handed to the screen, but
+     * never applied — "Recommended" and "Newest" returned the same list, so
+     * the tab did nothing.
+     */
+
+    public function test_newest_orders_by_when_the_posting_was_published(): void
+    {
+        $student = $this->student();
+
+        $this->posting(['title' => 'Older', 'published_at' => now()->subWeek()]);
+        $this->posting(['title' => 'Newer', 'published_at' => now()]);
+
+        $this->actingAs($student)
+            ->get(route('student.board.index', [
+                'current_team' => $student->currentTeam,
+                'sort' => 'newest',
+            ]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('projects.data.0.title', 'Newer')
+                ->where('projects.data.1.title', 'Older'));
+    }
+
+    public function test_recommended_puts_the_best_fitting_posting_first(): void
+    {
+        config(['recommendations.driver' => 'stored']);
+
+        $student = $this->student();
+
+        // The weaker fit is also the newer posting, so date order alone would
+        // put it first — which is exactly what the broken sort used to do.
+        $strong = $this->posting(['title' => 'Strong fit', 'published_at' => now()->subWeek()]);
+        $this->posting(['title' => 'Weak fit', 'published_at' => now()]);
+
+        Recommendation::create([
+            'project_id' => $strong->id,
+            'user_id' => $student->id,
+            'score' => 0.91,
+            'compatibility_percentage' => 91,
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('student.board.index', [
+                'current_team' => $student->currentTeam,
+                'sort' => 'recommended',
+            ]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('projects.data.0.title', 'Strong fit')
+                ->where('projects.data.1.title', 'Weak fit'));
+    }
+
+    /**
+     * With nothing scored there is no ranking to apply, so the board falls
+     * back to the database order rather than shuffling arbitrarily.
+     */
+    public function test_recommended_falls_back_to_newest_when_nothing_is_scored(): void
+    {
+        $student = $this->student();
+
+        $this->posting(['title' => 'Older', 'published_at' => now()->subWeek()]);
+        $this->posting(['title' => 'Newer', 'published_at' => now()]);
+
+        $this->actingAs($student)
+            ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('matchingEnabled', false)
+                ->where('projects.data.0.title', 'Newer'));
+    }
+
+    public function test_a_row_says_whether_the_business_was_verified(): void
+    {
+        $student = $this->student();
+
+        $client = User::factory()->client()->approved()->verifiedBusiness()->create();
+        $this->posting(['team_id' => $client->current_team_id, 'title' => 'From a verified business']);
+
+        $this->actingAs($student)
+            ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('projects.data.0.title', 'From a verified business')
+                ->where('projects.data.0.isBusinessVerified', true));
+    }
+
     /**
      * An approved student with no credential on file.
      */

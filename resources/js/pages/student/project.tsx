@@ -1,6 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeftIcon, CheckCircleIcon } from '@phosphor-icons/react';
 
+import ReportAccountDialog from '@/components/report-account-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import Field from '@/components/sdpc/field';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
@@ -36,6 +37,9 @@ type Props = {
     canApply: boolean;
     /** One student, one build — true while they already have work. */
     holdsProjectInHand: boolean;
+    /** The posting's id, which is what a report names. */
+    projectId: number;
+    reportCategories: { value: string; label: string }[];
 };
 
 /**
@@ -46,6 +50,8 @@ export default function StudentProject({
     application,
     canApply,
     holdsProjectInHand,
+    projectId,
+    reportCategories,
 }: Props) {
     const team = useCurrentTeam();
 
@@ -78,13 +84,28 @@ export default function StudentProject({
                         </Link>
                     </Btn>
 
-                    <div>
-                        <h3 style={{ margin: 0 }}>{project.title}</h3>
-                        <div style={{ fontSize: 13, color: MUTED(60) }}>
-                            {project.client}
-                            {project.city ? ` · ${project.city}` : ''} ·{' '}
-                            {project.category}
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                        }}
+                    >
+                        <div style={{ marginRight: 'auto', minWidth: 0 }}>
+                            <h3 style={{ margin: 0 }}>{project.title}</h3>
+                            <div style={{ fontSize: 13, color: MUTED(60) }}>
+                                {project.client}
+                                {project.city ? ` · ${project.city}` : ''} ·{' '}
+                                {project.category}
+                            </div>
                         </div>
+
+                        <ReportAccountDialog
+                            projectId={projectId}
+                            projectTitle={project.title}
+                            categories={reportCategories}
+                        />
                     </div>
 
                     <Panel padding="lg" gap="md">

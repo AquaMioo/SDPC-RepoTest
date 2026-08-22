@@ -3,7 +3,7 @@
 namespace App\Actions\Fortify;
 
 use App\Actions\Teams\CreateTeam;
-use App\Concerns\PasswordValidationRules;
+use App\Concerns\RegistrationValidationRules;
 use App\Enums\UserRole;
 use App\Enums\VerificationStatus;
 use App\Models\ClientProfile;
@@ -11,13 +11,12 @@ use App\Models\User;
 use App\Support\PendingGoogleRegistration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
 {
-    use PasswordValidationRules;
+    use RegistrationValidationRules;
 
     public function __construct(private CreateTeam $createTeam) {}
 
@@ -32,6 +31,11 @@ class CreateNewUser implements CreatesNewUsers
      * one. For a client the team is their business and is named accordingly;
      * for a student it is a personal team they never see.
      *
+     * By the time this runs the address has already been proved — either by
+     * Google, or by the code RegistrationController made them type. It
+     * validates anyway: this is the Fortify contract and may be called with an
+     * array nobody checked.
+     *
      * @param  array<string, string>  $input
      */
     public function create(array $input): User
@@ -42,28 +46,18 @@ class CreateNewUser implements CreatesNewUsers
         // an email posted from the browser could be anyone's.
         $pending = PendingGoogleRegistration::get();
 
-        Validator::make($input, [
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'email' => $pending !== null
-                ? ['nullable']
-                : ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
-            'password' => $pending !== null ? ['nullable'] : $this->passwordRules(),
-            'role' => ['required', Rule::in([UserRole::Student->value, UserRole::Client->value])],
-            'business_name' => [Rule::requiredIf($this->isClient($input)), 'nullable', 'string', 'max:255'],
-            'school_email' => [Rule::requiredIf($this->isStudent($input)), 'nullable', 'string', 'max:255'],
-            'terms' => ['accepted'],
-        ], [
-            'terms.accepted' => __('You must accept the Terms of Service to create an account.'),
-            'business_name.required' => __('Please tell us the name of your business.'),
-            'school_email.required' => __('Please provide your school email or student number.'),
-        ])->validate();
+        Validator::make(
+            $input,
+            $this->registrationRules($input),
+            $this->registrationMessages(),
+        )->validate();
 
         $email = $pending['email'] ?? $input['email'];
 
         // The address is unique either way. Checking it here as well covers the
-        // window between Google vouching for it and this form being submitted.
-        if ($pending !== null && User::where('email', $email)->exists()) {
+        // window between Google vouching for it and this form being submitted —
+        // and, for the code path, the window while the code was in the post.
+        if (User::where('email', $email)->exists()) {
             PendingGoogleRegistration::forget();
 
             throw ValidationException::withMessages([
@@ -90,9 +84,12 @@ class CreateNewUser implements CreatesNewUsers
                 'role' => $role,
                 'google_id' => $pending['google_id'] ?? null,
                 'avatar' => $pending['avatar'] ?? null,
-                // Google has already proven the address, so there is nothing
-                // for the verification email to add.
-                'email_verified_at' => $pending !== null ? now() : null,
+                /*
+                 * Nothing reaches this line with an unproved address: Google
+                 * vouched for it, or a code sent to it came back. There is no
+                 * verification email left to send.
+                 */
+                'email_verified_at' => now(),
             ])->save();
 
             PendingGoogleRegistration::forget();
@@ -114,7 +111,7 @@ class CreateNewUser implements CreatesNewUsers
                     'team_id' => $team->id,
                     'business_name' => trim($input['business_name']),
                     'owner_name' => $name,
-                    'contact_email' => $input['email'],
+                    'contact_email' => $email,
                     'verification_status' => VerificationStatus::Verified,
                     'verified_at' => now(),
                 ]);
@@ -128,25 +125,5 @@ class CreateNewUser implements CreatesNewUsers
 
             return $user;
         });
-    }
-
-    /**
-     * Determine if the submitted form is registering a client account.
-     *
-     * @param  array<string, string>  $input
-     */
-    private function isClient(array $input): bool
-    {
-        return ($input['role'] ?? null) === UserRole::Client->value;
-    }
-
-    /**
-     * Determine if the submitted form is registering a student account.
-     *
-     * @param  array<string, string>  $input
-     */
-    private function isStudent(array $input): bool
-    {
-        return ($input['role'] ?? null) === UserRole::Student->value;
     }
 }

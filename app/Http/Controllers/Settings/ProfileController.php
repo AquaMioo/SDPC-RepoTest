@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Contracts\StudentVerifier;
+use App\Enums\AppealStatus;
 use App\Enums\UserRole;
 use App\Enums\VerificationProvider;
 use App\Enums\VerificationStatus;
@@ -38,7 +39,41 @@ class ProfileController extends Controller
             'studentVerification' => $user?->hasRole(UserRole::Student) && $verifier->isAvailable()
                 ? $this->verificationState($user)
                 : null,
+            /*
+             * Account Information → Review Appeal. Only an account with a
+             * decision standing against it has anything to answer, so the card
+             * is absent rather than empty for everybody else.
+             */
+            'accountStatus' => [
+                'label' => $user->status->label(),
+                'restricted' => $user->status->restrictsActions(),
+                'mayAppeal' => $user->mayAppeal(),
+            ],
+            'appeal' => $this->appealState($user),
         ]);
+    }
+
+    /**
+     * Describe the account's most recent appeal, if it has written one.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function appealState(User $user): ?array
+    {
+        $appeal = $user->latestAppeal;
+
+        if ($appeal === null) {
+            return null;
+        }
+
+        return [
+            'body' => $appeal->body,
+            'statusLabel' => $appeal->status->label(),
+            'pending' => ! $appeal->isDecided(),
+            'granted' => $appeal->status === AppealStatus::Granted,
+            'filedOn' => $appeal->created_at?->toFormattedDateString(),
+            'decisionNote' => $appeal->decision_note,
+        ];
     }
 
     /**

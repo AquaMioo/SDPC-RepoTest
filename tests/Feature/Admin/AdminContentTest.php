@@ -17,11 +17,11 @@ class AdminContentTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        $response = $this->actingAs($admin)->get(route('admin.content'));
+        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('admin/content')
+            ->component('admin/dashboard')
             // All three keys are present as null rather than absent, so the
             // editor renders empty fields instead of undefined ones.
             ->where('content.announcements', null)
@@ -39,7 +39,7 @@ class AdminContentTest extends TestCase
             'body' => 'Escrow is live.',
         ]);
 
-        $response = $this->actingAs($admin)->get(route('admin.content'));
+        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
 
         $response->assertInertia(fn (Assert $page) => $page
             ->where('content.announcements', 'Escrow is live.')
@@ -52,13 +52,13 @@ class AdminContentTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
-            ->from(route('admin.content'))
+            ->from(route('admin.dashboard'))
             ->put(route('admin.content.update'), [
                 'announcements' => 'Escrow is live.',
                 'rules' => 'Scope projects in writing.',
                 'policies' => 'Verify within 14 days.',
             ])
-            ->assertRedirect(route('admin.content'))
+            ->assertRedirect(route('admin.dashboard'))
             ->assertSessionHasNoErrors();
 
         $this->assertSame([
@@ -75,7 +75,7 @@ class AdminContentTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
-            ->from(route('admin.content'))
+            ->from(route('admin.dashboard'))
             ->put(route('admin.content.update'), ['announcements' => 'Hello.']);
 
         $block = SiteContent::firstWhere('key', SiteContentKey::Announcements->value);
@@ -90,7 +90,7 @@ class AdminContentTest extends TestCase
 
         foreach (['First.', 'Second.'] as $body) {
             $this->actingAs($admin)
-                ->from(route('admin.content'))
+                ->from(route('admin.dashboard'))
                 ->put(route('admin.content.update'), ['announcements' => $body]);
         }
 
@@ -109,7 +109,7 @@ class AdminContentTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->from(route('admin.content'))
+            ->from(route('admin.dashboard'))
             ->put(route('admin.content.update'), ['rules' => ''])
             ->assertSessionHasNoErrors();
 
@@ -123,7 +123,7 @@ class AdminContentTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
-            ->from(route('admin.content'))
+            ->from(route('admin.dashboard'))
             ->put(route('admin.content.update'), [
                 'announcements' => str_repeat('a', 5001),
             ])
@@ -137,7 +137,7 @@ class AdminContentTest extends TestCase
         foreach ([User::factory()->student(), User::factory()->client()] as $factory) {
             $user = $factory->create();
 
-            $this->actingAs($user)->get(route('admin.content'))->assertForbidden();
+            $this->actingAs($user)->get(route('admin.dashboard'))->assertForbidden();
 
             $this->actingAs($user)
                 ->put(route('admin.content.update'), ['announcements' => 'Mine now.'])
@@ -149,7 +149,7 @@ class AdminContentTest extends TestCase
 
     public function test_guests_can_not_read_or_write_the_content(): void
     {
-        $this->get(route('admin.content'))->assertRedirect();
+        $this->get(route('admin.dashboard'))->assertRedirect();
         $this->put(route('admin.content.update'), ['announcements' => 'Mine now.'])->assertRedirect();
 
         $this->assertSame(0, SiteContent::count());

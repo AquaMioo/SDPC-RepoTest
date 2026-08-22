@@ -81,7 +81,42 @@ class RecruitController extends Controller
             /* True only when something was actually scored on this request. */
             'matchingEnabled' => $scores->isNotEmpty(),
             'scopeSkills' => $this->scopeSkills($project, $filters->search),
+            'highlight' => $this->highlight($students->getCollection(), $scores),
         ]);
+    }
+
+    /**
+     * Describe the strongest match on the page, for the matching rail.
+     *
+     * The per-factor bars are the half of the answer a single percentage
+     * cannot give. Returns null whenever nothing on this page was scored, so
+     * the rail is absent rather than showing zeroed-out bars that read as a
+     * failed match.
+     *
+     * @param  Collection<int, array<string, mixed>>  $cards
+     * @param  Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>  $scores
+     * @return array<string, mixed>|null
+     */
+    protected function highlight(Collection $cards, Collection $scores): ?array
+    {
+        $best = $cards
+            ->filter(fn (array $card): bool => $card['compatibility'] !== null)
+            ->sortByDesc('compatibility')
+            ->first();
+
+        if ($best === null) {
+            return null;
+        }
+
+        $reason = $scores->get($best['id'])['reason'] ?? [];
+
+        return [
+            'name' => $best['name'],
+            'compatibility' => $best['compatibility'],
+            'factors' => $reason['factors'] ?? [],
+            'recommendation' => $reason['recommendation'] ?? null,
+            'matchedSkills' => $reason['matchedSkills'] ?? [],
+        ];
     }
 
     /**
@@ -92,7 +127,19 @@ class RecruitController extends Controller
     protected function query(StudentFilters $filters, bool $applySearch = true): Builder
     {
         return StudentProfile::query()
-            ->with(['user', 'school', 'course', 'skills'])
+            /*
+             * The credential and the third-party check are both read by
+             * User::isVerifiedStudent(), which the row draws a badge off —
+             * without them that is two queries per student on the page.
+             */
+            ->with([
+                'user.latestStudentCredential',
+                'user.studentVerifications',
+                'school',
+                'course',
+                'skills',
+                'portfolioItems',
+            ])
             ->when($filters->availableOnly, fn (Builder $query) => $query->available())
             ->when($applySearch ? $filters->search : null, fn (Builder $query, string $search) => $query
                 ->where(fn (Builder $inner) => $inner
@@ -285,6 +332,24 @@ class RecruitController extends Controller
             'yearLevel' => $profile->year_level,
             'rating' => (float) $profile->rating_average,
             'completedProjects' => $profile->completed_projects_count,
+            /*
+             * Presentation only, and deliberately so: what a student may
+             * actually do still answers to isVerifiedForOperating().
+             */
+            'isVerified' => $profile->user->isVerifiedStudent(),
+            'location' => $profile->displayLocation(),
+            /*
+             * Work they have actually documented. The design put two lines of
+             * proof under each name; these are the only ones the database can
+             * stand behind, so an empty portfolio simply shows none.
+             */
+            'highlights' => $profile->portfolioItems
+                ->sortByDesc('is_featured')
+                ->sortBy('position')
+                ->take(2)
+                ->pluck('title')
+                ->values()
+                ->all(),
             /*
              * No rate on the card. The work is a capstone build, and what the
              * arrangement is gets settled between the two of them in messages,

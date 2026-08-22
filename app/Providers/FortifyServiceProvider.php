@@ -5,14 +5,12 @@ namespace App\Providers;
 use App\Actions\Fortify\AuthenticateUser;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
-use App\Enums\UserRole;
 use App\Http\Responses\LoginResponse;
 use App\Http\Responses\PasskeyLoginResponse;
 use App\Http\Responses\RegisterResponse;
 use App\Http\Responses\TwoFactorLoginResponse;
 use App\Http\Responses\VerifyEmailResponse;
 use App\Models\TeamInvitation;
-use App\Support\PendingGoogleRegistration;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Http\Request;
@@ -104,16 +102,13 @@ class FortifyServiceProvider extends ServiceProvider
             'status' => $request->session()->get('status'),
         ]));
 
-        Fortify::registerView(fn (Request $request) => Inertia::render('auth/register', [
-            'passwordRules' => Password::defaults()->toPasswordRulesString(),
-            'canLoginWithGoogle' => (bool) config('services.google.enabled'),
-            'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
-            'roles' => UserRole::selfAssignable(),
-            'teamInvitation' => $this->teamInvitation($request),
-            // Set once someone has come back from Google without an account
-            // yet: the form prefills from it and drops the password fields.
-            'googleProfile' => PendingGoogleRegistration::get(),
-        ]));
+        /*
+         * There is deliberately no Fortify::registerView here. Registration is
+         * removed from config/fortify.php and owned by
+         * App\Http\Controllers\Auth\RegistrationController, which renders
+         * the same screen — a view registered against a disabled feature would
+         * never be reached.
+         */
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
 
