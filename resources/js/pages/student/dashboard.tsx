@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     CalendarBlankIcon,
     CircleIcon,
@@ -12,11 +12,9 @@ import PendingInvitationsModal from '@/components/pending-invitations-modal';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { useCurrentTeam } from '@/hooks/use-current-team';
+import { process as studentProcess } from '@/routes/student';
+import { index as studentBoard } from '@/routes/student/board';
 import type { DashboardInvitation } from '@/types';
 
 const MUTED = (pct: number) =>
@@ -63,6 +61,7 @@ export default function StudentDashboard({
     pendingInvitations = [],
 }: Props) {
     const page = usePage<{ auth?: { user?: { name: string } | null } }>();
+    const currentTeam = useCurrentTeam();
     const [showInvitations, setShowInvitations] = useState(
         pendingInvitations.length > 0,
     );
@@ -99,19 +98,14 @@ export default function StudentDashboard({
                         </div>
                     </div>
 
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span>
-                                <Btn variant="primary" disabled>
-                                    <PlusIcon />
-                                    Find Client
-                                </Btn>
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            Browsing postings arrives with the Student Module
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* The student module this was waiting for shipped; the
+                        board is the screen it always meant to open. */}
+                    <Btn asChild variant="primary">
+                        <Link href={studentBoard.url(currentTeam.slug)}>
+                            <PlusIcon />
+                            Find Client
+                        </Link>
+                    </Btn>
                 </div>
 
                 <div
@@ -285,6 +279,8 @@ function ProgressCard({ project }: { project: Props['project'] }) {
 }
 
 function TeamCard({ project }: { project: Props['project'] }) {
+    const currentTeam = useCurrentTeam();
+
     const team = project?.team ?? [];
 
     return (
@@ -346,18 +342,32 @@ function TeamCard({ project }: { project: Props['project'] }) {
                 ))
             )}
 
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <span style={{ marginTop: 'auto' }}>
-                        <Btn variant="secondary" block disabled>
-                            Open workspace
-                        </Btn>
-                    </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                    Arrives with the Workspace module
-                </TooltipContent>
-            </Tooltip>
+            {/*
+             * The workspace is student/process — milestone tracking for the
+             * build in hand. It was already built and reachable only by URL,
+             * so this button is how anybody actually finds it. Without a
+             * project there is nothing to open.
+             */}
+            <Btn
+                asChild={project !== null}
+                variant="secondary"
+                block
+                disabled={project === null}
+                style={{ marginTop: 'auto' }}
+                title={
+                    project === null
+                        ? 'Opens once you have been accepted onto a project.'
+                        : undefined
+                }
+            >
+                {project !== null ? (
+                    <Link href={studentProcess.url(currentTeam.slug)}>
+                        Open workspace
+                    </Link>
+                ) : (
+                    'Open workspace'
+                )}
+            </Btn>
         </Panel>
     );
 }

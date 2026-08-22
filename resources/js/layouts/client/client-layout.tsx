@@ -21,6 +21,7 @@ import { index as agreementsIndex } from '@/routes/agreements';
 import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
 import { index as messagesIndex } from '@/routes/messages';
+import { index as notificationsIndex } from '@/routes/notifications';
 import { edit as profileEdit } from '@/routes/profile';
 import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
@@ -32,6 +33,7 @@ import { index as transactionsIndex } from '@/routes/transactions';
 type SharedProps = {
     auth?: { user?: { name: string; role: string } | null; role?: string | null };
     unreadMessages?: number;
+    unreadNotifications?: number;
     /** False on a normal boot — the ledger is built but switched off. */
     billingEnabled?: boolean;
 };
@@ -94,20 +96,23 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
      * abort with a 403.
      */
     /*
-     * The ledger ships dormant, so its two nav items stay disabled until
-     * config('billing.enabled') says otherwise — the routes 404 while it is
-     * off and a live-looking link would dead-end.
+     * The ledger ships dormant, so while config('billing.enabled') is off its
+     * nav item is absent rather than present-and-greyed. The routes and the
+     * screen are still there and still 404 behind EnsureBillingIsEnabled —
+     * switching the flag on is what puts the link back, and nothing here was
+     * deleted to make that harder.
      */
-    const billing: NavItem = billingEnabled
+    const billing: NavItem | null = billingEnabled
         ? { label: 'Transaction', href: transactionsIndex.url(team.slug) }
-        : { label: 'Transaction', pending: 'Arrives with the Payments module' };
+        : null;
 
-    const navigation: NavItem[] = isStudent
+    const navigation: NavItem[] = (
+        isStudent
         ? [
               { label: 'Dashboard', href: dashboard.url(team.slug) },
               { label: 'Get Client', href: studentBoard.url(team.slug) },
               { label: 'Workflow', href: studentWorkflow.url(team.slug) },
-              { ...billing, label: 'Performance' },
+              billing === null ? null : { ...billing, label: 'Performance' },
               { label: 'Agreement', href: agreementsIndex.url(team.slug) },
           ]
         : [
@@ -116,7 +121,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
               billing,
               { label: 'Project Process', href: projectsIndex.url(team.slug) },
               { label: 'Agreement', href: agreementsIndex.url(team.slug) },
-          ];
+          ]
+    ).filter((item): item is NavItem => item !== null);
 
     return (
         <div
@@ -196,7 +202,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         </IconAction>
                         <IconAction
                             label="Notifications"
-                            pending="Arrives with the Notifications module"
+                            href={notificationsIndex.url(team.slug)}
+                            badge={page.props.unreadNotifications ?? 0}
                         >
                             <BellIcon />
                         </IconAction>

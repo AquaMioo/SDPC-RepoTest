@@ -65,6 +65,12 @@ class HandleInertiaRequests extends Middleware
                     ->filter(fn (Conversation $thread) => $thread->isUnreadFor($user))
                     ->count(),
             /*
+             * The bell carries this on every screen, for the same reason the
+             * chat icon does. Closured so the count is not queried on a
+             * partial reload that never draws the header.
+             */
+            'unreadNotifications' => fn (): int => $user?->unreadNotifications()->count() ?? 0,
+            /*
              * The money side ships switched off, and the nav has to know:
              * without this the Transaction link would point at routes that
              * 404 by design. See config/billing.php.
