@@ -22,6 +22,16 @@ trait ProfileValidationRules
     }
 
     /**
+     * Get the validation rules used to validate uploaded profile pictures.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function avatarRules(): array
+    {
+        return ['nullable', 'image', 'max:'.config('uploads.max_image_kilobytes')];
+    }
+
+    /**
      * Get the validation rules used to validate user names.
      *
      * @return array<int, ValidationRule|array<mixed>|string>

@@ -120,11 +120,17 @@ class ClientVerificationGateTest extends TestCase
         $this->assertTrue($admin->isVerifiedForOperating());
     }
 
-    public function test_a_student_is_gated_on_their_credential_instead(): void
+    /**
+     * A student is answerable to the verification provider, not to this
+     * business profile. With no provider configured there is nothing to check
+     * against, so the gate stays open rather than closing forever — see
+     * User::hasPassedStudentVerification.
+     */
+    public function test_a_student_is_gated_on_the_provider_not_the_business_profile(): void
     {
         $student = User::factory()->student()->create();
 
-        $this->assertFalse($student->isVerifiedForOperating());
+        $this->assertTrue($student->isVerifiedForOperating());
     }
 
     /**

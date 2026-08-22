@@ -1,4 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import Field from '@/components/sdpc/field';
 import Meter from '@/components/sdpc/meter';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
@@ -37,6 +38,7 @@ type Props = {
     } | null;
     canPublishTestimonial: boolean;
     canUpdate: boolean;
+    locations: { province: string; cities: string[] }[];
 };
 
 export default function ClientProfilePage({
@@ -44,8 +46,24 @@ export default function ClientProfilePage({
     testimonial,
     canPublishTestimonial,
     canUpdate,
+    locations,
 }: Props) {
     const team = useCurrentTeam();
+
+    /*
+     * A stored place the list does not know about — anything typed in before
+     * these were dropdowns — starts blank instead of preselected. Leaving it
+     * in place would show a value the server now rejects, blocking a save the
+     * owner never asked to change.
+     */
+    const knownProvince = locations.find(
+        (entry) => entry.province === profile.province,
+    );
+    const initialProvince = knownProvince ? profile.province ?? '' : '';
+    const initialCity =
+        knownProvince && profile.city && knownProvince.cities.includes(profile.city)
+            ? profile.city
+            : '';
 
     const { data, setData, post, processing, errors, recentlySuccessful } =
         useForm({
@@ -54,15 +72,50 @@ export default function ClientProfilePage({
             business_description: profile.businessDescription ?? '',
             owner_name: profile.ownerName ?? '',
             address: profile.address ?? '',
-            city: profile.city ?? '',
-            province: profile.province ?? '',
-            phone_number: profile.phoneNumber ?? '',
+            city: initialCity,
+            province: initialProvince,
+            /*
+             * Stripped on the way in, not just as it is typed. Profiles saved
+             * before the digits-only rule hold values like "+63 917 555 0142",
+             * and loading one verbatim would fail validation the next time its
+             * owner pressed Save without having touched the field.
+             */
+            phone_number: (profile.phoneNumber ?? '').replace(/\D/g, ''),
             contact_email: profile.contactEmail ?? '',
             website_url: profile.websiteUrl ?? '',
             facebook_url: profile.facebookUrl ?? '',
             logo: null as File | null,
             permit: null as File | null,
         });
+
+    /*
+     * Preview of the logo the client just picked, before anything is saved.
+     * The object URL is revoked on replacement so choosing five files in a row
+     * does not leak five blobs.
+     */
+    const [pickedLogoUrl, setPickedLogoUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (data.logo === null) {
+            setPickedLogoUrl(null);
+
+            return;
+        }
+
+        const url = URL.createObjectURL(data.logo);
+        setPickedLogoUrl(url);
+
+        return () => URL.revokeObjectURL(url);
+    }, [data.logo]);
+
+    // What the client sees now: the pick if there is one, the saved logo
+    // otherwise. Falling back keeps the slot filled instead of blinking empty.
+    const shownLogoUrl = pickedLogoUrl ?? profile.logoUrl;
+
+    // The city select follows whatever province is chosen right now, not the
+    // one that was stored.
+    const citiesForProvince =
+        locations.find((entry) => entry.province === data.province)?.cities ?? [];
 
     /*
      * Kept out of the profile form on purpose: this one is public copy on the
@@ -164,17 +217,41 @@ export default function ClientProfilePage({
 
                             <Field label="Business logo" error={errors.logo}>
                                 {(props) => (
-                                    <Input
-                                        {...props}
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) =>
-                                            setData(
-                                                'logo',
-                                                e.target.files?.[0] ?? null,
-                                            )
-                                        }
-                                    />
+                                    <div className="flex items-center gap-3">
+                                        {/*
+                                         * The thumbnail sits in what was dead
+                                         * space beside the owner-name field, so
+                                         * the row fills out instead of leaving
+                                         * a gap above the picker.
+                                         */}
+                                        <span className="flex size-[42px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-input bg-background">
+                                            {shownLogoUrl ? (
+                                                <img
+                                                    src={shownLogoUrl}
+                                                    alt="Business logo"
+                                                    className="size-full object-cover"
+                                                />
+                                            ) : (
+                                                <span className="text-[10px] leading-none text-muted-foreground">
+                                                    No
+                                                    <br />
+                                                    logo
+                                                </span>
+                                            )}
+                                        </span>
+                                        <Input
+                                            {...props}
+                                            type="file"
+                                            accept="image/*"
+                                            className="min-w-0 flex-1"
+                                            onChange={(e) =>
+                                                setData(
+                                                    'logo',
+                                                    e.target.files?.[0] ?? null,
+                                                )
+                                            }
+                                        />
+                                    </div>
                                 )}
                             </Field>
                         </div>
@@ -196,27 +273,61 @@ export default function ClientProfilePage({
                         </Field>
 
                         <div className="grid gap-3.5 sm:grid-cols-2">
-                            <Field label="City" error={errors.city}>
+                            {/*
+                              * Province first, because the city list is
+                              * filtered by it. Changing province clears the
+                              * city rather than leaving a city from the old
+                              * one selected, which is a pair the server would
+                              * reject.
+                              */}
+                            <Field label="Province" error={errors.province}>
                                 {(props) => (
-                                    <Input
+                                    <select
                                         {...props}
-                                        value={data.city}
-                                        onChange={(e) =>
-                                            setData('city', e.target.value)
-                                        }
-                                    />
+                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                        value={data.province}
+                                        onChange={(e) => {
+                                            setData('province', e.target.value);
+                                            setData('city', '');
+                                        }}
+                                    >
+                                        <option value="">
+                                            Select a province
+                                        </option>
+                                        {locations.map((entry) => (
+                                            <option
+                                                key={entry.province}
+                                                value={entry.province}
+                                            >
+                                                {entry.province}
+                                            </option>
+                                        ))}
+                                    </select>
                                 )}
                             </Field>
 
-                            <Field label="Province" error={errors.province}>
+                            <Field label="City" error={errors.city}>
                                 {(props) => (
-                                    <Input
+                                    <select
                                         {...props}
-                                        value={data.province}
+                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm disabled:opacity-60"
+                                        value={data.city}
+                                        disabled={data.province === ''}
                                         onChange={(e) =>
-                                            setData('province', e.target.value)
+                                            setData('city', e.target.value)
                                         }
-                                    />
+                                    >
+                                        <option value="">
+                                            {data.province === ''
+                                                ? 'Choose a province first'
+                                                : 'Select a city or municipality'}
+                                        </option>
+                                        {citiesForProvince.map((city) => (
+                                            <option key={city} value={city}>
+                                                {city}
+                                            </option>
+                                        ))}
+                                    </select>
                                 )}
                             </Field>
 
@@ -227,11 +338,22 @@ export default function ClientProfilePage({
                                 {(props) => (
                                     <Input
                                         {...props}
+                                        type="tel"
+                                        inputMode="numeric"
+                                        autoComplete="tel"
+                                        placeholder="09171234567"
                                         value={data.phone_number}
                                         onChange={(e) =>
                                             setData(
                                                 'phone_number',
-                                                e.target.value,
+                                                // Digits only: typing a letter
+                                                // or a dash simply does not
+                                                // land, rather than being
+                                                // rejected later on save.
+                                                e.target.value.replace(
+                                                    /\D/g,
+                                                    '',
+                                                ),
                                             )
                                         }
                                     />
@@ -354,11 +476,15 @@ export default function ClientProfilePage({
                         </p>
                     </Panel>
 
-                    {profile.logoUrl && (
+                    {shownLogoUrl && (
                         <Panel padding="lg" gap="sm">
-                            <PanelKicker>Current logo</PanelKicker>
+                            <PanelKicker>
+                                {pickedLogoUrl
+                                    ? 'New logo — not saved yet'
+                                    : 'Current logo'}
+                            </PanelKicker>
                             <img
-                                src={profile.logoUrl}
+                                src={shownLogoUrl}
                                 alt=""
                                 className="max-w-full rounded-md"
                             />

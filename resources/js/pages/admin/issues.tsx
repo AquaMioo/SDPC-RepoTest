@@ -1,41 +1,26 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
-import { index as adminUsers } from '@/routes/admin/users';
+import { update as resolveIssue } from '@/routes/admin/issues';
 
 type Issue = {
     id: number;
     title: string;
     reporter: string;
-    reportedOn: string;
+    reportedUser: string;
+    reportedUserStatus: string;
+    reportedOn: string | null;
     description: string;
     status: string;
     resolved: boolean;
+    resolution: string | null;
+    handledBy: string | null;
 };
 
-const SAMPLE: Issue[] = [
-    {
-        id: 1,
-        title: 'Duplicate account report',
-        reporter: 'adi',
-        reportedOn: '11 Mar 2026',
-        description:
-            'User reported a second account created under the same email domain and student number.',
-        status: 'Pending',
-        resolved: false,
-    },
-    {
-        id: 2,
-        title: 'Delayed project delivery',
-        reporter: 'adi',
-        reportedOn: '09 Mar 2026',
-        description:
-            'Client mentioned an unfinished milestone past its deadline and requested platform intervention.',
-        status: 'In review',
-        resolved: false,
-    },
-];
+type Props = {
+    issues: Issue[];
+};
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -43,41 +28,46 @@ const MUTED = (pct: number) =>
 /**
  * Reports and issues.
  *
- * The reports below are sample rows held in component state — there is no
- * issues table yet. Resolving one changes nothing on any account; the notice
- * points at the User page, where deactivation is genuinely wired.
+ * Real rows: clients and students file these against an account, and "Remove
+ * access" deactivates the reported account through the same UserStatus the
+ * Users screen sets.
  */
-export default function AdminIssues() {
-    const [issues, setIssues] = useState<Issue[]>(SAMPLE);
+export default function AdminIssues({ issues }: Props) {
     const [pending, setPending] = useState<{
         issue: Issue;
-        action: 'warn' | 'remove';
+        action: 'warn' | 'remove_access';
     } | null>(null);
+
+    const [processing, setProcessing] = useState(false);
 
     const resolve = () => {
         if (!pending) {
             return;
         }
 
-        setIssues((current) =>
-            current.map((issue) =>
-                issue.id === pending.issue.id
-                    ? {
-                          ...issue,
-                          resolved: true,
-                          status:
-                              pending.action === 'warn'
-                                  ? 'Resolved · user warned'
-                                  : 'Resolved · access removed',
-                      }
-                    : issue,
-            ),
+        setProcessing(true);
+
+        router.patch(
+            resolveIssue.url(pending.issue.id),
+            { action: pending.action },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setProcessing(false);
+                    setPending(null);
+                },
+            },
         );
-        setPending(null);
     };
 
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}>
+        <div
+            style={{
+                maxWidth: 1180,
+                margin: '0 auto',
+                padding: '30px 32px 72px',
+            }}
+        >
             <Head title="Reports and issues" />
 
             <div
@@ -96,24 +86,25 @@ export default function AdminIssues() {
                 </div>
             </div>
 
-            <p
-                style={{
-                    padding: '11px 13px',
-                    marginBottom: 16,
-                    borderRadius: 'var(--radius-md)',
-                    background: MUTED(5),
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                    color: MUTED(65),
-                }}
-            >
-                <b style={{ color: 'var(--color-text)' }}>Sample data.</b> These
-                reports live in the browser until an issues table exists.
-                Resolving one here does not change any account — to actually
-                revoke access use Deactivate on the{' '}
-                <Link href={adminUsers.url()}>Users</Link> page, which is fully
-                wired.
-            </p>
+            {issues.length === 0 && (
+                <p
+                    style={{
+                        padding: '11px 13px',
+                        marginBottom: 16,
+                        borderRadius: 'var(--radius-md)',
+                        background: MUTED(5),
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        color: MUTED(65),
+                    }}
+                >
+                    <b style={{ color: 'var(--color-text)' }}>
+                        Nothing reported.
+                    </b>{' '}
+                    Reports filed by clients and students against an account
+                    arrive here.
+                </p>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {issues.map((issue) => (
@@ -139,12 +130,19 @@ export default function AdminIssues() {
                                         : 'tag tag-neutral'
                                 }
                             >
-                                {issue.status}
+                                {issue.resolved && issue.resolution
+                                    ? `Resolved · ${issue.resolution.toLowerCase()}`
+                                    : issue.status}
                             </span>
                         </div>
 
                         <div style={{ fontSize: 11.5, color: MUTED(45) }}>
-                            Reported by {issue.reporter} · {issue.reportedOn}
+                            {issue.reportedUser} ({issue.reportedUserStatus}) ·
+                            reported by {issue.reporter}
+                            {issue.reportedOn ? ` · ${issue.reportedOn}` : ''}
+                            {issue.handledBy
+                                ? ` · closed by ${issue.handledBy}`
+                                : ''}
                         </div>
 
                         <p
@@ -159,19 +157,32 @@ export default function AdminIssues() {
                         </p>
 
                         {!issue.resolved && (
-                            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                            <div
+                                style={{ display: 'flex', gap: 8, marginTop: 4 }}
+                            >
                                 <Btn
                                     variant="primary"
-                                    style={{ fontSize: 12.5, padding: '5px 12px' }}
-                                    onClick={() => setPending({ issue, action: 'warn' })}
+                                    style={{
+                                        fontSize: 12.5,
+                                        padding: '5px 12px',
+                                    }}
+                                    onClick={() =>
+                                        setPending({ issue, action: 'warn' })
+                                    }
                                 >
                                     Warn user
                                 </Btn>
                                 <Btn
                                     variant="secondary"
-                                    style={{ fontSize: 12.5, padding: '5px 12px' }}
+                                    style={{
+                                        fontSize: 12.5,
+                                        padding: '5px 12px',
+                                    }}
                                     onClick={() =>
-                                        setPending({ issue, action: 'remove' })
+                                        setPending({
+                                            issue,
+                                            action: 'remove_access',
+                                        })
                                     }
                                 >
                                     Remove access
@@ -195,17 +206,22 @@ export default function AdminIssues() {
                         </div>
                         <div className="dialog-body">
                             {pending.action === 'warn'
-                                ? 'This marks the report as resolved with a warning. Sending the actual notice needs the issues table first.'
-                                : 'This marks the report as resolved. It does not revoke access — use Deactivate on the Users page for that.'}
+                                ? `This closes the report against ${pending.issue.reportedUser} with a warning. Their account keeps its access.`
+                                : `This deactivates ${pending.issue.reportedUser} and closes the report. They cannot sign in until an administrator restores them on the Users page.`}
                         </div>
                         <div className="dialog-actions">
                             <Btn
                                 variant="secondary"
+                                disabled={processing}
                                 onClick={() => setPending(null)}
                             >
                                 Cancel
                             </Btn>
-                            <Btn variant="primary" onClick={resolve}>
+                            <Btn
+                                variant="primary"
+                                disabled={processing}
+                                onClick={resolve}
+                            >
                                 Confirm
                             </Btn>
                         </div>

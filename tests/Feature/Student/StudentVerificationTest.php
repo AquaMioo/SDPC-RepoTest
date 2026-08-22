@@ -128,9 +128,19 @@ class StudentVerificationTest extends TestCase
         $this->assertNotNull($verification->verified_at);
     }
 
-    public function test_a_pass_earns_a_badge_and_nothing_else(): void
+    /**
+     * A pass is the whole gate now, not a decoration. Nobody reviews enrolment
+     * documents by hand any more, so the provider's answer is what opens an
+     * account.
+     */
+    public function test_a_pass_opens_the_account(): void
     {
+        $this->enableSheerId();
+
         $student = User::factory()->student()->create();
+
+        // Held up while the provider has said nothing.
+        $this->assertFalse($student->isVerifiedForOperating());
 
         StudentVerification::factory()->verified()->create([
             'user_id' => $student->id,
@@ -140,13 +150,15 @@ class StudentVerificationTest extends TestCase
         $student->refresh();
 
         $this->assertTrue($student->isVerifiedStudent());
-
-        // The real gate is untouched: no administrator has accepted a
-        // credential, so this account still cannot operate.
-        $this->assertFalse($student->isVerifiedForOperating());
+        $this->assertTrue($student->isVerifiedForOperating());
     }
 
-    public function test_a_student_without_it_can_still_do_everything(): void
+    /**
+     * With no provider configured there is nothing to check against, so a
+     * student is not held up. This is the shipped default, and it is why
+     * removing the manual review queue did not leave every student stranded.
+     */
+    public function test_a_student_can_do_everything_while_no_provider_is_configured(): void
     {
         $owner = User::factory()->verifiedBusiness()->create();
 
@@ -158,10 +170,9 @@ class StudentVerificationTest extends TestCase
 
         $student = User::factory()->student()->approved()->create();
 
-        $this->credentialFor($student, CredentialStatus::Verified);
-
         $student->refresh();
 
+        $this->assertFalse(app(StudentVerifier::class)->isAvailable());
         $this->assertSame(0, $student->studentVerifications()->count());
         $this->assertTrue($student->isVerifiedForOperating());
 
@@ -177,27 +188,6 @@ class StudentVerificationTest extends TestCase
             'project_id' => $project->id,
             'user_id' => $student->id,
         ]);
-    }
-
-    public function test_the_admin_queue_carries_it_as_supporting_evidence(): void
-    {
-        $admin = User::factory()->admin()->create();
-
-        $student = User::factory()->student()->approved()->create();
-
-        $this->credentialFor($student, CredentialStatus::NeedsReview);
-
-        StudentVerification::factory()->verified()->create([
-            'user_id' => $student->id,
-            'provider' => VerificationProvider::SheerId,
-        ]);
-
-        $this->actingAs($admin)
-            ->get(route('admin.credentials.index'))
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('credentials.0.thirdPartyVerification.provider', 'SheerID')
-                ->where('credentials.0.thirdPartyVerification.statusLabel', 'Verified'));
     }
 
     /**

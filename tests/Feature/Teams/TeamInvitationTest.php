@@ -28,7 +28,7 @@ class TeamInvitationTest extends TestCase
             ->actingAs($owner)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'invited@example.com',
-                'role' => TeamRole::Member->value,
+                'role' => TeamRole::LeadProgrammer->value,
             ]);
 
         $response->assertRedirect(route('teams.edit', $team));
@@ -36,7 +36,7 @@ class TeamInvitationTest extends TestCase
         $this->assertDatabaseHas('team_invitations', [
             'team_id' => $team->id,
             'email' => 'invited@example.com',
-            'role' => TeamRole::Member->value,
+            'role' => TeamRole::LeadProgrammer->value,
         ]);
     }
 
@@ -94,7 +94,7 @@ class TeamInvitationTest extends TestCase
             ->actingAs($admin)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'invited@example.com',
-                'role' => TeamRole::Member->value,
+                'role' => TeamRole::LeadProgrammer->value,
             ]);
 
         $response->assertRedirect(route('teams.edit', $team));
@@ -115,7 +115,7 @@ class TeamInvitationTest extends TestCase
             ->actingAs($owner)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'member@example.com',
-                'role' => TeamRole::Member->value,
+                'role' => TeamRole::LeadProgrammer->value,
             ]);
 
         $response->assertSessionHasErrors('email');
@@ -139,7 +139,7 @@ class TeamInvitationTest extends TestCase
             ->actingAs($owner)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'invited@example.com',
-                'role' => TeamRole::Member->value,
+                'role' => TeamRole::LeadProgrammer->value,
             ]);
 
         $response->assertSessionHasErrors('email');
@@ -158,10 +158,62 @@ class TeamInvitationTest extends TestCase
             ->actingAs($member)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'invited@example.com',
-                'role' => TeamRole::Member->value,
+                'role' => TeamRole::LeadProgrammer->value,
             ]);
 
         $response->assertForbidden();
+    }
+
+    /**
+     * The four job titles are the whole of what a team can hand out.
+     */
+    public function test_only_the_four_job_titles_are_offered_as_roles()
+    {
+        $this->assertSame(
+            [
+                'project_manager',
+                'quality_assurance',
+                'system_analyst',
+                'lead_programmer',
+            ],
+            array_column(TeamRole::assignable(), 'value'),
+        );
+
+        $this->assertSame(
+            [
+                'Project Manager',
+                'Quality Assurance',
+                'System Analyst',
+                'Lead Programmer',
+            ],
+            array_column(TeamRole::assignable(), 'label'),
+        );
+    }
+
+    /**
+     * Owner is held by whoever made the team, and the two legacy values are on
+     * their way out; none of the three may be invited into.
+     */
+    public function test_owner_and_the_legacy_roles_cannot_be_invited_into()
+    {
+        $owner = User::factory()->create();
+        $team = Team::factory()->create();
+        $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+        foreach ([TeamRole::Owner, TeamRole::Admin, TeamRole::Member] as $rejected) {
+            $this
+                ->actingAs($owner)
+                ->post(route('teams.invitations.store', $team), [
+                    'email' => "{$rejected->value}@example.com",
+                    'role' => $rejected->value,
+                ])
+                ->assertSessionHasErrors('role');
+
+            $this->assertDatabaseMissing('team_invitations', [
+                'team_id' => $team->id,
+                'role' => $rejected->value,
+            ]);
+        }
     }
 
     public function test_team_invitations_can_be_cancelled_by_owners()

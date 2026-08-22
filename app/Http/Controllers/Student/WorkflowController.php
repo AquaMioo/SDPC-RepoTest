@@ -49,6 +49,7 @@ class WorkflowController extends Controller
             ->latest('published_at')
             ->get()
             ->map(fn (Project $project): array => [
+                'id' => $project->id,
                 'slug' => $project->slug,
                 'title' => $project->title,
                 'client' => $project->team->clientProfile?->business_name ?? $project->team->name,
@@ -75,8 +76,20 @@ class WorkflowController extends Controller
             ->get()
             ->map(fn (Application $application): array => [
                 'id' => $application->id,
+                'projectId' => $application->project->id,
                 'projectTitle' => $application->project->title,
                 'projectSlug' => $application->project->slug,
+                /*
+                 * An application row is what lets a thread exist, so a student
+                 * can open one on anything still live between the two of them.
+                 * A rejected or withdrawn application is a closed door, and a
+                 * message is not the way to reopen it.
+                 */
+                'canMessage' => in_array($application->status, [
+                    ApplicationStatus::Pending,
+                    ApplicationStatus::Shortlisted,
+                    ApplicationStatus::Accepted,
+                ], true),
                 'client' => $application->project->team->clientProfile?->business_name
                     ?? $application->project->team->name,
                 'status' => $application->status->value,

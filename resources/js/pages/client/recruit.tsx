@@ -234,8 +234,23 @@ export default function Recruit({
                                     )}
 
                                     <div className="mt-auto grid w-full grid-cols-2 gap-2">
+                                        {/*
+                                         * One label, because a two-word label
+                                         * overflowed the button. A thread needs
+                                         * an applications row behind it, so for
+                                         * a student this team has not invited
+                                         * or hired the click still lands on the
+                                         * profile, where the invitation lives —
+                                         * the hover title is what says so.
+                                         */}
                                         <Button
                                             variant="secondary"
+                                            title={
+                                                student.messageableProjectId ===
+                                                null
+                                                    ? 'Invite this student to one of your postings first — an invitation is what opens a thread.'
+                                                    : undefined
+                                            }
                                             onClick={() => message(student)}
                                         >
                                             Message

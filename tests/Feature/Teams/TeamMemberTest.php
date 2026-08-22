@@ -24,13 +24,13 @@ class TeamMemberTest extends TestCase
         $response = $this
             ->actingAs($owner)
             ->patch(route('teams.members.update', [$team, $member]), [
-                'role' => TeamRole::Admin->value,
+                'role' => TeamRole::ProjectManager->value,
             ]);
 
         $response->assertRedirect(route('teams.edit', $team));
 
         $this->assertEquals(
-            TeamRole::Admin->value,
+            TeamRole::ProjectManager->value,
             $team->members()->where('user_id', $member->id)->first()->pivot->role->value,
         );
     }
@@ -49,7 +49,7 @@ class TeamMemberTest extends TestCase
         $response = $this
             ->actingAs($admin)
             ->patch(route('teams.members.update', [$team, $member]), [
-                'role' => TeamRole::Admin->value,
+                'role' => TeamRole::ProjectManager->value,
             ]);
 
         $response->assertForbidden();

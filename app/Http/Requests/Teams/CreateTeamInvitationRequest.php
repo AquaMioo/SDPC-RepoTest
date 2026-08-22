@@ -24,7 +24,9 @@ class CreateTeamInvitationRequest extends FormRequest
 
         return [
             'email' => ['required', 'string', 'email', 'max:255', new UniqueTeamInvitation($team)],
-            'role' => ['required', 'string', Rule::enum(TeamRole::class)],
+            // Only the job titles a team hands out. Rule::enum would also
+            // accept 'owner' and the two legacy values.
+            'role' => ['required', 'string', Rule::enum(TeamRole::class)->only(TeamRole::assignableCases())],
         ];
     }
 }

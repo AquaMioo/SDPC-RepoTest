@@ -6,6 +6,7 @@ use App\Actions\Client\UpdateClientProfile;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\UpdateClientProfileRequest;
 use App\Models\ClientProfile;
+use App\Models\Location;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,12 @@ class ClientProfileController extends Controller
              */
             'canPublishTestimonial' => $profile->isVerified(),
             'canUpdate' => Gate::allows('update', $profile),
+            /*
+             * The province and city selects. Sent whole rather than queried per
+             * keystroke: it is one province's worth of rows, so the city select
+             * can filter in the browser without a round trip.
+             */
+            'locations' => Location::groupedByProvince(),
         ]);
     }
 

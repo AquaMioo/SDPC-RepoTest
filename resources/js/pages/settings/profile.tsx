@@ -89,9 +89,9 @@ export default function Profile({
                             overflow: 'hidden',
                         }}
                     >
-                        {auth.user.avatar ? (
+                        {auth.avatarUrl ? (
                             <img
-                                src={auth.user.avatar}
+                                src={auth.avatarUrl}
                                 alt=""
                                 style={{
                                     width: '100%',
@@ -154,6 +154,69 @@ export default function Profile({
                                         className="mt-1 text-[11px]"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="field">
+                                <label htmlFor="avatar">Profile picture</label>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 12,
+                                    }}
+                                >
+                                    <span
+                                        style={{
+                                            width: 48,
+                                            height: 48,
+                                            borderRadius: '50%',
+                                            overflow: 'hidden',
+                                            flex: 'none',
+                                            display: 'grid',
+                                            placeItems: 'center',
+                                            background:
+                                                'var(--color-accent-800)',
+                                            color: 'var(--color-accent-200)',
+                                            fontSize: 11,
+                                        }}
+                                    >
+                                        {auth.avatarUrl ? (
+                                            <img
+                                                src={auth.avatarUrl}
+                                                alt={auth.user.name}
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover',
+                                                }}
+                                            />
+                                        ) : (
+                                            'None'
+                                        )}
+                                    </span>
+                                    <Input
+                                        id="avatar"
+                                        name="avatar"
+                                        type="file"
+                                        accept="image/*"
+                                        aria-invalid={Boolean(errors.avatar)}
+                                    />
+                                </div>
+                                <InputError
+                                    message={errors.avatar}
+                                    className="mt-1 text-[11px]"
+                                />
+                                <p
+                                    style={{
+                                        margin: '6px 0 0',
+                                        fontSize: 11.5,
+                                        color: MUTED(60),
+                                    }}
+                                >
+                                    Shown to clients, students and
+                                    administrators wherever your account
+                                    appears. PNG or JPG, up to 100 MB.
+                                </p>
                             </div>
 
                             {mustVerifyEmail &&

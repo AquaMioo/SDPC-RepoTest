@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Enums\IssueCategory;
 use App\Enums\ProjectStatus;
 use App\Enums\VerificationStatus;
 use App\Http\Controllers\Controller;
@@ -91,7 +92,15 @@ class ClientDirectoryController extends Controller
                 'websiteUrl' => $profile->website_url,
                 'facebookUrl' => $profile->facebook_url,
                 'verifiedAt' => $profile->verified_at?->toFormattedDateString(),
+                /*
+                 * A report is filed against an account, and a business is a
+                 * team; the owner is the account behind it. Null if the team
+                 * has lost its owner, and the button hides rather than posting
+                 * a report nobody can act on.
+                 */
+                'ownerUserId' => $business->owner()?->id,
             ],
+            'reportCategories' => IssueCategory::options(),
             'postings' => Project::query()
                 ->where('team_id', $business->id)
                 ->where('status', ProjectStatus::Open)

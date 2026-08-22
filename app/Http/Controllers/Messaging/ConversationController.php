@@ -3,17 +3,22 @@
 namespace App\Http\Controllers\Messaging;
 
 use App\Enums\UserRole;
+use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Messaging\EditMessageRequest;
+use App\Http\Requests\Messaging\ReactToMessageRequest;
 use App\Http\Requests\Messaging\SendMessageRequest;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -47,7 +52,9 @@ class ConversationController extends Controller
         if ($active !== null) {
             abort_unless($active->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
-            $active->load(['messages.sender', 'project.team.clientProfile', 'student']);
+            // Reactions come with the messages: without this the summary runs
+            // a query per bubble.
+            $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student']);
             $active->markReadFor($user);
         }
 
@@ -72,7 +79,18 @@ class ConversationController extends Controller
                     'author' => $message->sender?->name ?? 'Removed account',
                     'isMine' => $message->user_id === $user->id,
                     'at' => $message->created_at?->diffForHumans(short: true),
+                    'isEdited' => $message->isEdited(),
+                    'isRemoved' => $message->isRemoved(),
+                    // The client counts down against this rather than being
+                    // told "too late" only on the next reload.
+                    'editableUntil' => $message->editableUntilMs(),
+                    'imageUrl' => $message->attachment_path === null
+                        ? null
+                        : Storage::disk('public')->url($message->attachment_path),
+                    'reactions' => $message->reactionSummary($user),
                 ])->values()->all(),
+                // The picker's buttons, so the set lives in one place.
+                'reactionChoices' => MessageReaction::ALLOWED,
             ],
         ]);
     }
@@ -134,10 +152,17 @@ class ConversationController extends Controller
 
         abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
-        DB::transaction(function () use ($conversation, $user, $request): void {
-            $conversation->messages()->create([
+        // Stored before the transaction: writing the file is not something a
+        // rollback could undo anyway, and a failed upload should stop here.
+        $attachment = $request->hasFile('image')
+            ? $request->file('image')->store('message-images/'.$conversation->id, 'public')
+            : null;
+
+        $message = DB::transaction(function () use ($conversation, $user, $request, $attachment): Message {
+            $message = $conversation->messages()->create([
                 'user_id' => $user->id,
                 'body' => $request->validated('body'),
+                'attachment_path' => $attachment,
             ]);
 
             $conversation->forceFill(['last_message_at' => now()])->save();
@@ -148,9 +173,141 @@ class ConversationController extends Controller
              */
             $conversation->load('latestMessage');
             $conversation->markReadFor($user);
+
+            return $message;
         });
 
+        /*
+         * Broadcast after the transaction commits. Firing inside it would let
+         * the other side be told about a message that a rollback then undid.
+         */
+        MessageSent::dispatch($message);
+
         return back();
+    }
+
+    /**
+     * Change the wording of a message already sent.
+     *
+     * The sender's alone: the other side of a thread must never be able to
+     * rewrite what was said to them. A removed message is past editing.
+     */
+    public function edit(
+        EditMessageRequest $request,
+        Team $currentTeam,
+        Conversation $conversation,
+        Message $message,
+    ): RedirectResponse {
+        $this->authoriseOwnMessage($request->user(), $conversation, $message);
+
+        abort_if($message->isRemoved(), HttpResponse::HTTP_FORBIDDEN);
+
+        /*
+         * The window is enforced here, not in the browser. The button hiding
+         * itself is a courtesy; this is the rule.
+         */
+        abort_unless($message->isWithinEditWindow(), HttpResponse::HTTP_FORBIDDEN);
+
+        $message->forceFill([
+            'body' => $request->validated('body'),
+            'edited_at' => now(),
+        ])->save();
+
+        MessageSent::dispatch($message);
+
+        return back();
+    }
+
+    /**
+     * Take a message back.
+     *
+     * The row stays where it was and says so. A conversation is a record of
+     * what passed between two parties, and a line that vanishes without trace
+     * rewrites that record — so the words go, the fact of them does not.
+     */
+    public function remove(
+        Request $request,
+        Team $currentTeam,
+        Conversation $conversation,
+        Message $message,
+    ): RedirectResponse {
+        $this->authoriseOwnMessage($request->user(), $conversation, $message);
+
+        if ($message->attachment_path !== null) {
+            Storage::disk('public')->delete($message->attachment_path);
+        }
+
+        $message->forceFill([
+            'body' => null,
+            'attachment_path' => null,
+            'removed_at' => now(),
+        ])->save();
+
+        $message->reactions()->delete();
+
+        MessageSent::dispatch($message);
+
+        return back();
+    }
+
+    /**
+     * Add or take back a reaction.
+     *
+     * Pressing the same one twice removes it, which is what a reaction toggle
+     * means everywhere else. Either participant may react — unlike editing,
+     * reacting is a reply, not a rewrite.
+     */
+    public function react(
+        ReactToMessageRequest $request,
+        Team $currentTeam,
+        Conversation $conversation,
+        Message $message,
+    ): RedirectResponse {
+        $user = $request->user();
+
+        abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+        abort_unless($message->conversation_id === $conversation->id, HttpResponse::HTTP_NOT_FOUND);
+        abort_if($message->isRemoved(), HttpResponse::HTTP_FORBIDDEN);
+
+        $emoji = $request->validated('emoji');
+
+        $existing = $message->reactions()
+            ->where('user_id', $user->id)
+            ->where('emoji', $emoji)
+            ->first();
+
+        if ($existing !== null) {
+            $existing->delete();
+
+            MessageSent::dispatch($message);
+
+            return back();
+        }
+
+        $message->reactions()->create([
+            'user_id' => $user->id,
+            'emoji' => $emoji,
+        ]);
+
+        MessageSent::dispatch($message);
+
+        return back();
+    }
+
+    /**
+     * Guard the two actions only a message's own sender may take.
+     */
+    protected function authoriseOwnMessage(
+        User $user,
+        Conversation $conversation,
+        Message $message,
+    ): void {
+        abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+
+        // A message id from another thread must not resolve here.
+        abort_unless($message->conversation_id === $conversation->id, HttpResponse::HTTP_NOT_FOUND);
+
+        abort_unless($message->wasSentBy($user), HttpResponse::HTTP_FORBIDDEN);
     }
 
     /**

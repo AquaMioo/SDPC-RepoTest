@@ -7,6 +7,7 @@ use App\Models\Skill;
 use App\Models\StudentPortfolioItem;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Database\Seeders\ClientModuleTaxonomySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
@@ -44,6 +45,99 @@ class StudentProfileTest extends TestCase
         $this->actingAs($client)
             ->get(route('student.profile.edit', ['current_team' => $client->currentTeam]))
             ->assertForbidden();
+    }
+
+    public function test_a_student_picks_a_barangay_and_types_the_rest(): void
+    {
+        $student = User::factory()->student()->create();
+        $this->seed(ClientModuleTaxonomySeeder::class);
+
+        $this->actingAs($student)
+            ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
+                'headline' => 'Full-stack developer',
+                'barangay' => 'Muzon',
+                'location' => 'Towerville, Phase 2',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $profile = $student->refresh()->studentProfile;
+
+        $this->assertSame('Muzon', $profile->barangay);
+        $this->assertSame('Towerville, Phase 2', $profile->location);
+        $this->assertSame(
+            'Towerville, Phase 2, Barangay Muzon, San Jose Del Monte',
+            $profile->displayLocation(),
+        );
+    }
+
+    /**
+     * The free-text half is the escape hatch for addresses no list holds, so
+     * it has to stand on its own.
+     */
+    public function test_the_area_may_be_given_without_a_barangay(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->actingAs($student)
+            ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
+                'headline' => 'Full-stack developer',
+                'location' => 'A subdivision no map knows',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $profile = $student->refresh()->studentProfile;
+
+        $this->assertNull($profile->barangay);
+        $this->assertSame('A subdivision no map knows', $profile->displayLocation());
+    }
+
+    public function test_a_barangay_that_is_not_on_the_list_is_rejected(): void
+    {
+        $student = User::factory()->student()->create();
+        $this->seed(ClientModuleTaxonomySeeder::class);
+
+        $this->actingAs($student)
+            ->from(route('student.profile.edit', ['current_team' => $student->currentTeam]))
+            ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
+                'headline' => 'Full-stack developer',
+                'barangay' => 'Somewhere Else',
+            ])
+            ->assertSessionHasErrors('barangay');
+    }
+
+    /**
+     * College runs four years. The form offers 1 to 4, and this rule is what
+     * holds if something is posted around it.
+     */
+    public function test_a_year_level_outside_the_four_is_rejected(): void
+    {
+        $student = User::factory()->student()->create();
+
+        foreach ([5, 6, 0] as $rejected) {
+            $this->actingAs($student)
+                ->from(route('student.profile.edit', ['current_team' => $student->currentTeam]))
+                ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
+                    'headline' => 'Full-stack developer',
+                    'year_level' => $rejected,
+                ])
+                ->assertSessionHasErrors('year_level');
+        }
+    }
+
+    public function test_each_of_the_four_year_levels_is_accepted(): void
+    {
+        $student = User::factory()->student()->create();
+
+        foreach ([1, 2, 3, 4] as $level) {
+            $this->actingAs($student)
+                ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
+                    'headline' => 'Full-stack developer',
+                    'year_level' => $level,
+                ])
+                ->assertSessionHasNoErrors();
+
+            $this->assertSame($level, $student->refresh()->studentProfile->year_level);
+        }
     }
 
     public function test_a_student_saves_their_own_profile(): void

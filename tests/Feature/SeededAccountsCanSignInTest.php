@@ -161,14 +161,23 @@ class SeededAccountsCanSignInTest extends TestCase
         $this->assertGreaterThanOrEqual(90, $profile->completionPercentage());
     }
 
-    public function test_the_pending_student_stays_in_the_review_queue(): void
+    /**
+     * There is no review queue any more — enrolment is the provider's answer.
+     * The seeded pending account is still useful: it is the one that has not
+     * passed, so it is what the gate should hold up once a provider is on.
+     */
+    public function test_the_pending_student_has_not_passed_verification(): void
     {
         $this->seed(DatabaseSeeder::class);
 
+        config([
+            'sheerid.enabled' => true,
+            'sheerid.program_id' => 'prog_test',
+            'sheerid.access_token' => 'token_test',
+        ]);
+
         $pending = User::firstWhere('email', 'pending.student@sdpc.test');
 
-        // This one exists to give the admin screen something to review, so
-        // verifying it along with the rest would empty that queue.
         $this->assertFalse($pending->isVerifiedForOperating());
         $this->assertSame(UserStatus::Pending, $pending->status);
     }
@@ -200,6 +209,106 @@ class SeededAccountsCanSignInTest extends TestCase
 
         $this->assertSame(1, User::where('email', 'sdpc@admin.test')->count());
         $this->assertTrue(Hash::check('second-password', $admin->password));
+    }
+
+    /**
+     * Every password test above sets config() by hand, which skips the step a
+     * fresh clone actually performs: resolving the value out of the .env file.
+     * .env.example ships both keys present and blank, so this is the path a
+     * teammate's first `php artisan db:seed` takes.
+     */
+    public function test_a_blank_seed_password_in_the_env_still_falls_back_to_the_documented_default(): void
+    {
+        $resolved = $this->resolveSeedingConfigWith(['SEED_ADMIN_PASSWORD' => '', 'SEED_TESTER_PASSWORD' => '']);
+
+        // env() returns "" rather than the default for a key that is present
+        // but empty, so an unguarded env() call seeds an empty password here
+        // and every documented login is rejected.
+        $this->assertSame('password', $resolved['admin_password']);
+        $this->assertSame('password', $resolved['tester_password']);
+    }
+
+    public function test_a_seed_password_set_in_the_env_is_the_one_that_is_used(): void
+    {
+        $resolved = $this->resolveSeedingConfigWith([
+            'SEED_ADMIN_PASSWORD' => 'a-real-admin-password',
+            'SEED_TESTER_PASSWORD' => 'a-real-tester-password',
+        ]);
+
+        $this->assertSame('a-real-admin-password', $resolved['admin_password']);
+        $this->assertSame('a-real-tester-password', $resolved['tester_password']);
+    }
+
+    public function test_the_blank_env_fallback_reaches_the_accounts_the_seeder_creates(): void
+    {
+        $resolved = $this->resolveSeedingConfigWith(['SEED_ADMIN_PASSWORD' => '']);
+
+        config(['seeding.admin_password' => $resolved['admin_password']]);
+
+        $this->seed(DatabaseSeeder::class);
+
+        $admin = User::firstWhere('email', 'sdpc@admin.test');
+
+        // The end of the chain: the credential a teammate is handed actually
+        // opens the account the seeder just wrote.
+        $this->assertTrue(Hash::check('password', $admin->password));
+    }
+
+    /**
+     * Re-read config/seeding.php against a given environment.
+     *
+     * The file is a plain PHP array, so requiring it again is what exercises
+     * the env() calls that the framework already resolved at boot.
+     *
+     * @param  array<string, string>  $environment
+     * @return array<string, string>
+     */
+    private function resolveSeedingConfigWith(array $environment): array
+    {
+        $original = [];
+
+        // $_SERVER is the first adapter Dotenv reads, so setting only putenv or
+        // $_ENV leaves whatever .env loaded at boot still in charge.
+        foreach ($environment as $key => $value) {
+            $original[$key] = [
+                'server' => array_key_exists($key, $_SERVER) ? $_SERVER[$key] : null,
+                'env' => array_key_exists($key, $_ENV) ? $_ENV[$key] : null,
+                'putenv' => getenv($key),
+            ];
+
+            $_SERVER[$key] = $value;
+            $_ENV[$key] = $value;
+            putenv("{$key}={$value}");
+        }
+
+        try {
+            return require config_path('seeding.php');
+        } finally {
+            foreach ($original as $key => $previous) {
+                $this->restoreSuperglobal($_SERVER, $key, $previous['server']);
+                $this->restoreSuperglobal($_ENV, $key, $previous['env']);
+
+                $previous['putenv'] === false
+                    ? putenv($key)
+                    : putenv("{$key}={$previous['putenv']}");
+            }
+        }
+    }
+
+    /**
+     * Put one key of $_SERVER or $_ENV back the way it was found.
+     *
+     * @param  array<string, mixed>  $superglobal
+     */
+    private function restoreSuperglobal(array &$superglobal, string $key, mixed $previous): void
+    {
+        if ($previous === null) {
+            unset($superglobal[$key]);
+
+            return;
+        }
+
+        $superglobal[$key] = $previous;
     }
 
     /**

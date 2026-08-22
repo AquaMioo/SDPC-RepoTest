@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $headline
  * @property string|null $biography
  * @property string|null $location
+ * @property string|null $barangay
  * @property string|null $photo_path
  * @property int|null $school_id
  * @property int|null $course_id
@@ -47,7 +48,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, StudentPortfolioItem> $portfolioItems
  */
 #[Fillable([
-    'user_id', 'headline', 'biography', 'location', 'photo_path', 'school_id',
+    'user_id', 'headline', 'biography', 'location', 'barangay', 'photo_path', 'school_id',
     'course_id', 'year_level', 'education_started_on', 'education_note',
     'github_url', 'portfolio_url', 'is_available', 'weekly_hours',
     'availability_note', 'response_time_hours', 'hourly_rate',
@@ -57,6 +58,25 @@ class StudentProfile extends Model
 {
     /** @use HasFactory<StudentProfileFactory> */
     use HasFactory;
+
+    /**
+     * The location as a client reads it.
+     *
+     * Narrowest part first, the way an address is spoken: "Towerville,
+     * Barangay Muzon, San Jose Del Monte". Each piece is optional, so a
+     * profile carrying only one of them still reads as a place rather than as
+     * a string with stray commas in it.
+     */
+    public function displayLocation(): ?string
+    {
+        $parts = array_filter([
+            $this->location,
+            $this->barangay === null ? null : 'Barangay '.$this->barangay,
+            $this->barangay === null ? null : 'San Jose Del Monte',
+        ]);
+
+        return $parts === [] ? null : implode(', ', $parts);
+    }
 
     /**
      * Get the student the profile describes.

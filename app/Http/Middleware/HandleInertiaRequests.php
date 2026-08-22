@@ -48,6 +48,9 @@ class HandleInertiaRequests extends Middleware
                 'role' => $user?->role,
                 'status' => $user?->status,
                 'isAdmin' => (bool) $user?->isAdmin(),
+                // Drawn by the header on every screen, and the column it comes
+                // from is not the one the model exposes.
+                'avatarUrl' => $user?->avatarUrl(),
             ],
             /*
              * The header's chat icon carries this on every screen, so it is

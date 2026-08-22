@@ -6,6 +6,7 @@ import {
     UserIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
+import ReportAccountDialog from '@/components/report-account-dialog';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ type Props = {
     student: {
         id: number;
         name: string;
+        avatarUrl: string | null;
         headline: string | null;
         biography: string | null;
         school: string | null;
@@ -55,6 +57,7 @@ type Props = {
     }[];
     invitableProjects: { id: number; slug: string; title: string }[];
     canInvite: boolean;
+    reportCategories: { value: string; label: string }[];
 };
 
 export default function StudentProfile({
@@ -62,6 +65,7 @@ export default function StudentProfile({
     existingApplications,
     invitableProjects,
     canInvite,
+    reportCategories,
 }: Props) {
     const team = useCurrentTeam();
     const [projectId, setProjectId] = useState(
@@ -104,8 +108,16 @@ export default function StudentProfile({
                 <div className="flex min-w-0 flex-col gap-4">
                     <Panel padding="lg" gap="lg">
                         <div className="flex items-center gap-4">
-                            <span className="grid size-16 shrink-0 place-items-center rounded-full bg-primary/15 text-3xl text-primary">
-                                <UserIcon />
+                            <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 text-3xl text-primary">
+                                {student.avatarUrl ? (
+                                    <img
+                                        src={student.avatarUrl}
+                                        alt={student.name}
+                                        className="size-full object-cover"
+                                    />
+                                ) : (
+                                    <UserIcon />
+                                )}
                             </span>
                             <div className="mr-auto min-w-0">
                                 <h3 className="m-0">{student.name}</h3>
@@ -143,6 +155,14 @@ export default function StudentProfile({
                                 {student.school}
                             </div>
                         )}
+
+                        <div className="flex justify-end">
+                            <ReportAccountDialog
+                                userId={student.id}
+                                userName={student.name}
+                                categories={reportCategories}
+                            />
+                        </div>
                     </Panel>
 
                     {student.skills.length > 0 && (

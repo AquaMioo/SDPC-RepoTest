@@ -118,8 +118,18 @@ class ProjectBoardTest extends TestCase
         ]);
     }
 
+    /**
+     * The gate is the verification provider's answer, so it only closes when a
+     * provider is configured — with none there is nothing to check against.
+     */
     public function test_an_unverified_student_can_browse_but_not_apply(): void
     {
+        config([
+            'sheerid.enabled' => true,
+            'sheerid.program_id' => 'prog_test',
+            'sheerid.access_token' => 'token_test',
+        ]);
+
         $student = $this->student();
         $project = $this->posting();
 

@@ -7,6 +7,7 @@ import {
     SealCheckIcon,
 } from '@phosphor-icons/react';
 
+import ReportAccountDialog from '@/components/report-account-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
@@ -28,7 +29,9 @@ type Props = {
         websiteUrl: string | null;
         facebookUrl: string | null;
         verifiedAt: string | null;
+        ownerUserId: number | null;
     };
+    reportCategories: { value: string; label: string }[];
     postings: {
         slug: string;
         title: string;
@@ -46,7 +49,11 @@ type Props = {
  * opens off an application, and publishing contact details here would route
  * around that for every verified business at once.
  */
-export default function StudentClient({ business, postings }: Props) {
+export default function StudentClient({
+    business,
+    postings,
+    reportCategories,
+}: Props) {
     const team = useCurrentTeam();
 
     return (
@@ -142,6 +149,22 @@ export default function StudentClient({ business, postings }: Props) {
                                 {business.description ??
                                     'This business has not written a description yet.'}
                             </p>
+
+                            {business.ownerUserId !== null && (
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'flex-end',
+                                        marginTop: 12,
+                                    }}
+                                >
+                                    <ReportAccountDialog
+                                        userId={business.ownerUserId}
+                                        userName={business.businessName}
+                                        categories={reportCategories}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {(business.websiteUrl || business.facebookUrl) && (

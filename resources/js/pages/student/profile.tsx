@@ -25,6 +25,14 @@ import { update as profileUpdate } from '@/routes/student/profile';
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
+/** College runs four years, so those are the only levels on offer. */
+const YEAR_LEVELS = [
+    { value: '1', label: '1st year' },
+    { value: '2', label: '2nd year' },
+    { value: '3', label: '3rd year' },
+    { value: '4', label: '4th year' },
+];
+
 type PortfolioItem = {
     id: number;
     title: string;
@@ -40,9 +48,11 @@ type PortfolioItem = {
 type Props = {
     profile: {
         name: string;
+        avatarUrl: string | null;
         headline: string | null;
         biography: string | null;
         location: string | null;
+        barangay: string | null;
         schoolId: number | null;
         courseId: number | null;
         yearLevel: number | null;
@@ -62,6 +72,7 @@ type Props = {
         schools: { id: number; name: string }[];
         courses: { id: number; name: string; abbreviation: string | null }[];
         skills: { name: string; type: string }[];
+        barangays: string[];
     };
     /** Badge only — nothing on the platform is gated on it. */
     isVerifiedStudent: boolean;
@@ -86,6 +97,7 @@ export default function StudentProfilePage({
         headline: profile.headline ?? '',
         biography: profile.biography ?? '',
         location: profile.location ?? '',
+        barangay: profile.barangay ?? '',
         school_id: profile.schoolId?.toString() ?? '',
         course_id: profile.courseId?.toString() ?? '',
         year_level: profile.yearLevel?.toString() ?? '',
@@ -107,6 +119,9 @@ export default function StudentProfilePage({
             school_id: data.school_id || null,
             course_id: data.course_id || null,
             year_level: data.year_level || null,
+            // "Not stated" is an empty option, and the rule is nullable rather
+            // than allowing an empty string through the exists check.
+            barangay: data.barangay || null,
             education_started_on: data.education_started_on || null,
             weekly_hours: data.weekly_hours || null,
             response_time_hours: data.response_time_hours || null,
@@ -146,9 +161,22 @@ export default function StudentProfilePage({
                             placeItems: 'center',
                             fontSize: 44,
                             flex: 'none',
+                            overflow: 'hidden',
                         }}
                     >
-                        <UserIcon />
+                        {profile.avatarUrl ? (
+                            <img
+                                src={profile.avatarUrl}
+                                alt={profile.name}
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                }}
+                            />
+                        ) : (
+                            <UserIcon />
+                        )}
                     </span>
 
                     <div style={{ paddingBottom: 6, marginRight: 'auto' }}>
@@ -384,7 +412,44 @@ export default function StudentProfilePage({
                             </Field>
 
                             <Field
-                                label="Location"
+                                label="Barangay"
+                                error={form.errors.barangay}
+                            >
+                                {(props) => (
+                                    <select
+                                        {...props}
+                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                        value={form.data.barangay}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'barangay',
+                                                event.target.value,
+                                            )
+                                        }
+                                    >
+                                        <option value="">
+                                            Not stated
+                                        </option>
+                                        {options.barangays.map((barangay) => (
+                                            <option
+                                                key={barangay}
+                                                value={barangay}
+                                            >
+                                                {barangay}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </Field>
+
+                            {/*
+                              * The half no list can hold. Plenty of addresses
+                              * here are not on any map, so this stays free
+                              * text rather than refusing what a student
+                              * actually lives in.
+                              */}
+                            <Field
+                                label="Area or subdivision (optional)"
                                 error={form.errors.location}
                             >
                                 {(props) => (
@@ -392,7 +457,7 @@ export default function StudentProfilePage({
                                         {...props}
                                         value={form.data.location}
                                         maxLength={255}
-                                        placeholder="Towerville, San Jose del Monte"
+                                        placeholder="Towerville, Phase 2, near the market"
                                         onChange={(event) =>
                                             form.setData(
                                                 'location',
@@ -527,11 +592,15 @@ export default function StudentProfilePage({
                                     error={form.errors.year_level}
                                 >
                                     {(props) => (
-                                        <Input
+                                        /*
+                                         * A select rather than a number box:
+                                         * college runs four years, and a
+                                         * spinner invited a 5 or a 6 that the
+                                         * server then refused.
+                                         */
+                                        <select
                                             {...props}
-                                            type="number"
-                                            min={1}
-                                            max={6}
+                                            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                                             value={form.data.year_level}
                                             onChange={(event) =>
                                                 form.setData(
@@ -539,7 +608,26 @@ export default function StudentProfilePage({
                                                     event.target.value,
                                                 )
                                             }
-                                        />
+                                        >
+                                            {/*
+                                             * Prompt, not a choice. `disabled`
+                                             * stops it being picked and
+                                             * `hidden` keeps it out of the open
+                                             * list, so it only ever shows as
+                                             * the resting label.
+                                             */}
+                                            <option value="" disabled hidden>
+                                                Select a year level
+                                            </option>
+                                            {YEAR_LEVELS.map((level) => (
+                                                <option
+                                                    key={level.value}
+                                                    value={level.value}
+                                                >
+                                                    {level.label}
+                                                </option>
+                                            ))}
+                                        </select>
                                     )}
                                 </Field>
 

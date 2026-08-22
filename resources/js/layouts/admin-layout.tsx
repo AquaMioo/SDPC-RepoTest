@@ -10,9 +10,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useMod } from '@/hooks/use-mod';
 import { logout } from '@/routes';
-import { content, dashboard, issues } from '@/routes/admin';
-import { index as adminBusinesses } from '@/routes/admin/businesses';
-import { index as adminCredentials } from '@/routes/admin/credentials';
+import { content, dashboard, issues, monitoring } from '@/routes/admin';
 import { index as adminPostings } from '@/routes/admin/postings';
 import { index as adminUsers } from '@/routes/admin/users';
 
@@ -50,13 +48,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const navigation: NavItem[] = [
         { label: 'Overview', href: dashboard.url() },
         { label: 'Users', href: adminUsers.url() },
-        { label: 'Credentials', href: adminCredentials.url() },
-        /* Both review queues had screens but no way to reach them. */
-        { label: 'Businesses', href: adminBusinesses.url() },
+        /*
+         * Credentials and Businesses are gone. Enrolment is checked by the
+         * verification provider and a business is verified on registration, so
+         * neither queue had anything left for an administrator to decide.
+         */
         { label: 'Postings', href: adminPostings.url() },
         { label: 'Content', href: content.url() },
         { label: 'Issues', href: issues.url() },
-        { label: 'Monitoring', pending: 'Arrives with the Monitoring module' },
+        { label: 'Monitoring', href: monitoring.url() },
     ];
 
     return (

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Enums\ApplicationStatus;
+use App\Enums\IssueCategory;
 use App\Enums\ProjectStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -39,6 +40,7 @@ class StudentProfileController extends Controller
             'student' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'avatarUrl' => $user->avatarUrl(),
                 'headline' => $profile->headline,
                 'biography' => $profile->biography,
                 'school' => $profile->school?->name,
@@ -51,7 +53,9 @@ class StudentProfileController extends Controller
                 'rating' => (float) $profile->rating_average,
                 'completedProjects' => $profile->completed_projects_count,
                 'skills' => $profile->skills->map->only(['name', 'type']),
-                'location' => $profile->location,
+                // Composed, so a client reads "Towerville, Barangay Muzon,
+                // San Jose Del Monte" rather than just the free-text half.
+                'location' => $profile->displayLocation(),
                 'weeklyHours' => $profile->weekly_hours,
                 'availabilityNote' => $profile->availability_note,
                 'responseTimeHours' => $profile->response_time_hours,
@@ -105,6 +109,8 @@ class StudentProfileController extends Controller
                 ->values(),
 
             'canInvite' => $request->user()->isVerifiedForOperating(),
+
+            'reportCategories' => IssueCategory::options(),
         ]);
     }
 }

@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
-use App\Enums\ProjectStatus;
+use App\Enums\MilestoneStatus;
+use App\Enums\SiteContentKey;
 use App\Http\Controllers\Controller;
+use App\Models\Agreement;
+use App\Models\AgreementMilestone;
 use App\Models\Application;
 use App\Models\Project;
+use App\Models\SiteContent;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,99 +24,179 @@ class ClientDashboardController extends Controller
 {
     /**
      * Show the client workspace overview.
+     *
+     * Three panels: calendar, progress, team. The counts, recent-activity feed
+     * and shortlist that used to live here were taken off deliberately;
+     * applications are read on the Recruit and posting screens, which is where
+     * a client acts on them.
      */
     public function __invoke(Request $request): Response
     {
         $team = $request->user()->currentTeam;
 
         return Inertia::render('client/dashboard', [
-            'stats' => $this->stats($team),
+            'userName' => $request->user()->name,
             /*
              * The post button is the one thing on this screen the posting cap
              * can take away, so it has to know before it renders.
              */
             'canPostProject' => Gate::allows('create', Project::class),
-            'profileCompletion' => $team->clientProfile?->completionPercentage() ?? 0,
-            /**
+            /*
              * Clients no longer pass through the generic dashboard, so the
              * invitation prompt has to travel with them.
              */
             'pendingInvitations' => TeamInvitation::pendingForDashboard($request->user()->email),
-            /**
-             * Deferred so the cards paint immediately — these two panels are
-             * the slowest queries on the screen and the least urgent.
+
+            'announcement' => $this->announcement(),
+
+            /*
+             * Deferred so the frame paints first: each of these walks the
+             * agreement and its milestones.
              */
-            'recentActivity' => Inertia::defer(fn () => $this->recentActivity($team)),
-            'shortlistedStudents' => Inertia::defer(fn () => $this->shortlisted($team)),
+            'currentProject' => Inertia::defer(fn () => $this->currentProject($team)),
+            'projectTeam' => Inertia::defer(fn () => $this->projectTeam($team)),
+            'calendarEvents' => Inertia::defer(fn () => $this->calendarEvents($team)),
         ]);
     }
 
     /**
-     * Get the counts behind the dashboard cards.
+     * The posting the team is running, with its milestone progress.
      *
-     * @return array<string, int>
+     * Progress comes from the signed agreement rather than the posting: the
+     * milestones a client tracks are the ones both sides agreed to. Null when
+     * there is no live agreement, and the panel says so rather than drawing an
+     * empty ring.
+     *
+     * @return array<string, mixed>|null
      */
-    protected function stats(Team $team): array
+    protected function currentProject(Team $team): ?array
     {
-        $projects = Project::query()->forTeam($team);
+        $agreement = Agreement::query()
+            ->where('team_id', $team->id)
+            ->where('status', AgreementStatus::Active)
+            ->with(['project', 'milestones'])
+            ->latest('id')
+            ->first();
+
+        if ($agreement === null) {
+            return null;
+        }
+
+        $milestones = $agreement->milestones;
+
+        /*
+         * The phase being worked, and the one after it. Reporting the same
+         * milestone as both — which happens if you simply take the first
+         * unapproved one twice — tells the client nothing.
+         */
+        $current = $milestones->first(
+            fn (AgreementMilestone $milestone): bool => $milestone->status !== MilestoneStatus::Approved,
+        );
+
+        $next = $current === null
+            ? null
+            : $milestones->first(
+                fn (AgreementMilestone $milestone): bool => $milestone->position > $current->position,
+            );
 
         return [
-            'projectsPosted' => (clone $projects)->count(),
-            'activeProjects' => (clone $projects)->active()->count(),
-            'completedProjects' => (clone $projects)->where('status', ProjectStatus::Completed)->count(),
-            'pendingApplications' => $this->applications($team)->awaitingDecision()->count(),
-            'shortlistedStudents' => $this->applications($team)
-                ->withStatus(ApplicationStatus::Shortlisted)
-                ->count(),
-            'acceptedStudents' => $this->applications($team)
-                ->withStatus(ApplicationStatus::Accepted)
-                ->count(),
+            'title' => $agreement->project->title,
+            'slug' => $agreement->project->slug,
+            'reference' => $agreement->reference,
+            'progress' => $agreement->progress(),
+            'dueOn' => $milestones->max('ends_on')?->format('j M Y'),
+            'currentPhase' => $current?->title,
+            'nextMilestone' => $next === null ? null : [
+                'title' => $next->title,
+                'dueOn' => $next->ends_on?->format('j M Y'),
+            ],
+            'milestones' => $milestones
+                ->map(fn (AgreementMilestone $milestone): array => [
+                    'id' => $milestone->id,
+                    'title' => $milestone->title,
+                    'progress' => $milestone->status->progress(),
+                    'statusLabel' => $milestone->status->label(),
+                    'isDone' => $milestone->status === MilestoneStatus::Approved,
+                ])
+                ->values()
+                ->all(),
+            'updatedAt' => $agreement->updated_at?->diffForHumans(),
         ];
     }
 
     /**
-     * Get the most recent applications across the team's postings.
+     * The students accepted onto the team's postings.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return array<int, array<string, mixed>>
      */
-    protected function recentActivity(Team $team)
+    protected function projectTeam(Team $team): array
     {
         return $this->applications($team)
-            ->with(['student', 'project'])
-            ->latest()
-            ->limit(8)
+            ->withStatus(ApplicationStatus::Accepted)
+            ->with(['student.studentProfile', 'project'])
             ->get()
-            ->map(fn (Application $application) => [
-                'id' => $application->id,
-                'studentName' => $application->student->name,
-                'projectTitle' => $application->project->title,
-                'projectSlug' => $application->project->slug,
-                'status' => $application->status->value,
-                'statusLabel' => $application->status->label(),
-                'happenedAt' => $application->created_at?->diffForHumans(),
-            ]);
+            ->map(fn (Application $application): array => [
+                'id' => $application->student->id,
+                'name' => $application->student->name,
+                'avatarUrl' => $application->student->avatarUrl(),
+                'role' => $application->student->studentProfile?->headline
+                    ?? $application->project->title,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
-     * Get the students the team has shortlisted but not yet decided on.
+     * Dated milestones, so the calendar marks something real.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return array<int, array<string, mixed>>
      */
-    protected function shortlisted(Team $team)
+    protected function calendarEvents(Team $team): array
     {
-        return $this->applications($team)
-            ->withStatus(ApplicationStatus::Shortlisted)
-            ->with(['student.studentProfile', 'project'])
-            ->latest()
-            ->limit(6)
+        return AgreementMilestone::query()
+            ->whereHas(
+                'agreement',
+                fn (Builder $query) => $query
+                    ->where('team_id', $team->id)
+                    ->where('status', AgreementStatus::Active),
+            )
+            ->whereNotNull('ends_on')
+            ->orderBy('ends_on')
+            ->with('agreement.project:id,slug')
             ->get()
-            ->map(fn (Application $application) => [
-                'id' => $application->id,
-                'studentId' => $application->student->id,
-                'studentName' => $application->student->name,
-                'headline' => $application->student->studentProfile?->headline,
-                'projectTitle' => $application->project->title,
-            ]);
+            ->map(fn (AgreementMilestone $milestone): array => [
+                'id' => $milestone->id,
+                'title' => $milestone->title,
+                'date' => $milestone->ends_on?->toDateString(),
+                'label' => $milestone->ends_on?->format('j M Y'),
+                'projectSlug' => $milestone->agreement->project->slug,
+                'isDone' => $milestone->status === MilestoneStatus::Approved,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the announcements block an administrator maintains.
+     *
+     * The same block the student dashboard shows, read from the same row the
+     * admin Content screen writes — one piece of copy reaching both modules,
+     * rather than two that can drift apart.
+     *
+     * @return array<string, string|null>|null
+     */
+    protected function announcement(): ?array
+    {
+        $block = SiteContent::firstWhere('key', SiteContentKey::Announcements);
+
+        if ($block === null || blank($block->body)) {
+            return null;
+        }
+
+        return [
+            'body' => $block->body,
+            'updatedAt' => $block->updated_at?->diffForHumans(),
+        ];
     }
 
     /**

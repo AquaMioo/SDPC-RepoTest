@@ -7,6 +7,11 @@ import AuthLayout from '@/layouts/auth-layout';
 import ClientLayout from '@/layouts/client/client-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import SettingsShell from '@/layouts/settings/shell';
+import { configureEcho } from '@laravel/echo-react';
+
+configureEcho({
+    broadcaster: 'reverb',
+});
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

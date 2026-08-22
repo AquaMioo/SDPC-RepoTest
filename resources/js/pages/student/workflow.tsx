@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 
 import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
@@ -6,6 +6,7 @@ import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { process as studentProcess } from '@/routes/student';
 import { withdraw as applicationWithdraw } from '@/routes/student/applications';
+import { store as messagesStore } from '@/routes/messages';
 import { index as boardIndex, show as boardShow } from '@/routes/student/board';
 
 const MUTED = (pct: number) =>
@@ -22,6 +23,7 @@ const STATUS_VARIANT: Record<string, 'accent' | 'neutral' | 'outline'> = {
 
 type Props = {
     projects: {
+        id: number;
         slug: string;
         title: string;
         client: string;
@@ -29,6 +31,7 @@ type Props = {
     }[];
     applications: {
         id: number;
+        projectId: number;
         projectTitle: string;
         projectSlug: string;
         client: string;
@@ -38,6 +41,7 @@ type Props = {
         appliedAt: string | null;
         respondedAt: string | null;
         canWithdraw: boolean;
+        canMessage: boolean;
     }[];
 };
 
@@ -46,6 +50,18 @@ type Props = {
  */
 export default function StudentWorkflow({ projects, applications }: Props) {
     const team = useCurrentTeam();
+    const { auth } = usePage().props;
+
+    /*
+     * Open the thread for one posting. The application behind it is what makes
+     * this allowed, and the student is one of its two sides — so the student's
+     * own id goes over, not the client's.
+     */
+    const message = (projectId: number) =>
+        router.post(messagesStore.url(team.slug), {
+            project_id: projectId,
+            user_id: auth.user.id,
+        });
 
     return (
         <>
@@ -124,13 +140,23 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                                     <Tag variant="accent">{project.status}</Tag>
                                 </div>
 
-                                {/* Progress lives on the agreement's
-                                    milestones, so the detail is there. */}
-                                <Btn asChild style={{ alignSelf: 'start' }}>
-                                    <Link href={studentProcess.url(team.slug)}>
-                                        Track progress
-                                    </Link>
-                                </Btn>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {/* Progress lives on the agreement's
+                                        milestones, so the detail is there. */}
+                                    <Btn asChild>
+                                        <Link
+                                            href={studentProcess.url(team.slug)}
+                                        >
+                                            Track progress
+                                        </Link>
+                                    </Btn>
+                                    <Btn
+                                        variant="secondary"
+                                        onClick={() => message(project.id)}
+                                    >
+                                        Message client
+                                    </Btn>
+                                </div>
                             </Panel>
                         ))
                     )}
@@ -214,6 +240,17 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                                     >
                                         {application.statusLabel}
                                     </Tag>
+
+                                    {application.canMessage && (
+                                        <Btn
+                                            variant="ghost"
+                                            onClick={() =>
+                                                message(application.projectId)
+                                            }
+                                        >
+                                            Message
+                                        </Btn>
+                                    )}
 
                                     {application.canWithdraw && (
                                         <Btn

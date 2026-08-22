@@ -3,6 +3,7 @@ export type UserStatus = 'pending' | 'approved' | 'monitored' | 'deactivated';
 export type AdminUserRow = {
     id: number;
     name: string;
+    avatarUrl: string | null;
     email: string;
     role: string;
     roleLabel: string;

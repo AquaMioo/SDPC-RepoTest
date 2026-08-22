@@ -5,6 +5,7 @@ namespace App\Actions\Fortify;
 use App\Actions\Teams\CreateTeam;
 use App\Concerns\PasswordValidationRules;
 use App\Enums\UserRole;
+use App\Enums\VerificationStatus;
 use App\Models\ClientProfile;
 use App\Models\User;
 use App\Support\PendingGoogleRegistration;
@@ -103,11 +104,19 @@ class CreateNewUser implements CreatesNewUsers
             );
 
             if ($role === UserRole::Client) {
+                /*
+                 * Businesses arrive verified. Nothing checks a Philippine SME
+                 * automatically, and permits are no longer reviewed by hand, so
+                 * there is no later step that could grant this — withholding it
+                 * would just mean no client could ever post.
+                 */
                 ClientProfile::create([
                     'team_id' => $team->id,
                     'business_name' => trim($input['business_name']),
                     'owner_name' => $name,
                     'contact_email' => $input['email'],
+                    'verification_status' => VerificationStatus::Verified,
+                    'verified_at' => now(),
                 ]);
             }
 

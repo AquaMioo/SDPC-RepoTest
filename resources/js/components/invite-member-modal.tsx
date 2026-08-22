@@ -36,13 +36,20 @@ export default function InviteMemberModal({
     open,
     onOpenChange,
 }: Props) {
-    const [inviteRole, setInviteRole] = useState<RoleOption['value']>('member');
+    /*
+     * Default to whatever the server offers first rather than a hardcoded
+     * value, so the modal cannot preselect a role that is no longer assignable.
+     */
+    const defaultRole = availableRoles[0]?.value ?? '';
+
+    const [inviteRole, setInviteRole] =
+        useState<RoleOption['value']>(defaultRole);
 
     const handleOpenChange = (nextOpen: boolean) => {
         onOpenChange(nextOpen);
 
         if (!nextOpen) {
-            setInviteRole('member');
+            setInviteRole(defaultRole);
         }
     };
 

@@ -27,10 +27,11 @@ class AdminUserController extends Controller
                 // felt like, and swap places between page loads.
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
-                ->get(['id', 'name', 'email', 'role', 'status', 'avatar', 'email_verified_at'])
+                ->get(['id', 'name', 'email', 'role', 'status', 'avatar', 'avatar_path', 'email_verified_at'])
                 ->map(fn (User $user): array => [
                     'id' => $user->id,
                     'name' => $user->name,
+                    'avatarUrl' => $user->avatarUrl(),
                     'email' => $user->email,
                     'role' => $user->role->value,
                     'roleLabel' => $user->role->label(),

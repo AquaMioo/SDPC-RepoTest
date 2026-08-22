@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Student\UpdateStudentProfileRequest;
+use App\Models\Barangay;
 use App\Models\Course;
 use App\Models\School;
 use App\Models\Skill;
@@ -38,9 +39,11 @@ class StudentProfileController extends Controller
         return Inertia::render('student/profile', [
             'profile' => [
                 'name' => $request->user()->name,
+                'avatarUrl' => $request->user()->avatarUrl(),
                 'headline' => $profile->headline,
                 'biography' => $profile->biography,
                 'location' => $profile->location,
+                'barangay' => $profile->barangay,
 
                 'schoolId' => $profile->school_id,
                 'courseId' => $profile->course_id,
@@ -77,6 +80,8 @@ class StudentProfileController extends Controller
                 'schools' => School::query()->orderBy('name')->get(['id', 'name']),
                 'courses' => Course::query()->orderBy('name')->get(['id', 'name', 'abbreviation']),
                 'skills' => Skill::query()->orderBy('name')->get(['name', 'type']),
+                // The platform serves one city, so this is the whole list.
+                'barangays' => Barangay::names(),
             ],
             /*
              * Badge presentation only. Whether a student may apply, message or
@@ -96,7 +101,7 @@ class StudentProfileController extends Controller
 
         DB::transaction(function () use ($request, $profile): void {
             $profile->update($request->safe()->only([
-                'headline', 'biography', 'location', 'school_id', 'course_id',
+                'headline', 'biography', 'location', 'barangay', 'school_id', 'course_id',
                 'year_level', 'education_started_on', 'education_note',
                 'github_url', 'portfolio_url', 'is_available', 'weekly_hours',
                 'availability_note', 'response_time_hours', 'hourly_rate',

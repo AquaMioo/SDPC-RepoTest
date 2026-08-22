@@ -4,10 +4,12 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Concerns\HasTeams;
+use App\Contracts\StudentVerifier;
 use App\Enums\ApplicationStatus;
 use App\Enums\CredentialStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Enums\VerificationStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -19,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -35,6 +38,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $password
  * @property string|null $google_id
  * @property string|null $avatar
+ * @property string|null $avatar_path
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -171,9 +175,56 @@ class User extends Authenticatable implements PasskeyUser
     {
         return match ($this->role) {
             UserRole::Admin => true,
-            UserRole::Student => $this->latestStudentCredential?->status === CredentialStatus::Verified,
+            UserRole::Student => $this->hasPassedStudentVerification(),
             UserRole::Client => $this->currentTeam?->clientProfile?->isVerified() ?? false,
         };
+    }
+
+    /**
+     * Whether the automated check has confirmed this student is enrolled.
+     *
+     * The provider decides, not an administrator — nobody on this platform
+     * reviews enrolment documents by hand any more.
+     *
+     * When no provider is configured there is nothing to decide with, and a
+     * gate that can never open is worse than no gate: it would leave every
+     * student permanently unable to apply or be hired. So an unconfigured
+     * platform does not gate students at all, and switching a provider on is
+     * what starts enforcing this.
+     */
+    public function hasPassedStudentVerification(): bool
+    {
+        if (! app(StudentVerifier::class)->isAvailable()) {
+            return true;
+        }
+
+        return $this->latestStudentVerification?->status === VerificationStatus::Verified;
+    }
+
+    /**
+     * The most recent automated verification attempt.
+     *
+     * @return HasOne<StudentVerification, $this>
+     */
+    public function latestStudentVerification(): HasOne
+    {
+        return $this->hasOne(StudentVerification::class)->latestOfMany();
+    }
+
+    /**
+     * The picture to draw for this account, or null to fall back to initials.
+     *
+     * An uploaded picture wins over the one Google supplies, because the
+     * upload is a deliberate choice and the Google URL is simply whatever the
+     * provider last handed over.
+     */
+    public function avatarUrl(): ?string
+    {
+        if ($this->avatar_path !== null) {
+            return Storage::disk('public')->url($this->avatar_path);
+        }
+
+        return $this->avatar;
     }
 
     /**

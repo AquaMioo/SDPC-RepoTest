@@ -12,6 +12,12 @@ export type User = {
 
 export type Auth = {
     user: User;
+    /**
+     * The picture to draw for the signed-in account: an uploaded one if there
+     * is one, otherwise whatever the OAuth provider supplied. Resolved on the
+     * server because the two live in different columns.
+     */
+    avatarUrl?: string | null;
 };
 
 /* @chisel-passkeys */

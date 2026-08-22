@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\InviteStudentRequest;
 use App\Http\Requests\Client\RespondToApplicationRequest;
 use App\Models\Application;
+use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
@@ -70,10 +71,23 @@ class ProjectApplicationController extends Controller
      */
     public function invite(InviteStudentRequest $request, Team $currentTeam, Project $project): RedirectResponse
     {
+        $student = $request->integer('user_id');
+
         $project->applications()->create([
-            'user_id' => $request->integer('user_id'),
+            'user_id' => $student,
             'status' => ApplicationStatus::Pending,
             'source' => ApplicationSource::Invited,
+        ]);
+
+        /*
+         * Open the thread with the invitation rather than waiting for someone
+         * to press Message. The invitation is the introduction, so the inbox
+         * should hold it from that moment — otherwise a client who has just
+         * invited a student opens Messages and finds nothing there.
+         */
+        Conversation::firstOrCreate([
+            'project_id' => $project->id,
+            'user_id' => $student,
         ]);
 
         return back()->with('success', 'Invitation sent.');

@@ -111,6 +111,36 @@ export default function AdminUsers({ users, statuses }: Props) {
                         {filtered.map((user) => (
                             <tr key={user.id}>
                                 <td style={{ paddingLeft: 16 }}>
+                                    <span
+                                        style={{
+                                            display: 'inline-grid',
+                                            placeItems: 'center',
+                                            width: 26,
+                                            height: 26,
+                                            borderRadius: '50%',
+                                            overflow: 'hidden',
+                                            marginRight: 8,
+                                            verticalAlign: 'middle',
+                                            background:
+                                                'var(--color-accent-800)',
+                                            color: 'var(--color-accent-200)',
+                                            fontSize: 11,
+                                        }}
+                                    >
+                                        {user.avatarUrl ? (
+                                            <img
+                                                src={user.avatarUrl}
+                                                alt=""
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover',
+                                                }}
+                                            />
+                                        ) : (
+                                            user.name.charAt(0).toUpperCase()
+                                        )}
+                                    </span>
                                     {user.name}
                                     {user.credentialStatusLabel && (
                                         <span
@@ -150,22 +180,49 @@ export default function AdminUsers({ users, statuses }: Props) {
                                                 This is you
                                             </span>
                                         ) : (
-                                            statuses
-                                                .filter(
-                                                    (option) =>
-                                                        option.value !== user.status,
-                                                )
-                                                .map((option) => (
+                                            /*
+                                             * Every state, every row, with the
+                                             * one in force highlighted — a set
+                                             * of choices where the current one
+                                             * is shown, not hidden.
+                                             *
+                                             * It used to drop the current
+                                             * status and paint "Approved"
+                                             * primary on every row, so each
+                                             * account looked approved whatever
+                                             * it actually was.
+                                             */
+                                            statuses.map((option) => {
+                                                const isCurrent =
+                                                    option.value === user.status;
+
+                                                return (
                                                     <Btn
                                                         key={option.value}
                                                         variant={
-                                                            option.value === 'approved'
+                                                            isCurrent
                                                                 ? 'primary'
-                                                                : 'secondary'
+                                                                : 'ghost'
+                                                        }
+                                                        aria-pressed={isCurrent}
+                                                        disabled={isCurrent}
+                                                        title={
+                                                            isCurrent
+                                                                ? `Already ${option.label.toLowerCase()}`
+                                                                : `Set to ${option.label.toLowerCase()}`
                                                         }
                                                         style={{
                                                             fontSize: 12,
                                                             padding: '4px 10px',
+                                                            // The unselected
+                                                            // ones stay legible
+                                                            // but recede.
+                                                            opacity: isCurrent
+                                                                ? 1
+                                                                : 0.75,
+                                                            border: isCurrent
+                                                                ? undefined
+                                                                : `1px solid ${MUTED(18)}`,
                                                         }}
                                                         onClick={() =>
                                                             router.patch(
@@ -179,7 +236,8 @@ export default function AdminUsers({ users, statuses }: Props) {
                                                     >
                                                         {option.label}
                                                     </Btn>
-                                                ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </td>

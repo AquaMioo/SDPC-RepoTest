@@ -1,12 +1,11 @@
 <?php
 
 use App\Enums\UserRole;
-use App\Http\Controllers\Admin\AdminBusinessController;
 use App\Http\Controllers\Admin\AdminContentController;
-use App\Http\Controllers\Admin\AdminCredentialController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminIssueController;
 use App\Http\Controllers\Admin\AdminLoginController;
+use App\Http\Controllers\Admin\AdminMonitoringController;
 use App\Http\Controllers\Admin\AdminOverviewController;
 use App\Http\Controllers\Admin\AdminPostingController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -44,33 +43,26 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
         Route::patch('users/{user}/status', [AdminUserController::class, 'updateStatus'])
             ->name('users.status.update');
 
-        Route::get('businesses', [AdminBusinessController::class, 'index'])
-            ->name('businesses.index');
-        Route::get('businesses/{business}/permit', [AdminBusinessController::class, 'permit'])
-            ->name('businesses.permit');
-        Route::patch('businesses/{business}', [AdminBusinessController::class, 'update'])
-            ->name('businesses.update');
-
         /*
-         * The third review queue. A posting sits in pending_review until it is
-         * approved here, and the student board only lists open postings — so
+         * The one review queue left. A posting sits in pending_review until it
+         * is approved here, and the student board only lists open postings — so
          * skipping this screen means nothing a client writes ever reaches a
          * student.
+         *
+         * Credentials and business permits used to be reviewed here too. They
+         * are not any more: a student is checked by the verification provider,
+         * and a business is verified on registration.
          */
         Route::get('postings', [AdminPostingController::class, 'index'])
             ->name('postings.index');
         Route::patch('postings/{posting}', [AdminPostingController::class, 'update'])
             ->name('postings.update');
 
-        Route::get('credentials', [AdminCredentialController::class, 'index'])
-            ->name('credentials.index');
-        Route::get('credentials/{credential}/document', [AdminCredentialController::class, 'document'])
-            ->name('credentials.document');
-        Route::patch('credentials/{credential}', [AdminCredentialController::class, 'update'])
-            ->name('credentials.update');
-
         Route::get('content', [AdminContentController::class, 'index'])->name('content');
         Route::put('content', [AdminContentController::class, 'update'])->name('content.update');
-        Route::get('issues', AdminIssueController::class)->name('issues');
+        Route::get('issues', [AdminIssueController::class, 'index'])->name('issues');
+        Route::patch('issues/{issue}', [AdminIssueController::class, 'update'])->name('issues.update');
+
+        Route::get('monitoring', AdminMonitoringController::class)->name('monitoring');
     });
 });

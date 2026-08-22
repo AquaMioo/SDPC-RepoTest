@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
 use App\Models\Team;
@@ -43,6 +44,13 @@ Route::prefix('{current_team}')
 Route::middleware(['auth'])->group(function () {
     Route::post('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');
+
+    /*
+     * Reporting an account is open to both modules and is deliberately not
+     * behind the verification gate: someone being harassed by a verified
+     * account must be able to say so before their own permit is reviewed.
+     */
+    Route::post('reports', [ReportController::class, 'store'])->name('reports.store');
 });
 
 require __DIR__.'/messaging.php';
