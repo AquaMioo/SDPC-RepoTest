@@ -98,9 +98,11 @@ class BuildStudentDashboard
             'client' => $project->team->clientProfile?->business_name ?? $project->team->name,
             'statusLabel' => $project->status->label(),
             /*
-             * The agreement's own figure, averaged across milestones that a
-             * person moved by hand. Null without one — the ring shows a dash
-             * rather than a percentage nothing supports.
+             * The agreement's own figure: the share of milestones the client
+             * has approved, which is why the card is labelled "Milestones
+             * approved" rather than left to read as how much of the work is
+             * done. Null without an agreement — the ring shows a dash rather
+             * than a percentage nothing supports.
              */
             'progress' => $agreement?->progress(),
             'dueDate' => $agreement?->ends_on?->format('j M Y'),

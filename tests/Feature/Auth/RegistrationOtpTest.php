@@ -216,6 +216,11 @@ class RegistrationOtpTest extends TestCase
      * The window between a code going out and coming back is a window in which
      * somebody else can take the address. It is caught rather than crashing on
      * the unique index.
+     *
+     * The sign up is then abandoned rather than left on the code screen. The
+     * code has just been spent, and no fresh one can fix an address that is
+     * already somebody's — staying put would mean typing new codes at a wall,
+     * under an `email` error the verify screen does not even render.
      */
     public function test_an_address_claimed_while_the_code_was_in_the_post_is_refused(): void
     {
@@ -226,11 +231,21 @@ class RegistrationOtpTest extends TestCase
 
         User::factory()->create(['email' => 'ada@example.com']);
 
-        $this->from(route('register.verify'))
-            ->post(route('register.verify.store'), ['code' => $code])
-            ->assertSessionHasErrors('email');
+        $response = $this->from(route('register.verify'))
+            ->post(route('register.verify.store'), ['code' => $code]);
+
+        $response->assertRedirect(route('login'));
+        $response->assertInertiaFlash('toast', [
+            'type' => 'error',
+            'message' => 'An account already exists for that address. Please sign in instead.',
+        ]);
 
         $this->assertSame(1, User::count());
+        $this->assertGuest();
+
+        // The pending sign up is gone with it, so the code screen has nothing
+        // left to show.
+        $this->get(route('register.verify'))->assertRedirect(route('register'));
     }
 
     /**

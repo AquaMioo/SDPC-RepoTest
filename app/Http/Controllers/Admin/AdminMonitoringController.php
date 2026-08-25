@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class AdminMonitoringController extends Controller
 {
@@ -86,6 +87,16 @@ class AdminMonitoringController extends Controller
      */
     public function decide(ReviewAppealRequest $request, Appeal $appeal): RedirectResponse
     {
+        /*
+         * One decision per appeal. Without this a resubmitted form — or a
+         * second administrator on the same screen — could turn a denial into a
+         * grant and silently restore the account, with the second decision
+         * overwriting the note the first one is recorded under. A changed mind
+         * is a new decision on a new appeal, which the account is free to file
+         * once this one is closed.
+         */
+        abort_if($appeal->isDecided(), HttpResponse::HTTP_CONFLICT, 'That appeal has already been decided.');
+
         $grants = $request->grants();
 
         if ($grants) {

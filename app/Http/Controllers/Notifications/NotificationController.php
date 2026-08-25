@@ -38,7 +38,14 @@ class NotificationController extends Controller
             'notifications' => $notifications
                 ->map(fn (DatabaseNotification $notification) => $presenter->handle($notification, $currentTeam))
                 ->all(),
-            'unreadCount' => $notifications->whereNull('read_at')->count(),
+            /*
+             * Counted against the whole table, not the hundred rows drawn
+             * above. Counting the slice made this disagree with the bell in
+             * the header — which counts all of them — for anybody holding
+             * more than a hundred notifications, and "mark all read" clears
+             * more than the number next to it claimed.
+             */
+            'unreadCount' => $user->unreadNotifications()->count(),
         ]);
     }
 

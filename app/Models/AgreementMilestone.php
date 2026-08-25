@@ -15,8 +15,9 @@ use Illuminate\Support\Carbon;
  * One agreed piece of work: what it is, what it costs, when it runs.
  *
  * The platform's only real source of schedule and progress. The dashboard
- * calendar marks these dates, the progress ring averages these statuses, and
- * the Project process screen draws a bar per milestone.
+ * calendar marks these dates, the progress ring counts how many of these the
+ * client has approved, and the Project process screen shows each status as
+ * the tag somebody set rather than as a bar.
  *
  * @property int $id
  * @property int $agreement_id

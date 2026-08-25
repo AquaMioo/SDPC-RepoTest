@@ -56,11 +56,18 @@ class HandleInertiaRequests extends Middleware
              * The header's chat icon carries this on every screen, so it is
              * shared rather than passed page by page. Closured so the query
              * only runs for a full page load, not a partial reload.
+             *
+             * latestMessage is eager loaded because isUnreadFor() reads it on
+             * every thread. Without it this is one query per conversation the
+             * user takes part in, on every full page load of every screen —
+             * the count cannot be pushed into SQL instead, since "unread"
+             * also depends on who sent the last message.
              */
             'unreadMessages' => fn (): int => $user === null
                 ? 0
                 : Conversation::query()
                     ->forParticipant($user)
+                    ->with('latestMessage')
                     ->get()
                     ->filter(fn (Conversation $thread) => $thread->isUnreadFor($user))
                     ->count(),

@@ -28,8 +28,7 @@ type Milestone = {
     endsOn: string | null;
     status: string;
     statusLabel: string;
-    statusVariant: string;
-    progress: number;
+    statusVariant: 'outline' | 'accent' | 'accent-2' | 'neutral';
     reviewNote: string | null;
     isFinal: boolean;
 };
@@ -38,11 +37,14 @@ type Props = {
     agreement: {
         id: number;
         reference: string;
-        progress: number;
         projectTitle: string;
         client: string;
         startsOn: string | null;
         endsOn: string | null;
+        /* The share of milestones the client has approved, and its terms. */
+        progress: number;
+        approvedCount: number;
+        milestoneCount: number;
         milestones: Milestone[];
     } | null;
     assignableStatuses: { value: string; label: string }[];
@@ -51,8 +53,9 @@ type Props = {
 /**
  * "Project process" — where the build actually stands.
  *
- * The ring and the bars read the milestone statuses on the signed agreement.
- * Every one of those transitions was recorded by a person, which is the only
+ * The ring counts the milestones the client has approved, and each milestone
+ * shows the status somebody recorded. Every one of those transitions was
+ * caused by a person, which is the only
  * honest progress figure the platform has: nothing here is inferred from a
  * date having passed.
  */
@@ -71,7 +74,7 @@ export default function StudentProcess({
                     style={{
                         maxWidth: 1160,
                         margin: '0 auto',
-                        padding: '30px 32px 72px',
+                        padding: '30px clamp(16px, 4vw, 32px) 72px',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 18,
@@ -130,14 +133,14 @@ export default function StudentProcess({
                 style={{
                     maxWidth: 1160,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <div style={{ marginBottom: 22 }}>
                     <h3 style={{ margin: 0 }}>Project process</h3>
                     <div style={{ fontSize: 13, color: MUTED(60) }}>
-                        {agreement.projectTitle} · {agreement.client} ·
-                        contract {agreement.reference}
+                        {agreement.projectTitle} · {agreement.client} · contract{' '}
+                        {agreement.reference}
                     </div>
                 </div>
 
@@ -211,15 +214,41 @@ export default function StudentProcess({
                         }}
                     >
                         <Bar
-                            label="General progress"
+                            label={`${agreement.approvedCount} of ${agreement.milestoneCount} approved`}
                             value={agreement.progress}
                         />
+
+                        {/*
+                         * Each milestone shows the status a person recorded.
+                         * It used to show a bar filled to 40% for "in
+                         * progress" and 80% for "submitted" — numbers nobody
+                         * ever supplied, sitting next to real ones.
+                         */}
                         {agreement.milestones.map((milestone) => (
-                            <Bar
+                            <div
                                 key={milestone.id}
-                                label={milestone.title}
-                                value={milestone.progress}
-                            />
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    fontSize: 12.5,
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        marginRight: 'auto',
+                                        minWidth: 0,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {milestone.title}
+                                </span>
+                                <Tag variant={milestone.statusVariant}>
+                                    {milestone.statusLabel}
+                                </Tag>
+                            </div>
                         ))}
                     </div>
                 </Panel>
@@ -357,7 +386,8 @@ export default function StudentProcess({
                                                     )
                                                 }
                                             >
-                                                Mark {status.label.toLowerCase()}
+                                                Mark{' '}
+                                                {status.label.toLowerCase()}
                                             </Btn>
                                         ))}
                                 </div>

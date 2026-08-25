@@ -33,22 +33,19 @@ enum MilestoneStatus: string
         };
     }
 
-    /**
-     * Get how far through a milestone this status sits, as a percentage.
+    /*
+     * There is deliberately no progress() here any more.
      *
-     * The Project process screen averages these across an agreement's
-     * milestones, which is the only honest progress figure the platform has —
-     * every one of these transitions is recorded by a person, not inferred.
+     * It used to map a status to a percentage — in progress was 40%, submitted
+     * was 80% — and those numbers were then averaged into the ring every
+     * dashboard draws. Nobody ever supplied them. "In progress" is a state a
+     * person recorded; 40% is a measurement nobody took, and printing it next
+     * to a real figure lends it the same authority.
+     *
+     * What the platform genuinely knows is how many milestones the client has
+     * approved, which is countable. Agreement::progress() reports that share,
+     * and a milestone shows its status rather than a bar.
      */
-    public function progress(): int
-    {
-        return match ($this) {
-            self::Pending => 0,
-            self::InProgress => 40,
-            self::Submitted, self::Returned => 80,
-            self::Approved => 100,
-        };
-    }
 
     /**
      * Get the statuses a student may move a milestone into.

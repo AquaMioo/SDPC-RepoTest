@@ -88,7 +88,7 @@ class StudentDashboardTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->where('project', null));
     }
 
-    public function test_progress_averages_the_agreements_milestones(): void
+    public function test_progress_counts_the_milestones_the_client_approved(): void
     {
         $student = $this->student();
         $project = $this->project(['status' => ProjectStatus::InProgress]);
@@ -102,7 +102,8 @@ class StudentDashboardTest extends TestCase
             'ends_on' => '2026-05-22',
         ]);
 
-        // Approved, in progress, pending — 100 + 40 + 0 over three.
+        // Approved, in progress, pending. Only the approved one counts:
+        // "in progress" is a state somebody recorded, not a measurement.
         foreach ([MilestoneStatus::Approved, MilestoneStatus::InProgress, MilestoneStatus::Pending] as $index => $status) {
             AgreementMilestone::factory()->create([
                 'agreement_id' => $agreement->id,
@@ -114,7 +115,7 @@ class StudentDashboardTest extends TestCase
         $this->actingAs($student)
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('project.progress', 47)
+                ->where('project.progress', 33)
                 ->where('project.dueDate', '22 May 2026')
                 ->where('project.statusLabel', 'In progress'));
     }

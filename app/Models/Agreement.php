@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
+use App\Enums\MilestoneStatus;
 use Database\Factories\AgreementFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -169,9 +170,16 @@ class Agreement extends Model
     /**
      * Get how far the agreed work has moved, as a percentage.
      *
-     * Averaged across the milestones because they are equal steps through the
-     * build, not weighted by price — a cheap turnover phase is not less done
+     * The share of milestones the client has approved — nothing else. Every
+     * milestone counts the same, because they are equal steps through the
+     * build and not weighted by price: a cheap turnover phase is not less done
      * than an expensive one.
+     *
+     * Approval is the only thing measured here on purpose. A milestone that is
+     * "in progress" used to be scored 40% and one "submitted" 80%, and those
+     * numbers were nobody's: they were a status dressed up as a measurement.
+     * The client accepting the work is an event a person actually caused, so
+     * it is the one thing the ring can honestly count.
      */
     public function progress(): int
     {
@@ -181,10 +189,24 @@ class Agreement extends Model
             return 0;
         }
 
-        return (int) round(
-            $milestones->sum(fn (AgreementMilestone $milestone): int => $milestone->status->progress())
-            / $milestones->count(),
-        );
+        return (int) round($this->approvedMilestoneCount() / $milestones->count() * 100);
+    }
+
+    /**
+     * Count the milestones the client has accepted.
+     *
+     * Matched on Approved itself rather than through MilestoneStatus::isFinal().
+     * The two agree today, but they answer different questions — isFinal() asks
+     * whether a milestone can still move, and the process screen uses it to
+     * decide what the student may edit. Give the enum one more terminal state
+     * and a ring that is supposed to count acceptances would quietly start
+     * counting something else.
+     */
+    public function approvedMilestoneCount(): int
+    {
+        return $this->milestones
+            ->filter(fn (AgreementMilestone $milestone): bool => $milestone->status === MilestoneStatus::Approved)
+            ->count();
     }
 
     /**

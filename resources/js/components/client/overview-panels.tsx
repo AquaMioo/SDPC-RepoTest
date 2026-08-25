@@ -20,13 +20,14 @@ export type CurrentProject = {
     slug: string;
     reference: string;
     progress: number;
+    approvedCount: number;
+    milestoneCount: number;
     dueOn: string | null;
     currentPhase: string | null;
     nextMilestone: { title: string; dueOn: string | null } | null;
     milestones: {
         id: number;
         title: string;
-        progress: number;
         statusLabel: string;
         isDone: boolean;
     }[];
@@ -168,7 +169,10 @@ export function CalendarPanel({ events }: { events?: CalendarEvent[] }) {
                 ))}
 
                 {[...lead, ...body, ...trail].map((cell, index) => {
-                    const isToday = isCurrentMonth && !cell.muted && cell.day === today.getDate();
+                    const isToday =
+                        isCurrentMonth &&
+                        !cell.muted &&
+                        cell.day === today.getDate();
                     const hasEvent = !cell.muted && marked.has(cell.day);
 
                     return (
@@ -322,7 +326,18 @@ export function ProjectProgressPanel({
             <div className="grid place-items-center">
                 <ProgressRing value={project.progress} />
                 <div className="mt-4 text-center">
-                    <div className="text-[14.5px] font-medium">
+                    {/*
+                     * Spelled out, because a bare percentage invites you to
+                     * read it as "how much of the work is done". It is not
+                     * that — it is how many milestones the client has signed
+                     * off, which is the only part anybody actually recorded.
+                     */}
+                    <div className="text-[12px] text-muted-foreground">
+                        {project.approvedCount} of {project.milestoneCount}{' '}
+                        milestone
+                        {project.milestoneCount === 1 ? '' : 's'} approved
+                    </div>
+                    <div className="mt-1 text-[14.5px] font-medium">
                         {project.title}
                     </div>
                     {project.dueOn && (
@@ -371,7 +386,7 @@ export function ProjectProgressPanel({
 
             <div className="mt-5">
                 <div className="mb-2.5 text-[12px] text-muted-foreground">
-                    Progress by milestone
+                    Milestones
                 </div>
                 <div className="grid gap-2.5">
                     {project.milestones.map((milestone) => (
@@ -397,18 +412,13 @@ export function ProjectProgressPanel({
                             <span className="min-w-0 flex-1 truncate text-[12.5px]">
                                 {milestone.title}
                             </span>
-                            <span
-                                className="h-1.5 w-[120px] shrink-0 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)]"
-                                role="img"
-                                aria-label={`${milestone.title}: ${milestone.statusLabel}`}
-                            >
-                                <span
-                                    className="block h-full rounded-full bg-[var(--color-primary,#4a7c4e)]"
-                                    style={{ width: `${milestone.progress}%` }}
-                                />
-                            </span>
-                            <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">
-                                {milestone.progress}%
+                            {/*
+                             * The status somebody recorded, not a bar. A
+                             * half-filled bar for "in progress" was a
+                             * measurement nobody took.
+                             */}
+                            <span className="shrink-0 text-[12px] text-muted-foreground">
+                                {milestone.statusLabel}
                             </span>
                         </div>
                     ))}
@@ -559,4 +569,3 @@ export function AnnouncementsPanel({
         </Card>
     );
 }
-

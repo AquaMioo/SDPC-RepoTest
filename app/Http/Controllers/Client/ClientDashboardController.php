@@ -104,6 +104,9 @@ class ClientDashboardController extends Controller
             'slug' => $agreement->project->slug,
             'reference' => $agreement->reference,
             'progress' => $agreement->progress(),
+            /* What the ring is counting, so it can say so. */
+            'approvedCount' => $agreement->approvedMilestoneCount(),
+            'milestoneCount' => $milestones->count(),
             'dueOn' => $milestones->max('ends_on')?->format('j M Y'),
             'currentPhase' => $current?->title,
             'nextMilestone' => $next === null ? null : [
@@ -114,7 +117,6 @@ class ClientDashboardController extends Controller
                 ->map(fn (AgreementMilestone $milestone): array => [
                     'id' => $milestone->id,
                     'title' => $milestone->title,
-                    'progress' => $milestone->status->progress(),
                     'statusLabel' => $milestone->status->label(),
                     'isDone' => $milestone->status === MilestoneStatus::Approved,
                 ])

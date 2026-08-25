@@ -155,7 +155,49 @@ class RegistrationController extends Controller
             throw ValidationException::withMessages(['code' => [$result->message()]]);
         }
 
-        return $this->completeRegistration($pending['payload']);
+        try {
+            return $this->completeRegistration($pending['payload']);
+        } catch (ValidationException $exception) {
+            return $this->abandonRegistration($exception);
+        }
+    }
+
+    /**
+     * Give up on a sign up that cannot be completed, and say why.
+     *
+     * Only one thing realistically lands here: the address was claimed by
+     * somebody else while the code was in the post, and CreateNewUser refuses
+     * it. That is not recoverable by retyping the code — and the code has just
+     * been spent proving the address, so staying on the verify screen would
+     * leave the person entering fresh codes against an account that already
+     * exists, reading an `email` error on a screen that only renders `code`.
+     *
+     * So the sign up is dropped and they are sent to sign in, where the
+     * existing account is the answer. Anything else is rethrown rather than
+     * swallowed.
+     *
+     * @throws ValidationException
+     */
+    private function abandonRegistration(ValidationException $exception): RedirectResponse
+    {
+        if (! array_key_exists('email', $exception->errors())) {
+            throw $exception;
+        }
+
+        PendingRegistration::forget();
+
+        /*
+         * Written here rather than forwarded from the exception. Whichever of
+         * the two guards fired — the `unique` rule or CreateNewUser's own
+         * check — the message underneath is a field error phrased for a form
+         * this person is no longer looking at.
+         */
+        Inertia::flash('toast', [
+            'type' => 'error',
+            'message' => __('An account already exists for that address. Please sign in instead.'),
+        ]);
+
+        return to_route('login');
     }
 
     /**

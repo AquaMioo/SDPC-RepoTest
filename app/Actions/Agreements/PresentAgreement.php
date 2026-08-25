@@ -86,7 +86,6 @@ class PresentAgreement
                     'status' => $milestone->status->value,
                     'statusLabel' => $milestone->status->label(),
                     'statusVariant' => $milestone->status->tagVariant(),
-                    'progress' => $milestone->status->progress(),
                     'reviewNote' => $milestone->review_note,
                 ])
                 ->values()

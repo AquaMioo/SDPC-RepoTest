@@ -14,10 +14,12 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Contracts\Broadcasting\Broadcaster;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
@@ -882,5 +884,62 @@ class MessagingTest extends TestCase
             'project_id' => $project->id,
             'user_id' => $student->id,
         ]);
+    }
+
+    /**
+     * The header's unread badge costs the same whether you have two threads or
+     * ten.
+     *
+     * It is shared with every screen, so the query behind it runs on every
+     * full page load in the application. It read the last message off each
+     * thread one at a time, which made the cost of drawing any page at all
+     * grow with the number of conversations the signed-in person was in.
+     *
+     * Pinned as "does not grow" rather than as an exact number, because the
+     * count that matters is per thread, and the rest of the page's queries are
+     * nobody's business here.
+     */
+    public function test_the_unread_badge_does_not_query_once_per_thread(): void
+    {
+        $this->assertSame(
+            $this->messageQueriesLoadingTheInbox(threads: 2),
+            $this->messageQueriesLoadingTheInbox(threads: 8),
+        );
+    }
+
+    /**
+     * Stand up a client with the given number of threads, load a page, and
+     * count how many queries went to the messages table.
+     *
+     * A thread is unique on its posting and its student, so the threads are
+     * made by putting that many different students on the one posting.
+     */
+    private function messageQueriesLoadingTheInbox(int $threads): int
+    {
+        $client = User::factory()->client()->approved()->verifiedBusiness()->create();
+        $project = Project::factory()->create(['team_id' => $client->current_team_id]);
+
+        foreach (range(1, $threads) as $ignored) {
+            $student = User::factory()->student()->approved()->create();
+
+            $thread = $this->thread($project, $student);
+
+            // From the other side, so it actually counts as unread.
+            $thread->messages()->create(['user_id' => $student->id, 'body' => 'Any word on the brief?']);
+        }
+
+        $queries = 0;
+
+        DB::listen(function (QueryExecuted $query) use (&$queries): void {
+            if (str_contains($query->sql, 'from "messages"')) {
+                $queries++;
+            }
+        });
+
+        $this->actingAs($client->fresh())
+            ->get(route('messages.index', ['current_team' => $client->fresh()->currentTeam]))
+            ->assertOk();
+
+        return $queries;
     }
 }

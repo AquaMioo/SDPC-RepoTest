@@ -38,6 +38,9 @@ class ProjectProcessController extends Controller
                 'id' => $agreement->id,
                 'reference' => $agreement->reference,
                 'progress' => $agreement->progress(),
+                /* What the ring is counting, so it can say so. */
+                'approvedCount' => $agreement->approvedMilestoneCount(),
+                'milestoneCount' => $agreement->milestones->count(),
                 'projectTitle' => $agreement->project->title,
                 'client' => $agreement->project->team->clientProfile->business_name
                     ?? $agreement->project->team->name,
@@ -55,7 +58,6 @@ class ProjectProcessController extends Controller
                         'status' => $milestone->status->value,
                         'statusLabel' => $milestone->status->label(),
                         'statusVariant' => $milestone->status->tagVariant(),
-                        'progress' => $milestone->status->progress(),
                         'reviewNote' => $milestone->review_note,
                         'isFinal' => $milestone->status->isFinal(),
                     ])

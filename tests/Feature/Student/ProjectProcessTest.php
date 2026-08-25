@@ -51,7 +51,7 @@ class ProjectProcessTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->where('agreement', null));
     }
 
-    public function test_the_milestones_and_their_average_are_shown(): void
+    public function test_the_milestones_and_the_approved_share_are_shown(): void
     {
         [$student, $agreement] = $this->build([
             MilestoneStatus::Approved,
@@ -64,8 +64,14 @@ class ProjectProcessTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->has('agreement.milestones', 3)
-                // 100 + 80 + 0 over three.
-                ->where('agreement.progress', 60)
+                /*
+                 * One of three approved. "Submitted" used to score 80 and pull
+                 * this to 60 — a number nobody supplied, because handing work
+                 * over is not the client accepting it.
+                 */
+                ->where('agreement.progress', 33)
+                ->where('agreement.approvedCount', 1)
+                ->where('agreement.milestoneCount', 3)
                 ->where('agreement.reference', $agreement->reference)
                 ->where('agreement.milestones.0.statusLabel', 'Approved'));
     }

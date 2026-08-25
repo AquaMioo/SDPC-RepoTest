@@ -139,6 +139,33 @@ class NotificationCentreTest extends TestCase
     }
 
     /**
+     * The screen draws the hundred newest rows, but the figure beside them
+     * counts every unread one.
+     *
+     * Counting only the drawn slice made the page disagree with the bell in
+     * the header, which has always counted the lot — and "mark all read"
+     * cleared more than the number next to it said it would.
+     */
+    public function test_the_unread_figure_counts_past_the_hundred_rows_on_screen(): void
+    {
+        $client = User::factory()->client()->create();
+        $application = $this->application();
+
+        foreach (range(1, 105) as $ignored) {
+            $client->notify(new ApplicationReceived($application));
+        }
+
+        $this->actingAs($client)
+            ->get(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('notifications', 100)
+                ->where('unreadCount', 105)
+                // The bell and the page have to say the same thing.
+                ->where('unreadNotifications', 105));
+    }
+
+    /**
      * An application to hang a notification on.
      *
      * Not faked: these tests are about the rows the database channel writes,
