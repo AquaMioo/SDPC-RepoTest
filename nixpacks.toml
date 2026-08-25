@@ -16,6 +16,15 @@
 # All three services (web, worker, reverb) share this build; only their start
 # commands differ. See the Procfile.
 
+# Node 22, stated twice on purpose.
+#
+# package.json now declares engines.node, which is the portable way to say it,
+# but Nixpacks only honours that in some versions — and its fallback default is
+# Node 18, on which Vite 8's bundler dies importing `styleText` from node:util
+# (added in 20.12). This variable is the one Nixpacks always reads.
+[variables]
+NIXPACKS_NODE_VERSION = '22'
+
 [phases.install]
 cmds = [
   'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
