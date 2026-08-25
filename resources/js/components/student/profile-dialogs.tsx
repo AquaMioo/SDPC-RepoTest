@@ -276,7 +276,7 @@ export function PhotoDialog({
 
             <InputError message={error ?? undefined} className="mt-2" />
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-3">
                 {/* Only offered when there is something to take down. */}
                 {hasPhoto && (
                     <Btn
@@ -476,7 +476,7 @@ export function EducationDialog({
                             />
                         </div>
 
-                        <DialogFooter className="gap-2">
+                        <DialogFooter className="mt-4 gap-3">
                             {editing && (
                                 <Btn
                                     type="button"
@@ -602,7 +602,7 @@ export function LanguageDialog({
                             />
                         </div>
 
-                        <DialogFooter className="gap-2">
+                        <DialogFooter className="mt-4 gap-3">
                             {editing && (
                                 <Btn
                                     type="button"
@@ -700,7 +700,7 @@ export function SkillsDialog({
                 />
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-3">
                 <DialogClose asChild>
                     <Btn type="button" variant="ghost">
                         Cancel
@@ -794,7 +794,7 @@ export function AboutDialog({
                             />
                         </div>
 
-                        <DialogFooter className="gap-2">
+                        <DialogFooter className="mt-4 gap-3">
                             <DialogClose asChild>
                                 <Btn type="button" variant="ghost">
                                     Cancel
@@ -898,7 +898,7 @@ export function AccountDialog({
                             </p>
                         </div>
 
-                        <DialogFooter className="gap-2">
+                        <DialogFooter className="mt-4 gap-3">
                             <DialogClose asChild>
                                 <Btn type="button" variant="ghost">
                                     Cancel

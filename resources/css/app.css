@@ -40,8 +40,16 @@
     --color-muted: var(--muted);
     --color-muted-foreground: var(--muted-foreground);
 
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
+    /* Deliberately NOT named --color-accent. Nocturne owns --color-accent as
+       the brand colour and redefines it on [data-mod], which is set on <html>
+       for every non-admin page — so a token by that name here does not reach
+       the shadcn components that read it. `hover:bg-accent` compiles to
+       var(--color-accent), which under [data-mod="user"] is the solid olive
+       #64764f rather than the pale #dfe8d2 tint this pair was drawn as, and a
+       ghost button's icon (--accent-foreground, #2f3928) vanishes into it.
+       The shadcn hover pair therefore lives under its own name. */
+    --color-ui-accent: var(--accent);
+    --color-ui-accent-foreground: var(--accent-foreground);
 
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);

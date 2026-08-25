@@ -501,6 +501,12 @@ textarea.input { min-height: 90px; resize: vertical; }
   display: inline-flex; align-items: center; font-size: 11px;
   letter-spacing: 0.02em; padding: 3px 10px;
   border-radius: calc(var(--radius-md) * 0.75);
+  /* Transparent, not absent. .tag-outline adds a 1px border, so without this
+     a filled tag and an outlined one are different sizes — and the skill
+     filters, which toggle between the two, resized and re-wrapped the whole
+     row on every click. The background paints under it, so a filled tag looks
+     exactly as it did. */
+  border: 1px solid transparent;
 }
 .tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
 .tag-accent-2 { background: var(--color-accent-2-800); color: var(--color-accent-2-100); }
@@ -595,6 +601,15 @@ body { margin: 0; background: var(--color-bg); color: var(--color-text); font-fa
 a:not([data-slot='button']) { color: var(--color-accent); }
 a:not([data-slot='button']):hover { color: var(--color-accent-300); }
 [data-nav][aria-current="page"] { color: var(--color-accent); }
+/* A day is a button so it can be selected by tap and by keyboard. The reset
+   lives here rather than inline because an inline background would outrank the
+   [data-today] pill below and paint over it. */
+button[data-day] {
+  font: inherit; padding: 0; color: inherit; cursor: pointer;
+  background: transparent; border: 1px solid transparent;
+}
+button[data-day]:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+button[data-day][aria-pressed="true"] { border-color: var(--color-accent); }
 [data-day][data-today="true"] { background: var(--color-accent); color: var(--color-bg); }
 [data-day][data-muted="true"] { opacity: 0.25; }
 /*

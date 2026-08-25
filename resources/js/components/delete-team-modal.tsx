@@ -78,7 +78,7 @@ export default function DeleteTeamModal({ team, open, onOpenChange }: Props) {
                                 </div>
                             </div>
 
-                            <DialogFooter className="gap-2">
+                            <DialogFooter className="mt-4 gap-3">
                                 <DialogClose asChild>
                                     <Button variant="secondary">Cancel</Button>
                                 </DialogClose>

@@ -84,7 +84,7 @@ export default function DeleteUser() {
                                         <InputError message={errors.password} />
                                     </div>
 
-                                    <DialogFooter className="gap-2">
+                                    <DialogFooter className="mt-4 gap-3">
                                         <DialogClose asChild>
                                             <Button
                                                 variant="secondary"
