@@ -1,7 +1,9 @@
 import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
 
+import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
+import { Select, Textarea } from '@/components/sdpc/input';
 import { store as reportStore } from '@/routes/reports';
 
 type Props = {
@@ -94,7 +96,7 @@ export default function ReportAccountDialog({
                         >
                             <div className="field">
                                 <label htmlFor="report-category">Reason</label>
-                                <select
+                                <Select
                                     id="report-category"
                                     value={data.category}
                                     onChange={(event) =>
@@ -109,24 +111,18 @@ export default function ReportAccountDialog({
                                             {category.label}
                                         </option>
                                     ))}
-                                </select>
-                                {errors.category && (
-                                    <div
-                                        style={{
-                                            fontSize: 11,
-                                            color: 'var(--color-danger, crimson)',
-                                        }}
-                                    >
-                                        {errors.category}
-                                    </div>
-                                )}
+                                </Select>
+                                <InputError
+                                    message={errors.category}
+                                    className="mt-1 text-[11px]"
+                                />
                             </div>
 
                             <div className="field">
                                 <label htmlFor="report-description">
                                     What happened?
                                 </label>
-                                <textarea
+                                <Textarea
                                     id="report-description"
                                     rows={4}
                                     value={data.description}
@@ -136,17 +132,12 @@ export default function ReportAccountDialog({
                                             event.target.value,
                                         )
                                     }
+                                    aria-invalid={Boolean(errors.description)}
                                 />
-                                {errors.description && (
-                                    <div
-                                        style={{
-                                            fontSize: 11,
-                                            color: 'var(--color-danger, crimson)',
-                                        }}
-                                    >
-                                        {errors.description}
-                                    </div>
-                                )}
+                                <InputError
+                                    message={errors.description}
+                                    className="mt-1 text-[11px]"
+                                />
                             </div>
 
                             <p

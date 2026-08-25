@@ -108,17 +108,7 @@ export default function StudentProfile({
                 <div className="flex min-w-0 flex-col gap-4">
                     <Panel padding="lg" gap="lg">
                         <div className="flex items-center gap-4">
-                            <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 text-3xl text-primary">
-                                {student.avatarUrl ? (
-                                    <img
-                                        src={student.avatarUrl}
-                                        alt={student.name}
-                                        className="size-full object-cover"
-                                    />
-                                ) : (
-                                    <UserIcon />
-                                )}
-                            </span>
+                            <StudentAvatar url={student.avatarUrl} />
                             <div className="mr-auto min-w-0">
                                 <h3 className="m-0">{student.name}</h3>
                                 <div className="text-[13px] text-muted-foreground">
@@ -430,5 +420,38 @@ export default function StudentProfile({
                 </aside>
             </div>
         </>
+    );
+}
+
+/**
+ * The student's photo, or a stand-in.
+ *
+ * `alt=""` on purpose: the name is in the heading right beside this, so the
+ * picture is decorative and a screen reader announcing it twice is noise.
+ * It also matters when the file is missing — a broken image with alt text
+ * paints that text at the parent's 3xl size, which is what QA saw spilling
+ * out of the circle and running under the name.
+ *
+ * onError covers the same case deliberately rather than by accident: uploads
+ * live on the container filesystem, so on a host with no persistent volume
+ * every avatar 404s after a redeploy while the column still points at it.
+ */
+function StudentAvatar({ url }: { url: string | null }) {
+    const [failed, setFailed] = useState(false);
+    const showImage = url !== null && !failed;
+
+    return (
+        <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/15 text-3xl text-primary">
+            {showImage ? (
+                <img
+                    src={url}
+                    alt=""
+                    className="size-full object-cover"
+                    onError={() => setFailed(true)}
+                />
+            ) : (
+                <UserIcon />
+            )}
+        </span>
     );
 }

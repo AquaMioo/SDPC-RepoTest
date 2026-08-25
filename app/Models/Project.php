@@ -234,6 +234,28 @@ class Project extends Model
     }
 
     /**
+     * Get the label to show on the posting's status tag.
+     *
+     * The status alone is not the whole truth. `applications_open` is a
+     * separate switch, so a client who closes intake leaves a posting whose
+     * status is still Open — and the tag read "Open" while the sidebar offered
+     * "Reopen applications". QA read the tag, which is the honest thing to do,
+     * and reported the posting as lying about itself.
+     *
+     * So the label says which of the two is the news. Only Open can disagree
+     * with itself this way: every other status either cannot take
+     * applications at all or has closed intake as part of its own meaning.
+     */
+    public function statusLabel(): string
+    {
+        if ($this->status === ProjectStatus::Open && ! $this->applications_open) {
+            return 'Applications closed';
+        }
+
+        return $this->status->label();
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

@@ -173,6 +173,36 @@ class ProjectWorkflowTest extends TestCase
         $this->assertTrue($project->refresh()->applications_open);
     }
 
+    public function test_the_status_tag_says_applications_are_closed_rather_than_open(): void
+    {
+        $user = User::factory()->verifiedBusiness()->create();
+        $project = Project::factory()->create([
+            'team_id' => $user->current_team_id,
+            'status' => ProjectStatus::Open,
+        ]);
+
+        /*
+         * Closing intake leaves the status at Open, so the tag used to read
+         * "Open" on a posting whose own sidebar offered "Reopen applications".
+         */
+        $this->actingAs($user)
+            ->patch($this->url('projects.intake.toggle', $user, ['project' => $project]));
+
+        $this->actingAs($user)
+            ->get($this->url('projects.show', $user, ['project' => $project]))
+            ->assertInertia(fn ($page) => $page
+                ->where('project.statusLabel', 'Applications closed')
+                ->where('project.isAcceptingApplications', false));
+
+        /* Reopening puts the plain status back. */
+        $this->actingAs($user)
+            ->patch($this->url('projects.intake.toggle', $user, ['project' => $project]));
+
+        $this->actingAs($user)
+            ->get($this->url('projects.show', $user, ['project' => $project]))
+            ->assertInertia(fn ($page) => $page->where('project.statusLabel', 'Open'));
+    }
+
     public function test_duplicating_a_project_creates_an_independent_draft(): void
     {
         $user = User::factory()->verifiedBusiness()->create();
