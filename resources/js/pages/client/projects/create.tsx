@@ -1,5 +1,9 @@
 import { Head, useForm } from '@inertiajs/react';
-import { CheckCircleIcon, CircleIcon, SparkleIcon } from '@phosphor-icons/react';
+import {
+    CheckCircleIcon,
+    CircleIcon,
+    SparkleIcon,
+} from '@phosphor-icons/react';
 import ProjectForm from '@/components/client/project-form';
 import type { ProjectFormValues } from '@/components/client/project-form';
 import Meter from '@/components/sdpc/meter';
@@ -9,11 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { store } from '@/routes/projects';
 import type { ProjectFormOptions } from '@/types/client';
-import {
-    CATEGORIES,
-    INDUSTRIES,
-    projectFormCompletion,
-} from '@/types/client';
+import { CATEGORIES, INDUSTRIES, projectFormCompletion } from '@/types/client';
 
 type Props = {
     options: ProjectFormOptions;
@@ -54,7 +54,7 @@ export default function CreateProject({
                     event.preventDefault();
                     submit('pending_review');
                 }}
-                className="mx-auto grid max-w-[1100px] items-start gap-6 px-8 pt-[30px] pb-[72px] lg:grid-cols-[minmax(0,1fr)_300px]"
+                className="mx-auto grid max-w-[1100px] items-start gap-6 px-4 pt-[30px] pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8"
             >
                 <div className="flex min-w-0 flex-col gap-4">
                     <div className="flex items-end gap-4">
@@ -96,7 +96,9 @@ export default function CreateProject({
                             disabled={processing}
                             className="px-5"
                         >
-                            {processing ? 'Publishing…' : 'Publish & see matches'}
+                            {processing
+                                ? 'Publishing…'
+                                : 'Publish & see matches'}
                         </Button>
                     </div>
                 </div>
@@ -153,8 +155,8 @@ export default function CreateProject({
                                 training the turnover needs.
                             </div>
                             <div>
-                                Keep the brief tight. Fewer, clearer
-                                checkpoints are easier to approve.
+                                Keep the brief tight. Fewer, clearer checkpoints
+                                are easier to approve.
                             </div>
                         </div>
                     </Panel>

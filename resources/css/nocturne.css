@@ -647,3 +647,179 @@ a:not([data-slot='button']):hover { color: var(--color-accent-300); }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: var(--color-neutral-800); border-radius: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
+
+/* ————————————————————————————————————————————————————————————————————————
+   Responsive layer
+
+   Nocturne was drawn for a desktop canvas and carried no breakpoints at all,
+   so every screen kept its desktop geometry down to a phone: single-row
+   headers, side-by-side columns and 32px gutters at 375px wide. The result was
+   not a squeezed layout but a clipped one — content sat past the viewport edge
+   with nothing to scroll it back.
+
+   These are the shared pieces. They are classes rather than element rules
+   because the pages set their geometry in inline styles, and an inline style
+   beats any selector — so the fix is for a page to hand its geometry over to
+   one of these, not for a media query to try to out-specify it.
+   ———————————————————————————————————————————————————————————————————————— */
+
+/* The gutter every full-width screen sits in. Narrow phones give back the
+   32px the design asks for on a desktop; nothing is ever wider than the
+   viewport. */
+.page-shell {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+@media (min-width: 640px) { .page-shell { padding-inline: 24px; } }
+@media (min-width: 1024px) { .page-shell { padding-inline: 32px; } }
+
+/* A main column with a rail beside it. Stacked until there is room for both,
+   with the rail's width handed in as --rail so one class serves the several
+   widths the screens use. */
+.split {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .split { grid-template-columns: var(--rail, 300px) minmax(0, 1fr); }
+  .split-end { grid-template-columns: minmax(0, 1fr) var(--rail, 300px); }
+}
+
+/* Anything that cannot shrink past a point — a table, a wide diagram — scrolls
+   inside its own box rather than pushing the page sideways. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The application header. One row on a desktop; on a phone the brand and the
+   icons hold the top line and the navigation scrolls under them, which keeps
+   every destination reachable without a menu to open. */
+.app-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (min-width: 1024px) { .app-bar { flex-wrap: nowrap; gap: 26px; } }
+
+.app-bar-nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  order: 3;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.app-bar-nav::-webkit-scrollbar { display: none; }
+.app-bar-nav > * { flex: none; }
+@media (min-width: 1024px) {
+  .app-bar-nav { order: 0; width: auto; margin-inline: auto; overflow: visible; gap: 22px; }
+}
+
+/* Pushes the icon cluster to the end of the top line on every width. */
+.app-bar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+@media (min-width: 1024px) { .app-bar-actions { margin-left: 0; } }
+
+/* Tables keep their shape and scroll; the design's own cells are too narrow to
+   wrap into anything readable. */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-wrap > table { min-width: 640px; }
+
+/* Columns that keep their proportions where there is room and stack where
+   there is not. The ratio is handed in as --cols, so one class serves the
+   several splits the screens use.
+
+   This is the failure that does not show up as overflow: `1fr 1.05fr` shrinks
+   happily to 375px wide, so nothing spills past the viewport — the hero photo
+   just renders 45px across. Squeezed is as broken as clipped, and quieter. */
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) { .stack { grid-template-columns: var(--cols); } }
+
+/* ── the landing hero's match illustration ──
+   Two cards laid over the photo with the engine's verdict between them.
+   Absent below `md`: over a 343px-wide picture they cover the people in it,
+   and the hero's job there is the headline and the buttons. */
+.hero-proof { display: none; }
+@media (min-width: 768px) {
+  .hero-proof {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 16px;
+  }
+}
+
+.hero-proof-card {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-md);
+}
+
+.hero-proof-head {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 13.5;
+}
+.hero-proof-icon {
+  width: 22px; height: 22px; flex: none;
+  display: grid; place-items: center; border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent); font-size: 13px;
+}
+.hero-proof-kicker {
+  margin: 9px 0 6px;
+  font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.hero-proof-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.hero-proof-chips > span {
+  padding: 3px 9px; border-radius: calc(var(--radius-md) * 0.75);
+  font-size: 11px;
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+.hero-proof-lines { display: grid; gap: 5px; }
+.hero-proof-lines > span {
+  padding: 5px 9px; border-radius: calc(var(--radius-md) * 0.75);
+  font-size: 11px;
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The verdict, sitting between the two sides. */
+.hero-proof-badge {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: calc(var(--radius-md) * 0.75);
+  font-size: 11px; white-space: nowrap;
+  background: var(--color-accent);
+  color: var(--color-accent-100);
+  box-shadow: var(--shadow-md);
+}
+
+/* Five stars filled to a fraction, so the row cannot drift from the figure
+   printed beside it. */
+.hero-stars {
+  position: relative; display: inline-block; flex: none;
+  color: color-mix(in srgb, var(--color-text) 25%, transparent);
+  letter-spacing: 1px;
+}
+.hero-stars > span {
+  position: absolute; inset: 0; overflow: hidden; white-space: nowrap;
+  color: var(--color-accent);
+}

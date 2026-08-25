@@ -63,7 +63,7 @@ export default function AgreementContract({ agreement }: Props) {
                 style={{
                     maxWidth: 1000,
                     margin: '0 auto',
-                    padding: '28px 32px 72px',
+                    padding: '28px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <div
@@ -86,14 +86,11 @@ export default function AgreementContract({ agreement }: Props) {
                     </Tag>
                 </div>
 
-                <Panel
-                    gap="lg"
-                    style={{ marginTop: 18, padding: '22px 24px' }}
-                >
+                <Panel gap="lg" style={{ marginTop: 18, padding: '22px 24px' }}>
                     <div
+                        className="stack"
                         style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1.4fr 1fr 1fr',
+                            ['--cols' as string]: '1.4fr 1fr 1fr',
                             gap: 20,
                         }}
                     >
@@ -192,46 +189,48 @@ export default function AgreementContract({ agreement }: Props) {
                             <h5 style={{ margin: '0 0 10px' }}>
                                 4 · Deliverables &amp; schedule
                             </h5>
-                            <table className="table">
-                                <thead>
-                                    <tr>
-                                        <th>Phase</th>
-                                        <th>Milestone</th>
-                                        <th style={{ textAlign: 'right' }}>
-                                            Deadline
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {agreement.milestones.map(
-                                        (milestone, index) => (
-                                            <tr key={milestone.id}>
-                                                <td style={{ width: 90 }}>
-                                                    {index ===
-                                                    agreement.milestones
-                                                        .length -
-                                                        1
-                                                        ? 'Final'
-                                                        : `Phase ${index + 1}`}
-                                                </td>
-                                                <td>
-                                                    {milestone.description ??
-                                                        milestone.title}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        textAlign: 'right',
-                                                    }}
-                                                >
-                                                    {longDate(
-                                                        milestone.endsOn,
-                                                    ) ?? 'not set'}
-                                                </td>
-                                            </tr>
-                                        ),
-                                    )}
-                                </tbody>
-                            </table>
+                            <div className="table-wrap">
+                                <table className="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Phase</th>
+                                            <th>Milestone</th>
+                                            <th style={{ textAlign: 'right' }}>
+                                                Deadline
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {agreement.milestones.map(
+                                            (milestone, index) => (
+                                                <tr key={milestone.id}>
+                                                    <td style={{ width: 90 }}>
+                                                        {index ===
+                                                        agreement.milestones
+                                                            .length -
+                                                            1
+                                                            ? 'Final'
+                                                            : `Phase ${index + 1}`}
+                                                    </td>
+                                                    <td>
+                                                        {milestone.description ??
+                                                            milestone.title}
+                                                    </td>
+                                                    <td
+                                                        style={{
+                                                            textAlign: 'right',
+                                                        }}
+                                                    >
+                                                        {longDate(
+                                                            milestone.endsOn,
+                                                        ) ?? 'not set'}
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </Panel>

@@ -43,7 +43,7 @@ export default function Notifications({ notifications, unreadCount }: Props) {
                 style={{
                     maxWidth: 1060,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 22,
@@ -167,7 +167,12 @@ export default function Notifications({ notifications, unreadCount }: Props) {
                                         flexShrink: 0,
                                     }}
                                 >
-                                    <span style={{ fontSize: 12, color: MUTED(55) }}>
+                                    <span
+                                        style={{
+                                            fontSize: 12,
+                                            color: MUTED(55),
+                                        }}
+                                    >
                                         {notification.at}
                                     </span>
 

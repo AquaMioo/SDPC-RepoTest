@@ -59,7 +59,7 @@ export default function Appeal({
 
             <div
                 className="card elev-md"
-                style={{ width: 460, padding: 28, gap: 14 }}
+                style={{ width: '100%', maxWidth: 460, padding: 28, gap: 14 }}
             >
                 <div style={{ textAlign: 'center' }}>
                     <h4 style={{ margin: 0 }}>Appeal a decision</h4>
@@ -103,7 +103,10 @@ export default function Appeal({
                                 placeholder="you@email.com"
                                 value={identify.data.email}
                                 onChange={(event) =>
-                                    identify.setData('email', event.target.value)
+                                    identify.setData(
+                                        'email',
+                                        event.target.value,
+                                    )
                                 }
                             />
                             <InputError
@@ -230,7 +233,11 @@ export default function Appeal({
                 )}
 
                 <div
-                    style={{ textAlign: 'center', fontSize: 12.5, color: MUTED }}
+                    style={{
+                        textAlign: 'center',
+                        fontSize: 12.5,
+                        color: MUTED,
+                    }}
                 >
                     <Link href={login.url()}>Back to sign in</Link>
                 </div>

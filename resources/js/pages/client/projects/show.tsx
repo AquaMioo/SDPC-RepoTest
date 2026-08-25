@@ -39,7 +39,7 @@ export default function ShowProject({ project, applicantCounts }: Props) {
         <>
             <Head title={project.title} />
 
-            <div className="mx-auto grid max-w-[1160px] items-start gap-6 px-8 pt-[30px] pb-[72px] lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="mx-auto grid max-w-[1160px] items-start gap-6 px-4 pt-[30px] pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8">
                 <div className="flex min-w-0 flex-col gap-4">
                     <div className="flex flex-wrap items-end gap-4">
                         <div className="mr-auto">

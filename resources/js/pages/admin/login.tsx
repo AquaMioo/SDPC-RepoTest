@@ -85,7 +85,7 @@ export default function AdminLogin({ status }: Props) {
 
             <div
                 className="card elev-md"
-                style={{ width: 370, padding: 28, gap: 14 }}
+                style={{ width: '100%', maxWidth: 370, padding: 28, gap: 14 }}
             >
                 <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>
                     Log in

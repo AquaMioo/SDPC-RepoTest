@@ -23,7 +23,7 @@ export default function ProjectsIndex({ projects, canCreate }: Props) {
         <>
             <Head title="Projects" />
 
-            <div className="mx-auto max-w-[1320px] px-8 pt-[30px] pb-[72px]">
+            <div className="mx-auto max-w-[1320px] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8">
                 <div className="mb-5 flex items-end gap-4">
                     <div className="mr-auto">
                         <h3 className="m-0">Your projects</h3>

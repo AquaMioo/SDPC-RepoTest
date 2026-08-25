@@ -27,7 +27,7 @@ export default function AdminOverview({ stats, recentUsers }: Props) {
             style={{
                 maxWidth: 1180,
                 margin: '0 auto',
-                padding: '30px 32px 72px',
+                padding: '30px clamp(16px, 4vw, 32px) 72px',
             }}
         >
             <Head title="Admin overview" />
@@ -42,7 +42,7 @@ export default function AdminOverview({ stats, recentUsers }: Props) {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4,1fr)',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: 16,
                     marginBottom: 20,
                 }}
@@ -70,9 +70,9 @@ export default function AdminOverview({ stats, recentUsers }: Props) {
             </div>
 
             <div
+                className="stack"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1.3fr 1fr',
+                    ['--cols' as string]: '1.3fr 1fr',
                     gap: 16,
                 }}
             >
@@ -109,8 +109,12 @@ export default function AdminOverview({ stats, recentUsers }: Props) {
                                 gap: 8,
                             }}
                         >
-                            <span style={{ marginRight: 'auto' }}>{user.name}</span>
-                            <span className="tag tag-neutral">{user.roleLabel}</span>
+                            <span style={{ marginRight: 'auto' }}>
+                                {user.name}
+                            </span>
+                            <span className="tag tag-neutral">
+                                {user.roleLabel}
+                            </span>
                         </div>
                     ))}
                 </div>

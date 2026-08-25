@@ -34,7 +34,9 @@ export default function PostingReviewList({
     const decide = (slug: string, status: 'open' | 'closed') =>
         router.patch(update.url(slug), { status }, { preserveScroll: true });
 
-    const waiting = postings.filter((posting) => posting.awaitingDecision).length;
+    const waiting = postings.filter(
+        (posting) => posting.awaitingDecision,
+    ).length;
 
     return (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -72,11 +74,14 @@ export default function PostingReviewList({
                         }}
                     >
                         <div style={{ marginRight: 'auto', minWidth: 0 }}>
-                            <div style={{ fontWeight: 600 }}>{posting.title}</div>
+                            <div style={{ fontWeight: 600 }}>
+                                {posting.title}
+                            </div>
                             <div style={{ fontSize: 12, color: MUTED(60) }}>
                                 {posting.business}
-                                {posting.city ? ` · ${posting.city}` : ''} ·{' '}
-                                {posting.category}
+                                {posting.city
+                                    ? ` · ${posting.city}`
+                                    : ''} · {posting.category}
                                 {posting.publishedAt
                                     ? ` · ${posting.publishedAt}`
                                     : ''}
@@ -84,7 +89,9 @@ export default function PostingReviewList({
                         </div>
 
                         <Tag
-                            variant={STATUS_VARIANT[posting.status] ?? 'neutral'}
+                            variant={
+                                STATUS_VARIANT[posting.status] ?? 'neutral'
+                            }
                         >
                             {posting.statusLabel}
                         </Tag>

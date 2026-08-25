@@ -27,6 +27,11 @@ createInertiaApp({
                 return null;
             case name.startsWith('admin/'):
                 return AdminLayout;
+            // Log in carries the pitch beside the form, so it brings its own
+            // split shell rather than the centred auth column. Every other
+            // auth screen keeps AuthLayout.
+            case name === 'auth/login':
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             // Client, student and the ground they share — messaging, the
@@ -36,6 +41,7 @@ createInertiaApp({
             case name.startsWith('student/'):
             case name.startsWith('messaging/'):
             case name.startsWith('agreements/'):
+            case name.startsWith('notifications/'):
             case name.startsWith('billing/'):
                 return ClientLayout;
             // Settings is shared by both portals, so the chrome is picked from
@@ -60,4 +66,3 @@ createInertiaApp({
         color: '#4B5563',
     },
 });
-

@@ -8,7 +8,10 @@ import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
-import { apply as boardApply, index as boardIndex } from '@/routes/student/board';
+import {
+    apply as boardApply,
+    index as boardIndex,
+} from '@/routes/student/board';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -64,18 +67,21 @@ export default function StudentProject({
             <Head title={project.title} />
 
             <div
+                className="page-shell split split-end"
                 style={{
                     maxWidth: 1060,
-                    margin: '0 auto',
-                    padding: '24px 32px 72px',
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0,1fr) 320px',
+                    paddingTop: 24,
+                    paddingBottom: 72,
+                    ['--rail' as string]: '320px',
                     gap: 22,
-                    alignItems: 'start',
                 }}
             >
                 <div
-                    style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                    }}
                 >
                     <Btn asChild variant="ghost" style={{ alignSelf: 'start' }}>
                         <Link href={boardIndex.url(team.slug)}>
@@ -96,8 +102,9 @@ export default function StudentProject({
                             <h3 style={{ margin: 0 }}>{project.title}</h3>
                             <div style={{ fontSize: 13, color: MUTED(60) }}>
                                 {project.client}
-                                {project.city ? ` · ${project.city}` : ''} ·{' '}
-                                {project.category}
+                                {project.city
+                                    ? ` · ${project.city}`
+                                    : ''} · {project.category}
                             </div>
                         </div>
 
@@ -289,7 +296,6 @@ export default function StudentProject({
                         )}
                     </Panel>
 
-
                     {project.businessDescription && (
                         <Panel padding="lg" gap="sm">
                             <PanelKicker>About {project.client}</PanelKicker>
@@ -310,4 +316,3 @@ export default function StudentProject({
         </>
     );
 }
-

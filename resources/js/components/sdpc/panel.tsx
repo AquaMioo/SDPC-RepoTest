@@ -114,7 +114,11 @@ function PanelMeta({ className, ...props }: React.ComponentProps<'div'>) {
  */
 function PanelDivider({ className, ...props }: React.ComponentProps<'hr'>) {
     return (
-        <hr data-slot="panel-divider" className={cn('hr', className)} {...props} />
+        <hr
+            data-slot="panel-divider"
+            className={cn('hr', className)}
+            {...props}
+        />
     );
 }
 

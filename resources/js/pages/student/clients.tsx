@@ -60,7 +60,7 @@ export default function StudentClients({ businesses, filters }: Props) {
                 style={{
                     maxWidth: 1320,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 18,
@@ -236,9 +236,7 @@ export default function StudentClients({ businesses, filters }: Props) {
                                 key={link.label}
                                 variant={link.active ? 'primary' : 'secondary'}
                                 disabled={link.url === null}
-                                onClick={() =>
-                                    link.url && router.get(link.url)
-                                }
+                                onClick={() => link.url && router.get(link.url)}
                                 dangerouslySetInnerHTML={{
                                     __html: link.label,
                                 }}

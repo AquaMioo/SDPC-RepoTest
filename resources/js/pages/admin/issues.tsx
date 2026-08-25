@@ -77,7 +77,7 @@ export default function AdminIssues({ issues }: Props) {
             style={{
                 maxWidth: 1180,
                 margin: '0 auto',
-                padding: '30px 32px 72px',
+                padding: '30px clamp(16px, 4vw, 32px) 72px',
             }}
         >
             <Head title="Reports and issues" />
@@ -125,7 +125,9 @@ export default function AdminIssues({ issues }: Props) {
                         className="card elev-sm"
                         style={{ padding: '18px 20px', gap: 8 }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                        <div
+                            style={{ display: 'flex', alignItems: 'baseline' }}
+                        >
                             <span
                                 style={{
                                     fontFamily: 'var(--font-heading)',
@@ -210,7 +212,9 @@ export default function AdminIssues({ issues }: Props) {
                                     <Btn
                                         key={action.value}
                                         variant={
-                                            index === 0 ? 'primary' : 'secondary'
+                                            index === 0
+                                                ? 'primary'
+                                                : 'secondary'
                                         }
                                         style={{
                                             fontSize: 12.5,

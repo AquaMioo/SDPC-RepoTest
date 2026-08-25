@@ -92,7 +92,11 @@ export default function AdminMonitoring({ accounts }: Props) {
 
     return (
         <div
-            style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}
+            style={{
+                maxWidth: 1180,
+                margin: '0 auto',
+                padding: '30px clamp(16px, 4vw, 32px) 72px',
+            }}
         >
             <Head title="Monitoring" />
 
@@ -175,7 +179,9 @@ export default function AdminMonitoring({ accounts }: Props) {
                                     )}
                                 </span>
 
-                                <div style={{ minWidth: 0, marginRight: 'auto' }}>
+                                <div
+                                    style={{ minWidth: 0, marginRight: 'auto' }}
+                                >
                                     <div style={{ fontSize: 14 }}>
                                         {account.name}
                                     </div>

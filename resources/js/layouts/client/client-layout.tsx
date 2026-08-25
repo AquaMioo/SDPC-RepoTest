@@ -31,7 +31,10 @@ import { edit as studentProfileEdit } from '@/routes/student/profile';
 import { index as transactionsIndex } from '@/routes/transactions';
 
 type SharedProps = {
-    auth?: { user?: { name: string; role: string } | null; role?: string | null };
+    auth?: {
+        user?: { name: string; role: string } | null;
+        role?: string | null;
+    };
     unreadMessages?: number;
     unreadNotifications?: number;
     /** False on a normal boot — the ledger is built but switched off. */
@@ -108,20 +111,25 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
 
     const navigation: NavItem[] = (
         isStudent
-        ? [
-              { label: 'Dashboard', href: dashboard.url(team.slug) },
-              { label: 'Get Client', href: studentBoard.url(team.slug) },
-              { label: 'Workflow', href: studentWorkflow.url(team.slug) },
-              billing === null ? null : { ...billing, label: 'Performance' },
-              { label: 'Agreement', href: agreementsIndex.url(team.slug) },
-          ]
-        : [
-              { label: 'Dashboard', href: clientDashboard.url(team.slug) },
-              { label: 'Recruit', href: recruitIndex.url(team.slug) },
-              billing,
-              { label: 'Project Process', href: projectsIndex.url(team.slug) },
-              { label: 'Agreement', href: agreementsIndex.url(team.slug) },
-          ]
+            ? [
+                  { label: 'Dashboard', href: dashboard.url(team.slug) },
+                  { label: 'Get Client', href: studentBoard.url(team.slug) },
+                  { label: 'Workflow', href: studentWorkflow.url(team.slug) },
+                  billing === null
+                      ? null
+                      : { ...billing, label: 'Performance' },
+                  { label: 'Agreement', href: agreementsIndex.url(team.slug) },
+              ]
+            : [
+                  { label: 'Dashboard', href: clientDashboard.url(team.slug) },
+                  { label: 'Recruit', href: recruitIndex.url(team.slug) },
+                  billing,
+                  {
+                      label: 'Project Process',
+                      href: projectsIndex.url(team.slug),
+                  },
+                  { label: 'Agreement', href: agreementsIndex.url(team.slug) },
+              ]
     ).filter((item): item is NavItem => item !== null);
 
     return (
@@ -145,27 +153,14 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                 }}
             >
                 <div
-                    style={{
-                        maxWidth: 1320,
-                        margin: '0 auto',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 26,
-                        padding: '14px 32px',
-                    }}
+                    className="page-shell app-bar"
+                    style={{ maxWidth: 1320, paddingBlock: 14 }}
                 >
                     <Link href={home} style={BRAND}>
                         SDPCC
                     </Link>
 
-                    <nav
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 22,
-                            margin: '0 auto',
-                        }}
-                    >
+                    <nav className="app-bar-nav">
                         {navigation.map((item) => (
                             <NavLink
                                 key={item.label}
@@ -185,14 +180,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         </span>
                     )}
 
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            fontSize: 18,
-                        }}
-                    >
+                    <div className="app-bar-actions" style={{ fontSize: 18 }}>
                         <IconAction
                             label="Messages"
                             href={messagesIndex.url(team.slug)}

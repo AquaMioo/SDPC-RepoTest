@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\ClientProfile;
 use App\Models\Project;
+use App\Models\StudentProfile;
 use App\Models\Testimonial;
 use App\Models\User;
 use Inertia\Inertia;
@@ -71,7 +72,7 @@ class HomeController extends Controller
      * different from a zero: no project has been marked complete is a fact,
      * while no one has rated anything is an absence of data.
      *
-     * @return array{students: int, projectsCompleted: int, clientSatisfaction: int|null, clients: int}
+     * @return array{students: int, projectsCompleted: int, clientSatisfaction: int|null, clients: int, studentRating: array{average: float, rated: int}|null}
      */
     protected function stats(): array
     {
@@ -99,6 +100,41 @@ class HomeController extends Controller
              * profile row behind and would otherwise be counted forever.
              */
             'clients' => ClientProfile::query()->whereHas('team')->count(),
+
+            'studentRating' => $this->studentRating(),
+        ];
+    }
+
+    /**
+     * The average rating across students who have one, and how many that is.
+     *
+     * Averaged over rated profiles only. rating_average defaults to 0, so
+     * including the unrated would drag the figure toward zero and report it as
+     * a poor score rather than as an absent one.
+     *
+     * Null until somebody has been rated at all, which is what the hero checks
+     * before it draws stars. Nothing writes this column yet — no rating
+     * feature exists — so on a fresh database the row is simply absent rather
+     * than showing a number the platform cannot stand behind.
+     *
+     * @return array{average: float, rated: int}|null
+     */
+    protected function studentRating(): ?array
+    {
+        $rated = StudentProfile::query()
+            ->where('rating_average', '>', 0)
+            ->whereHas('user', fn ($query) => $query
+                ->where('status', '!=', UserStatus::Deactivated));
+
+        $count = (clone $rated)->count();
+
+        if ($count === 0) {
+            return null;
+        }
+
+        return [
+            'average' => round((float) (clone $rated)->avg('rating_average'), 1),
+            'rated' => $count,
         ];
     }
 }

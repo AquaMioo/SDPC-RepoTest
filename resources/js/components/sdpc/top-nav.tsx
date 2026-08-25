@@ -54,7 +54,11 @@ export default function TopNav({
     const isCurrent = (item: NavItem) => {
         const needle = item.match ?? item.href;
 
-        return url === needle || url.startsWith(`${needle}/`) || url.startsWith(`${needle}?`);
+        return (
+            url === needle ||
+            url.startsWith(`${needle}/`) ||
+            url.startsWith(`${needle}?`)
+        );
     };
 
     return (
@@ -63,19 +67,14 @@ export default function TopNav({
                 position: 'sticky',
                 top: 0,
                 zIndex: 20,
-                background: 'color-mix(in srgb, var(--color-bg) 88%, transparent)',
+                background:
+                    'color-mix(in srgb, var(--color-bg) 88%, transparent)',
                 backdropFilter: 'blur(10px)',
             }}
         >
             <div
-                style={{
-                    maxWidth,
-                    margin: '0 auto',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 26,
-                    padding: '14px 32px',
-                }}
+                className="page-shell app-bar"
+                style={{ maxWidth, paddingBlock: 14 }}
             >
                 <div
                     style={{

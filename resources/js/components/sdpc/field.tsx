@@ -40,7 +40,10 @@ export default function Field({
             <label htmlFor={id}>
                 {label}
                 {required && (
-                    <span style={{ color: 'var(--color-accent)' }} aria-hidden="true">
+                    <span
+                        style={{ color: 'var(--color-accent)' }}
+                        aria-hidden="true"
+                    >
                         {' '}
                         *
                     </span>

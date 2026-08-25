@@ -81,14 +81,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 }}
             >
                 <div
-                    style={{
-                        maxWidth: 1180,
-                        margin: '0 auto',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 26,
-                        padding: '14px 32px',
-                    }}
+                    className="page-shell app-bar"
+                    style={{ maxWidth: 1180, paddingBlock: 14 }}
                 >
                     <div
                         style={{
@@ -153,7 +147,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 <span
                                     aria-label="Notifications"
                                     className="btn btn-icon"
-                                    style={{ color: MUTED, cursor: 'not-allowed' }}
+                                    style={{
+                                        color: MUTED,
+                                        cursor: 'not-allowed',
+                                    }}
                                 >
                                     <BellIcon />
                                 </span>
@@ -206,7 +203,11 @@ function NavLink({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span
-                        style={{ ...NAV_LINK, color: MUTED, cursor: 'not-allowed' }}
+                        style={{
+                            ...NAV_LINK,
+                            color: MUTED,
+                            cursor: 'not-allowed',
+                        }}
                     >
                         {item.label}
                     </span>

@@ -63,7 +63,8 @@ export default function Credentials({ schools, submission }: Props) {
             <div
                 className="card elev-md"
                 style={{
-                    width: 420,
+                    width: '100%',
+                    maxWidth: 420,
                     padding: 28,
                     gap: 13,
                     position: 'relative',

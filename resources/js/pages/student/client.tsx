@@ -64,7 +64,7 @@ export default function StudentClient({
                 style={{
                     maxWidth: 1060,
                     margin: '0 auto',
-                    padding: '24px 32px 72px',
+                    padding: '24px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <Btn asChild variant="ghost" style={{ marginBottom: 16 }}>
@@ -120,12 +120,8 @@ export default function StudentClient({
                 </div>
 
                 <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '270px minmax(0,1fr)',
-                        gap: 28,
-                        alignItems: 'start',
-                    }}
+                    className="split"
+                    style={{ ['--rail' as string]: '270px', gap: 28 }}
                 >
                     <div
                         style={{
@@ -304,7 +300,10 @@ export default function StudentClient({
                                                 color: MUTED(68),
                                             }}
                                         >
-                                            {[posting.category, posting.industry]
+                                            {[
+                                                posting.category,
+                                                posting.industry,
+                                            ]
                                                 .filter(Boolean)
                                                 .join(' · ')}
                                         </div>

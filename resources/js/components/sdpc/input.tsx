@@ -8,7 +8,11 @@ import { cn } from '@/lib/utils';
  */
 function Input({ className, ...props }: React.ComponentProps<'input'>) {
     return (
-        <input data-slot="input" className={cn('input', className)} {...props} />
+        <input
+            data-slot="input"
+            className={cn('input', className)}
+            {...props}
+        />
     );
 }
 
@@ -30,7 +34,11 @@ function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
  */
 function Select({ className, ...props }: React.ComponentProps<'select'>) {
     return (
-        <select data-slot="select" className={cn('input', className)} {...props} />
+        <select
+            data-slot="select"
+            className={cn('input', className)}
+            {...props}
+        />
     );
 }
 

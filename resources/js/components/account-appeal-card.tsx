@@ -85,7 +85,10 @@ export default function AccountAppealCard({
                     data-test="existing-appeal"
                 >
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <span className="card-kicker" style={{ marginRight: 'auto' }}>
+                        <span
+                            className="card-kicker"
+                            style={{ marginRight: 'auto' }}
+                        >
                             Your appeal
                             {appeal.filedOn ? ` · ${appeal.filedOn}` : ''}
                         </span>
@@ -94,7 +97,12 @@ export default function AccountAppealCard({
                         </Tag>
                     </div>
 
-                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    <div
+                        style={{
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                        }}
+                    >
                         {appeal.body}
                     </div>
 

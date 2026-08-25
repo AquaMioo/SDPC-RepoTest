@@ -140,7 +140,6 @@ export default function ProjectForm({ data, setData, errors, options }: Props) {
                         />
                     )}
                 </Field>
-
             </Panel>
         </>
     );

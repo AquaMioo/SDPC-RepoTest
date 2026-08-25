@@ -185,7 +185,7 @@ export default function AgreementShow({ agreement }: Props) {
                 style={{
                     maxWidth: 1240,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <div
@@ -322,10 +322,16 @@ export default function AgreementShow({ agreement }: Props) {
                                     ? form.data.milestones.map(
                                           (milestone, index) => (
                                               <tr key={index}>
-                                                  <td style={{ padding: '3px 0' }}>
+                                                  <td
+                                                      style={{
+                                                          padding: '3px 0',
+                                                      }}
+                                                  >
                                                       <Input
                                                           aria-label={`Milestone ${index + 1} title`}
-                                                          value={milestone.title}
+                                                          value={
+                                                              milestone.title
+                                                          }
                                                           maxLength={120}
                                                           onChange={(event) =>
                                                               setMilestone(
@@ -347,7 +353,9 @@ export default function AgreementShow({ agreement }: Props) {
                                                           aria-label={`Milestone ${index + 1} amount`}
                                                           type="number"
                                                           min={0}
-                                                          value={milestone.amount}
+                                                          value={
+                                                              milestone.amount
+                                                          }
                                                           onChange={(event) =>
                                                               setMilestone(
                                                                   index,
@@ -364,7 +372,11 @@ export default function AgreementShow({ agreement }: Props) {
                                     : agreement.milestones.map(
                                           (milestone, index) => (
                                               <tr key={milestone.id}>
-                                                  <td style={{ padding: '3px 0' }}>
+                                                  <td
+                                                      style={{
+                                                          padding: '3px 0',
+                                                      }}
+                                                  >
                                                       Milestone {index + 1} ·{' '}
                                                       {milestone.title}
                                                   </td>
@@ -437,12 +449,15 @@ export default function AgreementShow({ agreement }: Props) {
                                                   <Input
                                                       aria-label={`Phase ${index + 1} start`}
                                                       type="date"
-                                                      value={milestone.starts_on}
+                                                      value={
+                                                          milestone.starts_on
+                                                      }
                                                       onChange={(event) =>
                                                           setMilestone(
                                                               index,
                                                               'starts_on',
-                                                              event.target.value,
+                                                              event.target
+                                                                  .value,
                                                           )
                                                       }
                                                   />
@@ -454,7 +469,8 @@ export default function AgreementShow({ agreement }: Props) {
                                                           setMilestone(
                                                               index,
                                                               'ends_on',
-                                                              event.target.value,
+                                                              event.target
+                                                                  .value,
                                                           )
                                                       }
                                                   />
@@ -490,7 +506,13 @@ export default function AgreementShow({ agreement }: Props) {
                         style={{ padding: '22px 24px', marginBottom: 26 }}
                     >
                         <h6 style={{ margin: 0 }}>Contract terms</h6>
-                        <p style={{ margin: 0, fontSize: 12, color: MUTED(65) }}>
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: 12,
+                                color: MUTED(65),
+                            }}
+                        >
                             These are the clauses the student reads in full on
                             the contract screen before signing.
                         </p>
@@ -539,7 +561,9 @@ export default function AgreementShow({ agreement }: Props) {
                             >
                                 Terms lock the moment either side signs.
                             </span>
-                            <Btn onClick={() => setIsEditing(false)}>Cancel</Btn>
+                            <Btn onClick={() => setIsEditing(false)}>
+                                Cancel
+                            </Btn>
                             <Btn
                                 variant="primary"
                                 disabled={form.processing}

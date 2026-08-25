@@ -5,11 +5,7 @@ import PostingReviewList from '@/components/admin/posting-review-list';
 import { Btn } from '@/components/sdpc/btn';
 import { overview } from '@/routes/admin';
 import { index as adminUsers } from '@/routes/admin/users';
-import type {
-    AdminPosting,
-    AdminStats,
-    SiteContentDraft,
-} from '@/types/admin';
+import type { AdminPosting, AdminStats, SiteContentDraft } from '@/types/admin';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -35,7 +31,13 @@ type Props = {
  */
 export default function AdminDashboard({ stats, postings, content }: Props) {
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}>
+        <div
+            style={{
+                maxWidth: 1180,
+                margin: '0 auto',
+                padding: '30px clamp(16px, 4vw, 32px) 72px',
+            }}
+        >
             <Head title="Admin dashboard" />
 
             <div
@@ -61,7 +63,7 @@ export default function AdminDashboard({ stats, postings, content }: Props) {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4,1fr)',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: 16,
                     marginBottom: 20,
                 }}
@@ -100,7 +102,8 @@ export default function AdminDashboard({ stats, postings, content }: Props) {
                 >
                     <div style={{ marginRight: 'auto', fontSize: 13.5 }}>
                         {stats.pendingReview} account
-                        {stats.pendingReview === 1 ? '' : 's'} waiting on review.
+                        {stats.pendingReview === 1 ? '' : 's'} waiting on
+                        review.
                     </div>
                     <Btn asChild variant="primary">
                         <Link href={adminUsers.url()}>Review accounts</Link>

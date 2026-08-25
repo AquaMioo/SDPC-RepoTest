@@ -80,7 +80,7 @@ export default function StudentDashboard({
                 style={{
                     maxWidth: 1320,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <div
@@ -108,13 +108,12 @@ export default function StudentDashboard({
                     </Btn>
                 </div>
 
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '320px 1fr 1fr',
-                        gap: 18,
-                    }}
-                >
+                {/*
+                 * One card per row on a phone, two once there is room, and the
+                 * design's calendar-plus-two only on a desktop. Three fixed
+                 * columns at 375px put the whole row past the viewport edge.
+                 */}
+                <div className="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-[320px_1fr_1fr]">
                     <CalendarCard calendar={calendar} />
                     <ProgressCard project={project} />
                     <TeamCard project={project} />
@@ -142,7 +141,7 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(7,1fr)',
+                    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                     gap: 3,
                     fontSize: 10,
                     letterSpacing: '0.06em',
@@ -158,7 +157,7 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(7,1fr)',
+                    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                     gap: 3,
                 }}
             >

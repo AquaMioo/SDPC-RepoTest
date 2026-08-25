@@ -71,7 +71,7 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                 style={{
                     maxWidth: 1320,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 22,
@@ -94,7 +94,11 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                 </div>
 
                 <section
-                    style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                    }}
                 >
                     <span style={{ fontSize: 13 }}>Active projects</span>
 
@@ -163,7 +167,11 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                 </section>
 
                 <section
-                    style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                    }}
                 >
                     <span style={{ fontSize: 13 }}>Your applications</span>
 
@@ -209,7 +217,8 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                                         <Link
                                             href={boardShow.url({
                                                 current_team: team.slug,
-                                                project: application.projectSlug,
+                                                project:
+                                                    application.projectSlug,
                                             })}
                                             style={{
                                                 fontSize: 13.5,

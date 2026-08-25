@@ -41,7 +41,13 @@ export default function AdminUsers({ users, statuses }: Props) {
     }, [users, query]);
 
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '30px 32px 72px' }}>
+        <div
+            style={{
+                maxWidth: 1180,
+                margin: '0 auto',
+                padding: '30px clamp(16px, 4vw, 32px) 72px',
+            }}
+        >
             <Head title="User account management" />
 
             <div
@@ -80,171 +86,199 @@ export default function AdminUsers({ users, statuses }: Props) {
             </div>
 
             <div className="card elev-sm" style={{ padding: '14px 6px' }}>
-                <table className="table">
-                    <thead>
-                        <tr>
-                            <th style={{ paddingLeft: 16 }}>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th style={{ textAlign: 'right', paddingRight: 16 }}>
-                                Action
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.length === 0 && (
+                {/* The roster keeps its columns and scrolls; squeezed into a
+                    phone the cells wrap into something unreadable. */}
+                <div className="table-wrap">
+                    <table className="table">
+                        <thead>
                             <tr>
-                                <td
-                                    colSpan={5}
+                                <th style={{ paddingLeft: 16 }}>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th
                                     style={{
-                                        paddingLeft: 16,
-                                        color: MUTED(55),
-                                        fontSize: 13,
+                                        textAlign: 'right',
+                                        paddingRight: 16,
                                     }}
                                 >
-                                    No accounts match “{query}”.
-                                </td>
+                                    Action
+                                </th>
                             </tr>
-                        )}
-
-                        {filtered.map((user) => (
-                            <tr key={user.id}>
-                                <td style={{ paddingLeft: 16 }}>
-                                    <span
+                        </thead>
+                        <tbody>
+                            {filtered.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={5}
                                         style={{
-                                            display: 'inline-grid',
-                                            placeItems: 'center',
-                                            width: 26,
-                                            height: 26,
-                                            borderRadius: '50%',
-                                            overflow: 'hidden',
-                                            marginRight: 8,
-                                            verticalAlign: 'middle',
-                                            background:
-                                                'var(--color-accent-800)',
-                                            color: 'var(--color-accent-200)',
-                                            fontSize: 11,
+                                            paddingLeft: 16,
+                                            color: MUTED(55),
+                                            fontSize: 13,
                                         }}
                                     >
-                                        {user.avatarUrl ? (
-                                            <img
-                                                src={user.avatarUrl}
-                                                alt=""
-                                                style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'cover',
-                                                }}
-                                            />
-                                        ) : (
-                                            user.name.charAt(0).toUpperCase()
-                                        )}
-                                    </span>
-                                    {user.name}
-                                    {user.credentialStatusLabel && (
+                                        No accounts match “{query}”.
+                                    </td>
+                                </tr>
+                            )}
+
+                            {filtered.map((user) => (
+                                <tr key={user.id}>
+                                    <td style={{ paddingLeft: 16 }}>
                                         <span
-                                            className="tag tag-outline"
-                                            style={{ marginLeft: 8 }}
+                                            style={{
+                                                display: 'inline-grid',
+                                                placeItems: 'center',
+                                                width: 26,
+                                                height: 26,
+                                                borderRadius: '50%',
+                                                overflow: 'hidden',
+                                                marginRight: 8,
+                                                verticalAlign: 'middle',
+                                                background:
+                                                    'var(--color-accent-800)',
+                                                color: 'var(--color-accent-200)',
+                                                fontSize: 11,
+                                            }}
                                         >
-                                            {user.credentialStatusLabel}
+                                            {user.avatarUrl ? (
+                                                <img
+                                                    src={user.avatarUrl}
+                                                    alt=""
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        objectFit: 'cover',
+                                                    }}
+                                                />
+                                            ) : (
+                                                user.name
+                                                    .charAt(0)
+                                                    .toUpperCase()
+                                            )}
                                         </span>
-                                    )}
-                                </td>
-                                <td style={{ color: MUTED(65) }}>{user.email}</td>
-                                <td style={{ color: MUTED(65) }}>{user.roleLabel}</td>
-                                <td>
-                                    <span className={STATUS_TAG[user.status]}>
-                                        {statuses.find(
-                                            (option) => option.value === user.status,
-                                        )?.label ?? user.status}
-                                    </span>
-                                </td>
-                                <td style={{ paddingRight: 16 }}>
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            gap: 6,
-                                            justifyContent: 'flex-end',
-                                        }}
-                                    >
-                                        {/* Administrators cannot change their own
-                                            status; the server refuses it too. */}
-                                        {user.isSelf ? (
+                                        {user.name}
+                                        {user.credentialStatusLabel && (
                                             <span
-                                                style={{
-                                                    fontSize: 12,
-                                                    color: MUTED(45),
-                                                }}
+                                                className="tag tag-outline"
+                                                style={{ marginLeft: 8 }}
                                             >
-                                                This is you
+                                                {user.credentialStatusLabel}
                                             </span>
-                                        ) : (
-                                            /*
-                                             * Every state, every row, with the
-                                             * one in force highlighted — a set
-                                             * of choices where the current one
-                                             * is shown, not hidden.
-                                             *
-                                             * It used to drop the current
-                                             * status and paint "Approved"
-                                             * primary on every row, so each
-                                             * account looked approved whatever
-                                             * it actually was.
-                                             */
-                                            statuses.map((option) => {
-                                                const isCurrent =
-                                                    option.value === user.status;
-
-                                                return (
-                                                    <Btn
-                                                        key={option.value}
-                                                        variant={
-                                                            isCurrent
-                                                                ? 'primary'
-                                                                : 'ghost'
-                                                        }
-                                                        aria-pressed={isCurrent}
-                                                        disabled={isCurrent}
-                                                        title={
-                                                            isCurrent
-                                                                ? `Already ${option.label.toLowerCase()}`
-                                                                : `Set to ${option.label.toLowerCase()}`
-                                                        }
-                                                        style={{
-                                                            fontSize: 12,
-                                                            padding: '4px 10px',
-                                                            // The unselected
-                                                            // ones stay legible
-                                                            // but recede.
-                                                            opacity: isCurrent
-                                                                ? 1
-                                                                : 0.75,
-                                                            border: isCurrent
-                                                                ? undefined
-                                                                : `1px solid ${MUTED(18)}`,
-                                                        }}
-                                                        onClick={() =>
-                                                            router.patch(
-                                                                updateUserStatus.url(
-                                                                    user.id,
-                                                                ),
-                                                                { status: option.value },
-                                                                { preserveScroll: true },
-                                                            )
-                                                        }
-                                                    >
-                                                        {option.label}
-                                                    </Btn>
-                                                );
-                                            })
                                         )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                    </td>
+                                    <td style={{ color: MUTED(65) }}>
+                                        {user.email}
+                                    </td>
+                                    <td style={{ color: MUTED(65) }}>
+                                        {user.roleLabel}
+                                    </td>
+                                    <td>
+                                        <span
+                                            className={STATUS_TAG[user.status]}
+                                        >
+                                            {statuses.find(
+                                                (option) =>
+                                                    option.value ===
+                                                    user.status,
+                                            )?.label ?? user.status}
+                                        </span>
+                                    </td>
+                                    <td style={{ paddingRight: 16 }}>
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                gap: 6,
+                                                justifyContent: 'flex-end',
+                                            }}
+                                        >
+                                            {/* Administrators cannot change their own
+                                            status; the server refuses it too. */}
+                                            {user.isSelf ? (
+                                                <span
+                                                    style={{
+                                                        fontSize: 12,
+                                                        color: MUTED(45),
+                                                    }}
+                                                >
+                                                    This is you
+                                                </span>
+                                            ) : (
+                                                /*
+                                                 * Every state, every row, with the
+                                                 * one in force highlighted — a set
+                                                 * of choices where the current one
+                                                 * is shown, not hidden.
+                                                 *
+                                                 * It used to drop the current
+                                                 * status and paint "Approved"
+                                                 * primary on every row, so each
+                                                 * account looked approved whatever
+                                                 * it actually was.
+                                                 */
+                                                statuses.map((option) => {
+                                                    const isCurrent =
+                                                        option.value ===
+                                                        user.status;
+
+                                                    return (
+                                                        <Btn
+                                                            key={option.value}
+                                                            variant={
+                                                                isCurrent
+                                                                    ? 'primary'
+                                                                    : 'ghost'
+                                                            }
+                                                            aria-pressed={
+                                                                isCurrent
+                                                            }
+                                                            disabled={isCurrent}
+                                                            title={
+                                                                isCurrent
+                                                                    ? `Already ${option.label.toLowerCase()}`
+                                                                    : `Set to ${option.label.toLowerCase()}`
+                                                            }
+                                                            style={{
+                                                                fontSize: 12,
+                                                                padding:
+                                                                    '4px 10px',
+                                                                // The unselected
+                                                                // ones stay legible
+                                                                // but recede.
+                                                                opacity:
+                                                                    isCurrent
+                                                                        ? 1
+                                                                        : 0.75,
+                                                                border: isCurrent
+                                                                    ? undefined
+                                                                    : `1px solid ${MUTED(18)}`,
+                                                            }}
+                                                            onClick={() =>
+                                                                router.patch(
+                                                                    updateUserStatus.url(
+                                                                        user.id,
+                                                                    ),
+                                                                    {
+                                                                        status: option.value,
+                                                                    },
+                                                                    {
+                                                                        preserveScroll: true,
+                                                                    },
+                                                                )
+                                                            }
+                                                        >
+                                                            {option.label}
+                                                        </Btn>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

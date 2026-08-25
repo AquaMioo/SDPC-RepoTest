@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
 use App\Models\ClientProfile;
 use App\Models\Project;
+use App\Models\StudentProfile;
 use App\Models\Team;
 use App\Models\Testimonial;
 use App\Models\User;
@@ -107,6 +108,40 @@ class HomePageTest extends TestCase
         $this->get(route('home'))->assertInertia(
             fn (AssertableInertia $page) => $page->where('stats.projectsCompleted', 1)
         );
+    }
+
+    /**
+     * The hero's stars are averaged, never written down.
+     *
+     * They used to be a hard-coded "4.7 average from 205 surveyed students"
+     * that no data supported. Nothing writes rating_average yet, so on a real
+     * database the row is absent rather than confident.
+     */
+    public function test_the_hero_shows_no_rating_until_a_student_has_one(): void
+    {
+        StudentProfile::factory()->count(3)->create(['rating_average' => 0]);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('stats.studentRating', null)
+                ->etc());
+    }
+
+    public function test_the_hero_averages_the_students_who_are_rated(): void
+    {
+        StudentProfile::factory()->create(['rating_average' => 4.0]);
+        StudentProfile::factory()->create(['rating_average' => 5.0]);
+        // Unrated, and therefore not averaged — a default 0 would drag the
+        // figure down and report an absent score as a poor one.
+        StudentProfile::factory()->create(['rating_average' => 0]);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('stats.studentRating.average', 4.5)
+                ->where('stats.studentRating.rated', 2)
+                ->etc());
     }
 
     public function test_client_satisfaction_reads_as_no_data_rather_than_zero(): void

@@ -53,7 +53,7 @@ export default function EditProject({ project, options }: Props) {
                         { preserveScroll: true },
                     );
                 }}
-                className="mx-auto flex max-w-[1100px] flex-col gap-4 px-8 pt-[30px] pb-[72px]"
+                className="mx-auto flex max-w-[1100px] flex-col gap-4 px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8"
             >
                 <div className="flex items-end gap-4">
                     <div className="mr-auto">

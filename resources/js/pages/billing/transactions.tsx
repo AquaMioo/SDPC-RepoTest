@@ -78,7 +78,7 @@ export default function Transactions({
                 style={{
                     maxWidth: 1160,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <div
@@ -97,7 +97,8 @@ export default function Transactions({
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
+                        gridTemplateColumns:
+                            'repeat(auto-fit, minmax(200px, 1fr))',
                         gap: 16,
                         marginBottom: 18,
                     }}
@@ -193,10 +194,7 @@ export default function Transactions({
                         >
                             <option value="">Wallet: All</option>
                             {filters.wallets.map((option) => (
-                                <option
-                                    key={option.value}
-                                    value={option.value}
-                                >
+                                <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>
                             ))}
@@ -213,10 +211,7 @@ export default function Transactions({
                         >
                             <option value="">Type: All</option>
                             {filters.types.map((option) => (
-                                <option
-                                    key={option.value}
-                                    value={option.value}
-                                >
+                                <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>
                             ))}
@@ -237,75 +232,83 @@ export default function Transactions({
                             approves a milestone.
                         </div>
                     ) : (
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th style={{ paddingLeft: 16 }}>Date</th>
-                                    <th>Description</th>
-                                    <th>Wallet</th>
-                                    <th>Benefit period</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                    <th
-                                        style={{
-                                            textAlign: 'right',
-                                            paddingRight: 16,
-                                        }}
-                                    >
-                                        Amount
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {transactions.map((transaction) => (
-                                    <tr key={transaction.id}>
-                                        <td
-                                            style={{
-                                                paddingLeft: 16,
-                                                whiteSpace: 'nowrap',
-                                                color: MUTED(65),
-                                            }}
-                                        >
-                                            {transaction.date}
-                                        </td>
-                                        <td>{transaction.description}</td>
-                                        <td style={{ color: MUTED(65) }}>
-                                            {transaction.wallet}
-                                        </td>
-                                        <td style={{ color: MUTED(65) }}>
-                                            {transaction.benefitPeriod ?? '—'}
-                                        </td>
-                                        <td>
-                                            <Tag variant="neutral">
-                                                {transaction.type}
-                                            </Tag>
-                                        </td>
-                                        <td>
-                                            <Tag
-                                                variant={
-                                                    TAG_VARIANT[
-                                                        transaction
-                                                            .statusVariant
-                                                    ] ?? 'neutral'
-                                                }
-                                            >
-                                                {transaction.statusLabel}
-                                            </Tag>
-                                        </td>
-                                        <td
+                        <div className="table-wrap">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th style={{ paddingLeft: 16 }}>
+                                            Date
+                                        </th>
+                                        <th>Description</th>
+                                        <th>Wallet</th>
+                                        <th>Benefit period</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th
                                             style={{
                                                 textAlign: 'right',
                                                 paddingRight: 16,
-                                                fontVariantNumeric:
-                                                    'tabular-nums',
                                             }}
                                         >
-                                            ₱ {peso.format(transaction.amount)}
-                                        </td>
+                                            Amount
+                                        </th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {transactions.map((transaction) => (
+                                        <tr key={transaction.id}>
+                                            <td
+                                                style={{
+                                                    paddingLeft: 16,
+                                                    whiteSpace: 'nowrap',
+                                                    color: MUTED(65),
+                                                }}
+                                            >
+                                                {transaction.date}
+                                            </td>
+                                            <td>{transaction.description}</td>
+                                            <td style={{ color: MUTED(65) }}>
+                                                {transaction.wallet}
+                                            </td>
+                                            <td style={{ color: MUTED(65) }}>
+                                                {transaction.benefitPeriod ??
+                                                    '—'}
+                                            </td>
+                                            <td>
+                                                <Tag variant="neutral">
+                                                    {transaction.type}
+                                                </Tag>
+                                            </td>
+                                            <td>
+                                                <Tag
+                                                    variant={
+                                                        TAG_VARIANT[
+                                                            transaction
+                                                                .statusVariant
+                                                        ] ?? 'neutral'
+                                                    }
+                                                >
+                                                    {transaction.statusLabel}
+                                                </Tag>
+                                            </td>
+                                            <td
+                                                style={{
+                                                    textAlign: 'right',
+                                                    paddingRight: 16,
+                                                    fontVariantNumeric:
+                                                        'tabular-nums',
+                                                }}
+                                            >
+                                                ₱{' '}
+                                                {peso.format(
+                                                    transaction.amount,
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
 
                     <div

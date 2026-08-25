@@ -42,9 +42,9 @@ export default function ContentEditor({ content }: Props) {
             </div>
 
             <div
+                className="stack"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1.4fr 1fr',
+                    ['--cols' as string]: '1.4fr 1fr',
                     gap: 16,
                     alignItems: 'start',
                 }}
@@ -63,7 +63,9 @@ export default function ContentEditor({ content }: Props) {
                                 placeholder="e.g. Milestone escrow is now live for extension payments…"
                                 value={draft.announcements}
                                 error={errors.announcements}
-                                onChange={(value) => edit('announcements', value)}
+                                onChange={(value) =>
+                                    edit('announcements', value)
+                                }
                             />
                             <EditorField
                                 name="rules"
@@ -100,7 +102,10 @@ export default function ContentEditor({ content }: Props) {
 
                                 {recentlySuccessful && (
                                     <span
-                                        style={{ fontSize: 12, color: MUTED(65) }}
+                                        style={{
+                                            fontSize: 12,
+                                            color: MUTED(65),
+                                        }}
                                         data-test="content-saved"
                                     >
                                         Saved.

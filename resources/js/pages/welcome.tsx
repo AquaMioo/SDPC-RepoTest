@@ -24,7 +24,7 @@ import { login as adminLogin } from '@/routes/admin';
 const SHELL: React.CSSProperties = {
     maxWidth: 1240,
     margin: '0 auto',
-    padding: '0 32px',
+    padding: '0 clamp(16px, 4vw, 32px)',
 };
 
 const MUTED = (pct: number) =>
@@ -57,6 +57,8 @@ type Stats = {
     projectsCompleted: number;
     clientSatisfaction: number | null;
     clients: number;
+    /** Null until somebody has actually been rated. */
+    studentRating: { average: number; rated: number } | null;
 };
 
 type TestimonialItem = {
@@ -124,7 +126,7 @@ export default function Welcome({
                         <Link href={login.url()}>Log in</Link>
                     </Btn>
                     <Btn asChild variant="primary">
-                        <Link href={register.url()}>Register</Link>
+                        <Link href={register.url()}>Sign up</Link>
                     </Btn>
                 </nav>
 
@@ -132,12 +134,12 @@ export default function Welcome({
 
                 {/* ── hero ── */}
                 <div
+                    className="stack"
                     style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1.05fr',
+                        ['--cols' as string]: '1fr 1.05fr',
                         gap: 56,
                         alignItems: 'center',
-                        padding: '72px 0 64px',
+                        padding: '48px 0 56px',
                     }}
                 >
                     <div>
@@ -209,15 +211,41 @@ export default function Welcome({
                         </div>
 
                         {/*
-                         * The star rating that used to sit here was invented,
-                         * and nothing in the schema records a review to
-                         * replace it with. It comes back when there is a real
-                         * average to print.
+                         * Averaged from student_profiles.rating_average rather
+                         * than written down. The stars were once a hard-coded
+                         * "4.7" that no data supported; this draws them only
+                         * when somebody has actually been rated, and falls
+                         * back to a plain fact when nobody has.
                          */}
-                        <p style={{ fontSize: 13, color: MUTED(55), margin: 0 }}>
-                            Free for students and for businesses in San Jose Del
-                            Monte.
-                        </p>
+                        {stats.studentRating ? (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 9,
+                                    fontSize: 13,
+                                    color: MUTED(60),
+                                }}
+                            >
+                                <Stars value={stats.studentRating.average} />
+                                {stats.studentRating.average.toFixed(1)} average
+                                from{' '}
+                                {stats.studentRating.rated.toLocaleString()}{' '}
+                                rated student
+                                {stats.studentRating.rated === 1 ? '' : 's'}
+                            </div>
+                        ) : (
+                            <p
+                                style={{
+                                    fontSize: 13,
+                                    color: MUTED(55),
+                                    margin: 0,
+                                }}
+                            >
+                                Free for students and for businesses in San Jose
+                                Del Monte.
+                            </p>
+                        )}
                     </div>
 
                     <div
@@ -245,15 +273,58 @@ export default function Welcome({
                                 overflow: 'hidden',
                             }}
                         >
+                            {/*
+                             * The four students who built SDPC, photographed
+                             * outside their own school. Described rather than
+                             * left decorative because the picture is the claim
+                             * the page is making — that this was built by
+                             * students in San Jose Del Monte, not stock.
+                             */}
                             <img
                                 src="/images/hero.webp"
-                                alt="A student team working together at their desks"
+                                alt="The four students who built SDPC, outside STI College San Jose Del Monte"
                                 style={{
                                     width: '100%',
                                     height: 380,
                                     objectFit: 'cover',
                                 }}
                             />
+
+                            {/*
+                             * The match, shown rather than described: a
+                             * student's skills on one side, what a client
+                             * asked for on the other, and the engine's verdict
+                             * between them. Illustrative — these are not live
+                             * rows — so it is kept to the shape of the thing
+                             * and never dressed with a real name.
+                             *
+                             * Hidden below `md`: laid over a 343px-wide photo
+                             * the two cards cover the people in it.
+                             */}
+                            <div className="hero-proof">
+                                <MatchCard
+                                    icon={<UserIcon />}
+                                    title="Student"
+                                    kicker="Key skills"
+                                    items={['Laravel', 'React', 'MySQL']}
+                                    chips
+                                />
+
+                                <span className="hero-proof-badge">
+                                    <SparkleIcon />
+                                    AI matched
+                                </span>
+
+                                <MatchCard
+                                    icon={<BuildingsIcon />}
+                                    title="Client"
+                                    kicker="Project requirements"
+                                    items={[
+                                        'Inventory system',
+                                        'Reorder forecasting',
+                                    ]}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -262,7 +333,8 @@ export default function Welcome({
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(4,1fr)',
+                        gridTemplateColumns:
+                            'repeat(auto-fit, minmax(190px, 1fr))',
                         gap: 1,
                         background: 'var(--color-divider)',
                         borderRadius: 'var(--radius-md)',
@@ -295,9 +367,10 @@ export default function Welcome({
                     style={{
                         maxWidth: 1240,
                         margin: '0 auto',
-                        padding: '34px 32px',
+                        padding: '34px clamp(16px, 4vw, 32px)',
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(4,1fr)',
+                        gridTemplateColumns:
+                            'repeat(auto-fit, minmax(190px, 1fr))',
                         gap: 24,
                     }}
                 >
@@ -324,7 +397,9 @@ export default function Welcome({
                         icon={<BuildingsIcon />}
                         value={stats.clients}
                         label={
-                            stats.clients === 1 ? 'Local client' : 'Local clients'
+                            stats.clients === 1
+                                ? 'Local client'
+                                : 'Local clients'
                         }
                     />
                 </div>
@@ -342,7 +417,7 @@ export default function Welcome({
                     style={{
                         maxWidth: 1240,
                         margin: '0 auto',
-                        padding: '64px 32px 72px',
+                        padding: '64px clamp(16px, 4vw, 32px) 72px',
                     }}
                 >
                     <h3 style={{ margin: '0 0 6px' }}>What our clients say</h3>
@@ -378,7 +453,7 @@ export default function Welcome({
                     style={{
                         maxWidth: 1240,
                         margin: '0 auto',
-                        padding: '26px 32px',
+                        padding: '26px clamp(16px, 4vw, 32px)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 20,
@@ -524,5 +599,68 @@ function Testimonial({ quote, name, role }: TestimonialItem) {
                 </div>
             </div>
         </div>
+    );
+}
+
+/**
+ * One side of the match illustration over the hero photo.
+ *
+ * Skills read as chips because that is how they are shown everywhere else on
+ * the platform; requirements read as lines, because a requirement is a
+ * sentence and a chip would clip it.
+ */
+function MatchCard({
+    icon,
+    title,
+    kicker,
+    items,
+    chips = false,
+}: {
+    icon: ReactNode;
+    title: string;
+    kicker: string;
+    items: string[];
+    chips?: boolean;
+}) {
+    return (
+        <div className="hero-proof-card">
+            <div className="hero-proof-head">
+                <span className="hero-proof-icon">{icon}</span>
+                {title}
+            </div>
+
+            <div className="hero-proof-kicker">{kicker}</div>
+
+            <div className={chips ? 'hero-proof-chips' : 'hero-proof-lines'}>
+                {items.map((item) => (
+                    <span key={item}>{item}</span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Five stars filled to the average, halves included.
+ *
+ * Drawn from the figure rather than from a picked icon set so the row cannot
+ * drift from the number printed beside it.
+ */
+function Stars({ value }: { value: number }) {
+    return (
+        <span
+            className="hero-stars"
+            role="img"
+            aria-label={`${value.toFixed(1)} out of 5`}
+        >
+            <span
+                style={{
+                    width: `${Math.max(0, Math.min(value / 5, 1)) * 100}%`,
+                }}
+            >
+                ★★★★★
+            </span>
+            ☆☆☆☆☆
+        </span>
     );
 }

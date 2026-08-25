@@ -25,10 +25,11 @@ export default function AccountStatusBanner() {
         <div
             role="status"
             data-test="monitoring-banner"
+            className="page-shell"
             style={{
                 maxWidth: 1180,
                 margin: '16px auto 0',
-                padding: '11px 14px',
+                paddingBlock: 11,
                 borderRadius: 'var(--radius-md)',
                 background:
                     'color-mix(in srgb, var(--color-accent-2, var(--color-accent)) 14%, transparent)',
@@ -47,7 +48,10 @@ export default function AccountStatusBanner() {
                 applying, hiring and signing are on hold.
             </span>
 
-            <Link href={profileEdit.url()} style={{ textDecoration: 'underline' }}>
+            <Link
+                href={profileEdit.url()}
+                style={{ textDecoration: 'underline' }}
+            >
                 Review appeal
             </Link>
         </div>

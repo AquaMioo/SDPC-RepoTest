@@ -87,7 +87,7 @@ export default function VerifyOtp({
 
             <div
                 className="card elev-md"
-                style={{ width: 420, padding: 28, gap: 16 }}
+                style={{ width: '100%', maxWidth: 420, padding: 28, gap: 16 }}
             >
                 <div style={{ textAlign: 'center' }}>
                     <h4 style={{ margin: 0 }}>Check your inbox</h4>
@@ -139,10 +139,7 @@ export default function VerifyOtp({
                         </InputOTPGroup>
                     </InputOTP>
 
-                    <InputError
-                        message={errors.code}
-                        className="text-[11px]"
-                    />
+                    <InputError message={errors.code} className="text-[11px]" />
 
                     <Btn
                         type="submit"

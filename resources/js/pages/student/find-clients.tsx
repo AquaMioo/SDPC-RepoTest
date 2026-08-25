@@ -103,7 +103,7 @@ export default function FindClients({
                 style={{
                     maxWidth: 1320,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
                 <div
@@ -132,11 +132,7 @@ export default function FindClients({
                 </div>
 
                 {!canApply && (
-                    <Panel
-                        padding="md"
-                        gap="sm"
-                        style={{ marginBottom: 18 }}
-                    >
+                    <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
                         <span style={{ fontSize: 12.5, color: MUTED(70) }}>
                             You can read every brief here. Applying opens up
                             once an administrator has verified your student
@@ -147,11 +143,7 @@ export default function FindClients({
 
                 {/* Browsing stays open while they build — applying does not. */}
                 {canApply && holdsProjectInHand && (
-                    <Panel
-                        padding="md"
-                        gap="sm"
-                        style={{ marginBottom: 18 }}
-                    >
+                    <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
                         <span style={{ fontSize: 12.5, color: MUTED(70) }}>
                             You already have a project in hand. Browse all you
                             like — applying opens up again once that build is
@@ -348,7 +340,11 @@ export default function FindClients({
  * The AI analysis strip: match ring, per-factor bars, and the written
  * recommendation. Only rendered when there is a real score behind it.
  */
-function MatchPanel({ highlight }: { highlight: NonNullable<Props['highlight']> }) {
+function MatchPanel({
+    highlight,
+}: {
+    highlight: NonNullable<Props['highlight']>;
+}) {
     const circumference = 2 * Math.PI * 46;
 
     return (
@@ -425,8 +421,7 @@ function MatchPanel({ highlight }: { highlight: NonNullable<Props['highlight']> 
                     <SparkleIcon style={{ color: 'var(--color-accent)' }} />
                     <span className="card-kicker">AI analysis</span>
                     <span style={{ fontSize: 13 }}>
-                        Strongest match: {highlight.title} ·{' '}
-                        {highlight.client}
+                        Strongest match: {highlight.title} · {highlight.client}
                     </span>
                 </div>
 
@@ -434,7 +429,8 @@ function MatchPanel({ highlight }: { highlight: NonNullable<Props['highlight']> 
                     <div
                         style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 1fr',
+                            gridTemplateColumns:
+                                'repeat(auto-fit, minmax(200px, 1fr))',
                             gap: '10px 22px',
                         }}
                     >
@@ -540,11 +536,15 @@ function BriefRow({
                 flexDirection: 'column',
                 gap: 8,
                 padding: isFirst ? '0 0 20px' : '20px 0',
-                borderTop: isFirst ? undefined : '1px solid var(--color-divider)',
+                borderTop: isFirst
+                    ? undefined
+                    : '1px solid var(--color-divider)',
             }}
         >
             <div style={{ fontSize: 11.5, color: MUTED(60) }}>
-                {project.postedAt ? `Posted ${project.postedAt}` : 'Not yet published'}
+                {project.postedAt
+                    ? `Posted ${project.postedAt}`
+                    : 'Not yet published'}
                 {' · '}
                 {project.client}
                 {project.city ? ` · ${project.city}` : ''}
@@ -660,7 +660,11 @@ function BriefRow({
                                     : 'Applying opens up once your credential is verified and you have no build in hand.'
                             }
                         >
-                            {canApply ? <Link href={href}>Apply</Link> : 'Apply'}
+                            {canApply ? (
+                                <Link href={href}>Apply</Link>
+                            ) : (
+                                'Apply'
+                            )}
                         </Btn>
                     )}
                 </span>

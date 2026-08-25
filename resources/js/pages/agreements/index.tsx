@@ -40,7 +40,7 @@ export default function AgreementIndex({ agreements }: Props) {
                 style={{
                     maxWidth: 1060,
                     margin: '0 auto',
-                    padding: '30px 32px 72px',
+                    padding: '30px clamp(16px, 4vw, 32px) 72px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 22,
@@ -55,9 +55,7 @@ export default function AgreementIndex({ agreements }: Props) {
 
                 {agreements.length === 0 ? (
                     <Panel padding="lg" gap="sm">
-                        <span style={{ fontSize: 13 }}>
-                            No agreement yet.
-                        </span>
+                        <span style={{ fontSize: 13 }}>No agreement yet.</span>
                         <span style={{ fontSize: 12.5, color: MUTED(65) }}>
                             One is drafted the moment a client accepts a
                             student, and the work starts when both sides have
@@ -66,9 +64,7 @@ export default function AgreementIndex({ agreements }: Props) {
                     </Panel>
                 ) : (
                     <Panel padding="lg" gap="md">
-                        <PanelKicker>
-                            {agreements.length} in total
-                        </PanelKicker>
+                        <PanelKicker>{agreements.length} in total</PanelKicker>
 
                         {agreements.map((agreement) => (
                             <div

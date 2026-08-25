@@ -54,7 +54,18 @@ type Props = {
 };
 
 /** A short row of emoji for the composer, not a full keyboard. */
-const QUICK_EMOJI = ['😀', '😂', '🙏', '👍', '🎉', '🔥', '❤️', '😢', '👀', '✅'];
+const QUICK_EMOJI = [
+    '😀',
+    '😂',
+    '🙏',
+    '👍',
+    '🎉',
+    '🔥',
+    '❤️',
+    '😢',
+    '👀',
+    '✅',
+];
 
 /**
  * Whether a message is nothing but a few emoji.
@@ -64,7 +75,10 @@ const QUICK_EMOJI = ['😀', '😂', '🙏', '👍', '🎉', '🔥', '❤️', '
  * handful so a wall of emoji stays a normal message rather than filling the
  * thread.
  */
-function isEmojiOnly(message: { body: string | null; imageUrl: string | null }) {
+function isEmojiOnly(message: {
+    body: string | null;
+    imageUrl: string | null;
+}) {
     if (message.imageUrl !== null || message.body === null) {
         return false;
     }
@@ -77,7 +91,8 @@ function isEmojiOnly(message: { body: string | null; imageUrl: string | null }) 
 
     // Extended_Pictographic covers emoji proper; the rest are the joiners,
     // skin-tone modifiers and variation selectors that compose them.
-    const emojiOnly = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u;
+    const emojiOnly =
+        /^(\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u;
 
     return (
         emojiOnly.test(text) &&
@@ -258,7 +273,7 @@ export default function Messages({ threads, active }: Props) {
                 style={{
                     maxWidth: 1320,
                     margin: '0 auto',
-                    padding: '30px 32px 48px',
+                    padding: '30px clamp(16px, 4vw, 32px) 48px',
                 }}
             >
                 <div style={{ marginBottom: 18 }}>
@@ -279,11 +294,16 @@ export default function Messages({ threads, active }: Props) {
                     </Panel>
                 ) : (
                     <div
+                        className="split"
                         style={{
-                            display: 'grid',
-                            gridTemplateColumns: '300px minmax(0,1fr)',
+                            ['--rail' as string]: '300px',
                             gap: 16,
-                            height: 'calc(100vh - 220px)',
+                            /*
+                             * Stacked on a phone the thread list and the thread
+                             * cannot share one viewport height, so the pair is
+                             * left to its natural height until there is room
+                             * for two columns.
+                             */
                             minHeight: 420,
                         }}
                     >
@@ -609,108 +629,116 @@ export default function Messages({ threads, active }: Props) {
                                             </div>
 
                                             {/*
-                                              * Reactions already left, plus the
-                                              * picker while hovered. Rendered
-                                              * only when there is something to
-                                              * show, so an untouched message
-                                              * carries no empty strip.
-                                              */}
+                                             * Reactions already left, plus the
+                                             * picker while hovered. Rendered
+                                             * only when there is something to
+                                             * show, so an untouched message
+                                             * carries no empty strip.
+                                             */}
                                             {!message.isRemoved &&
                                                 (message.reactions.length > 0 ||
                                                     hovered === message.id) && (
-                                                <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        flexWrap: 'wrap',
-                                                        gap: 4,
-                                                        marginTop: 4,
-                                                        justifyContent:
-                                                            message.isMine
-                                                                ? 'flex-end'
-                                                                : 'flex-start',
-                                                    }}
-                                                >
-                                                    {message.reactions.map(
-                                                        (reaction) => (
-                                                            <button
-                                                                key={
-                                                                    reaction.emoji
-                                                                }
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    react(
-                                                                        message.id,
-                                                                        reaction.emoji,
-                                                                    )
-                                                                }
-                                                                title="Toggle this reaction"
+                                                    <div
+                                                        style={{
+                                                            display: 'flex',
+                                                            flexWrap: 'wrap',
+                                                            gap: 4,
+                                                            marginTop: 4,
+                                                            justifyContent:
+                                                                message.isMine
+                                                                    ? 'flex-end'
+                                                                    : 'flex-start',
+                                                        }}
+                                                    >
+                                                        {message.reactions.map(
+                                                            (reaction) => (
+                                                                <button
+                                                                    key={
+                                                                        reaction.emoji
+                                                                    }
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        react(
+                                                                            message.id,
+                                                                            reaction.emoji,
+                                                                        )
+                                                                    }
+                                                                    title="Toggle this reaction"
+                                                                    style={{
+                                                                        fontSize: 11.5,
+                                                                        padding:
+                                                                            '1px 7px',
+                                                                        borderRadius: 999,
+                                                                        border: `1px solid ${reaction.reacted ? 'var(--color-primary, #4a7c4e)' : MUTED(18)}`,
+                                                                        background:
+                                                                            reaction.reacted
+                                                                                ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)'
+                                                                                : 'transparent',
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        reaction.emoji
+                                                                    }{' '}
+                                                                    {
+                                                                        reaction.count
+                                                                    }
+                                                                </button>
+                                                            ),
+                                                        )}
+
+                                                        {/*
+                                                         * Appears once the cursor
+                                                         * has rested on the
+                                                         * message for two seconds,
+                                                         * so it does not flash up
+                                                         * at every pass of the
+                                                         * mouse across the thread.
+                                                         */}
+                                                        {hovered ===
+                                                            message.id && (
+                                                            <div
                                                                 style={{
-                                                                    fontSize: 11.5,
-                                                                    padding:
-                                                                        '1px 7px',
+                                                                    display:
+                                                                        'flex',
+                                                                    gap: 2,
+                                                                    padding: 3,
                                                                     borderRadius: 999,
-                                                                    border: `1px solid ${reaction.reacted ? 'var(--color-primary, #4a7c4e)' : MUTED(18)}`,
+                                                                    border: `1px solid ${MUTED(15)}`,
                                                                     background:
-                                                                        reaction.reacted
-                                                                            ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)'
-                                                                            : 'transparent',
+                                                                        'var(--color-surface, #fff)',
                                                                 }}
                                                             >
-                                                                {reaction.emoji}{' '}
-                                                                {reaction.count}
-                                                            </button>
-                                                        ),
-                                                    )}
-
-                                                    {/*
-                                                      * Appears once the cursor
-                                                      * has rested on the
-                                                      * message for two seconds,
-                                                      * so it does not flash up
-                                                      * at every pass of the
-                                                      * mouse across the thread.
-                                                      */}
-                                                    {hovered === message.id && (
-                                                        <div
-                                                            style={{
-                                                                display: 'flex',
-                                                                gap: 2,
-                                                                padding: 3,
-                                                                borderRadius: 999,
-                                                                border: `1px solid ${MUTED(15)}`,
-                                                                background:
-                                                                    'var(--color-surface, #fff)',
-                                                            }}
-                                                        >
-                                                            {active.reactionChoices.map(
-                                                                (emoji) => (
-                                                                    <button
-                                                                        key={
-                                                                            emoji
-                                                                        }
-                                                                        type="button"
-                                                                        title="React"
-                                                                        onClick={() =>
-                                                                            react(
-                                                                                message.id,
-                                                                                emoji,
-                                                                            )
-                                                                        }
-                                                                        style={{
-                                                                            fontSize: 14,
-                                                                            padding:
-                                                                                '1px 3px',
-                                                                            lineHeight: 1,
-                                                                        }}
-                                                                    >
-                                                                        {emoji}
-                                                                    </button>
-                                                                ),
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                                                {active.reactionChoices.map(
+                                                                    (emoji) => (
+                                                                        <button
+                                                                            key={
+                                                                                emoji
+                                                                            }
+                                                                            type="button"
+                                                                            title="React"
+                                                                            onClick={() =>
+                                                                                react(
+                                                                                    message.id,
+                                                                                    emoji,
+                                                                                )
+                                                                            }
+                                                                            style={{
+                                                                                fontSize: 14,
+                                                                                padding:
+                                                                                    '1px 3px',
+                                                                                lineHeight: 1,
+                                                                            }}
+                                                                        >
+                                                                            {
+                                                                                emoji
+                                                                            }
+                                                                        </button>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
 
                                             <div
                                                 style={{
@@ -744,17 +772,17 @@ export default function Messages({ threads, active }: Props) {
                                                     editing !== message.id && (
                                                         <>
                                                             {/*
-                                                              * Editing closes
-                                                              * 30 seconds after
-                                                              * sending. The
-                                                              * clock ticking
-                                                              * above is what
-                                                              * makes this
-                                                              * disappear on its
-                                                              * own; the server
-                                                              * refuses it
-                                                              * either way.
-                                                              */}
+                                                             * Editing closes
+                                                             * 30 seconds after
+                                                             * sending. The
+                                                             * clock ticking
+                                                             * above is what
+                                                             * makes this
+                                                             * disappear on its
+                                                             * own; the server
+                                                             * refuses it
+                                                             * either way.
+                                                             */}
                                                             {message.editableUntil !==
                                                                 null &&
                                                                 now <

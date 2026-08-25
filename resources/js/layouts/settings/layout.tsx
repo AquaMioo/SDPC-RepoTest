@@ -15,14 +15,17 @@ import { edit as editSecurity } from '@/routes/security';
 import { index as teams } from '@/routes/teams';
 import type { NavItem } from '@/types';
 
+/**
+ * The settings shell. `.split` carries the geometry so the sidebar sits above
+ * the panel on a phone instead of holding a 216px column open beside it, and
+ * `.page-shell` gives back the desktop gutter at narrow widths.
+ */
 const SHELL: React.CSSProperties = {
     maxWidth: 1120,
-    margin: '0 auto',
-    padding: '28px 32px 72px',
-    display: 'grid',
-    gridTemplateColumns: '216px minmax(0,1fr)',
+    paddingTop: 28,
+    paddingBottom: 72,
+    ['--rail' as string]: '216px',
     gap: 24,
-    alignItems: 'start',
 };
 
 const KICKER: React.CSSProperties = {
@@ -96,7 +99,11 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     };
 
     return (
-        <div style={SHELL} data-screen-label="Settings">
+        <div
+            className="page-shell split"
+            style={SHELL}
+            data-screen-label="Settings"
+        >
             <div
                 className="card elev-sm"
                 style={{

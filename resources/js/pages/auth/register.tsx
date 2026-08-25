@@ -36,7 +36,7 @@ type Props = {
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
 const TWO_UP: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: 10,
 };
 
@@ -67,7 +67,8 @@ export default function Register({
             <div
                 className="card elev-md"
                 style={{
-                    width: 420,
+                    width: '100%',
+                    maxWidth: 420,
                     padding: 28,
                     gap: 13,
                     position: 'relative',
