@@ -19,6 +19,23 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        /*
+         * Behind a load balancer that terminates TLS — Railway, Fly, Render,
+         * anything with a managed certificate — the app itself is spoken to
+         * over plain HTTP. Without trusting the proxy's X-Forwarded-* headers
+         * Laravel believes the request is insecure, and then: route() and
+         * asset() emit http:// links that a browser on an https:// page
+         * refuses to load, the session cookie loses its Secure flag, and the
+         * HSTS header in AddSecurityHeaders never fires because
+         * $request->secure() is false.
+         *
+         * `at: '*'` trusts whatever is in front. That is only safe because a
+         * managed platform is the sole route in — never do this on a host
+         * where the app port is reachable directly, or a client can forge
+         * X-Forwarded-For and spoof its own address.
+         */
+        $middleware->trustProxies(at: '*');
+
         $middleware->encryptCookies(except: ['sidebar_state']);
 
         $middleware->web(append: [

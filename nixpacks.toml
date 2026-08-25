@@ -1,0 +1,32 @@
+# How Railway builds this repo.
+#
+# Nixpacks finds composer.json and package.json on its own and picks a PHP
+# version from the `php` constraint in composer.json. What it cannot guess is
+# the order below, and that order is the whole point of this file:
+#
+#   resources/js/routes and resources/js/actions are GITIGNORED. They are
+#   generated from the route table by Wayfinder, and every page imports from
+#   them. A fresh clone — which is exactly what Railway builds from — does not
+#   have them, so they must be generated before Vite runs or the build dies on
+#   unresolved imports.
+#
+# Vite's Wayfinder plugin does this too, but running it explicitly first keeps
+# the dependency visible and does not rely on plugin ordering.
+#
+# All three services (web, worker, reverb) share this build; only their start
+# commands differ. See the Procfile.
+
+[phases.install]
+cmds = [
+  'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
+  'npm ci',
+]
+
+[phases.build]
+cmds = [
+  'php artisan wayfinder:generate',
+  'npm run build',
+]
+
+[start]
+cmd = 'php artisan serve --host 0.0.0.0 --port $PORT'

@@ -15,9 +15,23 @@ return [
     |
     */
 
+    /*
+     * Server-side rendering.
+     *
+     * On by default because the Vite dev server hosts the SSR endpoint itself
+     * — nothing extra to run locally. In production it is a separate process
+     * (`php artisan inertia:start-ssr`) listening on the url below, and if it
+     * is not running Laravel attempts the render, fails, and falls back to the
+     * browser on every single request. The pages still work; they just each
+     * pay for a failed HTTP call first.
+     *
+     * So on a host where you are not running that fourth process, set
+     * INERTIA_SSR_ENABLED=false rather than leaving this pointed at a port
+     * with nothing behind it.
+     */
     'ssr' => [
-        'enabled' => true,
-        'url' => 'http://127.0.0.1:13714',
+        'enabled' => (bool) env('INERTIA_SSR_ENABLED', true),
+        'url' => env('INERTIA_SSR_URL', 'http://127.0.0.1:13714'),
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
 
     ],
