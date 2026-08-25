@@ -125,7 +125,22 @@ export default function StudentDashboard({
     );
 }
 
+/**
+ * The month, and what the agreement has scheduled in it.
+ *
+ * A day is a button rather than a span: the milestone used to be reachable
+ * only through the `title` tooltip, which a touch screen never shows and a
+ * keyboard never reaches. Selecting a day writes it into the line under the
+ * grid, so every day says what it holds without a pointer hovering over it.
+ */
 function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
+    const [selected, setSelected] = useState<string | null>(null);
+    const selectedDay =
+        calendar.days.find((day) => day.date === selected) ?? null;
+    const nothingScheduled = calendar.days.every(
+        (day) => day.milestone === null,
+    );
+
     return (
         <Panel padding="md" gap="md">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -161,44 +176,66 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
                     gap: 3,
                 }}
             >
-                {calendar.days.map((day) => (
-                    <span
-                        key={day.date}
-                        data-day=""
-                        data-today={day.isToday ? 'true' : undefined}
-                        data-muted={day.isOutsideMonth ? 'true' : undefined}
-                        title={day.milestone ?? undefined}
-                        style={{
-                            aspectRatio: '1 / 1',
-                            display: 'grid',
-                            placeItems: 'center',
-                            fontSize: 11.5,
-                            borderRadius: '50%',
-                            position: 'relative',
-                        }}
-                    >
-                        {day.day}
-                        {day.milestone && (
-                            <span
-                                aria-label={day.milestone}
-                                style={{
-                                    position: 'absolute',
-                                    bottom: 2,
-                                    width: 4,
-                                    height: 4,
-                                    borderRadius: 2,
-                                    background: 'var(--color-accent)',
-                                }}
-                            />
-                        )}
-                    </span>
-                ))}
+                {calendar.days.map((day) => {
+                    const isSelected = day.date === selected;
+
+                    return (
+                        <button
+                            key={day.date}
+                            type="button"
+                            data-day=""
+                            data-today={day.isToday ? 'true' : undefined}
+                            data-muted={day.isOutsideMonth ? 'true' : undefined}
+                            aria-pressed={isSelected}
+                            aria-label={
+                                day.milestone === null
+                                    ? day.date
+                                    : `${day.date} — ${day.milestone}`
+                            }
+                            onClick={() =>
+                                setSelected(isSelected ? null : day.date)
+                            }
+                            /* The button reset, the hover tint and the
+                               selection ring live in nocturne.css: an inline
+                               background here would outrank the today pill. */
+                            style={{
+                                aspectRatio: '1 / 1',
+                                display: 'grid',
+                                placeItems: 'center',
+                                fontSize: 11.5,
+                                borderRadius: '50%',
+                                position: 'relative',
+                            }}
+                        >
+                            {day.day}
+                            {day.milestone && (
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: 2,
+                                        width: 4,
+                                        height: 4,
+                                        borderRadius: 2,
+                                        background: 'var(--color-accent)',
+                                    }}
+                                />
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
-            {calendar.days.every((day) => day.milestone === null) && (
-                <span style={{ fontSize: 11, color: MUTED(55) }}>
-                    Milestone dates appear here once an agreement is signed.
+            {selectedDay !== null ? (
+                <span style={{ fontSize: 11, color: MUTED(70) }}>
+                    {selectedDay.milestone ?? 'Nothing scheduled for this day.'}
                 </span>
+            ) : (
+                nothingScheduled && (
+                    <span style={{ fontSize: 11, color: MUTED(55) }}>
+                        Milestone dates appear here once an agreement is signed.
+                    </span>
+                )
             )}
         </Panel>
     );

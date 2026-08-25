@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import {
     MapPinIcon,
     PencilSimpleIcon,
@@ -11,10 +11,8 @@ import type { ReactNode } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
-import Field from '@/components/sdpc/field';
 import { Input, Select, Textarea } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
-import SkillInput from '@/components/sdpc/skill-input';
 import { Tag } from '@/components/sdpc/tag';
 import {
     AboutDialog,
@@ -34,11 +32,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useCurrentTeam } from '@/hooks/use-current-team';
-import {
-    destroy as portfolioDestroy,
-    store as portfolioStore,
-    update as portfolioUpdate,
-} from '@/routes/student/portfolio';
 import { update as profileUpdate } from '@/routes/student/profile';
 
 const MUTED = (pct: number) =>
@@ -51,18 +44,6 @@ const YEAR_LEVELS = [
     { value: '3', label: '3rd year' },
     { value: '4', label: '4th year' },
 ];
-
-type PortfolioItem = {
-    id: number;
-    title: string;
-    role: string | null;
-    description: string | null;
-    year: number | null;
-    url: string | null;
-    repositoryUrl: string | null;
-    isFeatured: boolean;
-    skills: string[];
-};
 
 type Props = {
     profile: {
@@ -92,7 +73,6 @@ type Props = {
     };
     educations: Education[];
     languages: Language[];
-    portfolio: PortfolioItem[];
     options: {
         schools: { id: number; name: string }[];
         courses: { id: number; name: string; abbreviation: string | null }[];
@@ -124,14 +104,11 @@ export default function StudentProfilePage({
     profile,
     educations,
     languages,
-    portfolio,
     options,
     maximumSkills,
     photoLimits,
     isVerifiedStudent,
 }: Props) {
-    const team = useCurrentTeam();
-
     const [publicView, setPublicView] = useState(false);
     const [photoOpen, setPhotoOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
@@ -391,48 +368,6 @@ export default function StudentProfilePage({
                                 ))
                             )}
                         </Card>
-
-                        <Card
-                            title="Availability"
-                            editable={editable}
-                            onEdit={() => setDetailsOpen(true)}
-                        >
-                            <div style={{ fontSize: 12.5 }}>
-                                {profile.isAvailable
-                                    ? 'Open to a project this term'
-                                    : 'Not taking new work'}
-                            </div>
-                            <Detail
-                                label="Hours a week"
-                                value={profile.weeklyHours}
-                            />
-                            <Detail
-                                label="Rate"
-                                value={
-                                    profile.hourlyRate === null
-                                        ? null
-                                        : `₱${profile.hourlyRate.toLocaleString()}/hr`
-                                }
-                            />
-                            <Detail
-                                label="Replies within"
-                                value={
-                                    profile.responseTimeHours === null
-                                        ? null
-                                        : `${profile.responseTimeHours} hours`
-                                }
-                            />
-                            {profile.availabilityNote && (
-                                <div
-                                    style={{
-                                        fontSize: 11.5,
-                                        color: MUTED(60),
-                                    }}
-                                >
-                                    {profile.availabilityNote}
-                                </div>
-                            )}
-                        </Card>
                     </div>
 
                     <div style={{ display: 'grid', gap: 16 }}>
@@ -544,11 +479,6 @@ export default function StudentProfilePage({
                                 </>
                             )}
                         </Panel>
-
-                        <PortfolioSection
-                            items={portfolio}
-                            teamSlug={team.slug}
-                        />
                     </div>
                 </div>
             </div>
@@ -803,25 +733,6 @@ function Empty({ children }: { children: ReactNode }) {
         >
             {children}
         </p>
-    );
-}
-
-/** A labelled figure in the availability card, hidden when unset. */
-function Detail({
-    label,
-    value,
-}: {
-    label: string;
-    value: string | number | null;
-}) {
-    if (value === null || value === '') {
-        return null;
-    }
-
-    return (
-        <div style={{ fontSize: 12, color: MUTED(65) }}>
-            {label}: <span style={{ color: MUTED(85) }}>{value}</span>
-        </div>
     );
 }
 
@@ -1171,340 +1082,5 @@ function DetailsDialog({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
-}
-
-/**
- * Featured portfolio — the Student Background History from the vision
- * document, kept by the student rather than inferred from their projects.
- */
-function PortfolioSection({
-    items,
-    teamSlug,
-}: {
-    items: PortfolioItem[];
-    teamSlug: string;
-}) {
-    const [editingId, setEditingId] = useState<number | 'new' | null>(null);
-
-    return (
-        <div>
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: 4,
-                }}
-            >
-                <h6 style={{ margin: 0, marginRight: 'auto' }}>
-                    Featured portfolio
-                </h6>
-                {editingId !== 'new' && (
-                    <Btn onClick={() => setEditingId('new')}>Add work</Btn>
-                )}
-            </div>
-            <p
-                style={{
-                    fontSize: 12.5,
-                    color: MUTED(68),
-                    margin: '0 0 16px',
-                }}
-            >
-                A showcase of recent development projects and technical
-                contributions.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {editingId === 'new' && (
-                    <PortfolioForm
-                        teamSlug={teamSlug}
-                        onDone={() => setEditingId(null)}
-                    />
-                )}
-
-                {items.length === 0 && editingId !== 'new' && (
-                    <Panel style={{ padding: 16, gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>Nothing here yet.</span>
-                        <span style={{ fontSize: 12.5, color: MUTED(65) }}>
-                            Capstone work, coursework and anything you have
-                            shipped. This is what a client reads before they
-                            shortlist you.
-                        </span>
-                    </Panel>
-                )}
-
-                {items.map((item) =>
-                    editingId === item.id ? (
-                        <PortfolioForm
-                            key={item.id}
-                            item={item}
-                            teamSlug={teamSlug}
-                            onDone={() => setEditingId(null)}
-                        />
-                    ) : (
-                        <Panel key={item.id} style={{ padding: 16, gap: 6 }}>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        fontFamily: 'var(--font-heading)',
-                                        fontSize: 16,
-                                    }}
-                                >
-                                    {item.title}
-                                </span>
-                                {item.role && (
-                                    <Tag variant="neutral">{item.role}</Tag>
-                                )}
-                                {item.year && (
-                                    <span
-                                        style={{
-                                            fontSize: 11.5,
-                                            color: MUTED(68),
-                                        }}
-                                    >
-                                        {item.year}
-                                    </span>
-                                )}
-                                <Btn
-                                    icon
-                                    variant="bare"
-                                    aria-label={`Edit ${item.title}`}
-                                    style={{ marginLeft: 'auto' }}
-                                    onClick={() => setEditingId(item.id)}
-                                >
-                                    <PencilSimpleIcon />
-                                </Btn>
-                            </div>
-
-                            {item.description && (
-                                <p
-                                    style={{
-                                        margin: 0,
-                                        fontSize: 12.5,
-                                        lineHeight: 1.55,
-                                        color: MUTED(60),
-                                    }}
-                                >
-                                    {item.description}
-                                </p>
-                            )}
-
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    gap: 6,
-                                    flexWrap: 'wrap',
-                                    marginTop: 2,
-                                }}
-                            >
-                                {item.skills.map((skill) => (
-                                    <Tag key={skill} variant="outline">
-                                        {skill}
-                                    </Tag>
-                                ))}
-                            </div>
-                        </Panel>
-                    ),
-                )}
-            </div>
-        </div>
-    );
-}
-
-function PortfolioForm({
-    item,
-    teamSlug,
-    onDone,
-}: {
-    item?: PortfolioItem;
-    teamSlug: string;
-    onDone: () => void;
-}) {
-    const form = useForm({
-        title: item?.title ?? '',
-        role: item?.role ?? '',
-        description: item?.description ?? '',
-        year: item?.year?.toString() ?? '',
-        url: item?.url ?? '',
-        repository_url: item?.repositoryUrl ?? '',
-        is_featured: item?.isFeatured ?? true,
-        skills: item?.skills ?? [],
-    });
-
-    const submit = () => {
-        form.transform((data) => ({ ...data, year: data.year || null }));
-
-        const options = { preserveScroll: true, onSuccess: onDone };
-
-        if (item) {
-            form.patch(
-                portfolioUpdate.url({
-                    current_team: teamSlug,
-                    portfolioItem: item.id,
-                }),
-                options,
-            );
-
-            return;
-        }
-
-        form.post(portfolioStore.url(teamSlug), options);
-    };
-
-    const remove = () => {
-        if (!item) {
-            return;
-        }
-
-        router.delete(
-            portfolioDestroy.url({
-                current_team: teamSlug,
-                portfolioItem: item.id,
-            }),
-            { preserveScroll: true, onSuccess: onDone },
-        );
-    };
-
-    return (
-        <Panel style={{ padding: 16, gap: 12 }}>
-            <Field label="Title" error={form.errors.title} required>
-                {(props) => (
-                    <Input
-                        {...props}
-                        value={form.data.title}
-                        maxLength={255}
-                        placeholder="Grosync"
-                        onChange={(event) =>
-                            form.setData('title', event.target.value)
-                        }
-                    />
-                )}
-            </Field>
-
-            <div
-                className="stack"
-                style={{
-                    ['--cols' as string]: '1fr 120px',
-                    gap: 12,
-                }}
-            >
-                <Field label="Your role" error={form.errors.role}>
-                    {(props) => (
-                        <Input
-                            {...props}
-                            value={form.data.role}
-                            maxLength={120}
-                            placeholder="Lead developer"
-                            onChange={(event) =>
-                                form.setData('role', event.target.value)
-                            }
-                        />
-                    )}
-                </Field>
-
-                <Field label="Year" error={form.errors.year}>
-                    {(props) => (
-                        <Input
-                            {...props}
-                            type="number"
-                            min={2000}
-                            value={form.data.year}
-                            onChange={(event) =>
-                                form.setData('year', event.target.value)
-                            }
-                        />
-                    )}
-                </Field>
-            </div>
-
-            <Field label="What it does" error={form.errors.description}>
-                {(props) => (
-                    <Textarea
-                        {...props}
-                        value={form.data.description}
-                        maxLength={2000}
-                        placeholder="A web-based inventory system with predictive reorder analytics for grocery stores in San Jose del Monte."
-                        onChange={(event) =>
-                            form.setData('description', event.target.value)
-                        }
-                    />
-                )}
-            </Field>
-
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: 12,
-                }}
-            >
-                <Field label="Live link" error={form.errors.url}>
-                    {(props) => (
-                        <Input
-                            {...props}
-                            type="url"
-                            value={form.data.url}
-                            placeholder="https://"
-                            onChange={(event) =>
-                                form.setData('url', event.target.value)
-                            }
-                        />
-                    )}
-                </Field>
-
-                <Field label="Repository" error={form.errors.repository_url}>
-                    {(props) => (
-                        <Input
-                            {...props}
-                            type="url"
-                            value={form.data.repository_url}
-                            placeholder="https://github.com/you/project"
-                            onChange={(event) =>
-                                form.setData(
-                                    'repository_url',
-                                    event.target.value,
-                                )
-                            }
-                        />
-                    )}
-                </Field>
-            </div>
-
-            <div className="field">
-                <label>Built with</label>
-                <SkillInput
-                    value={form.data.skills}
-                    onChange={(skills) => form.setData('skills', skills)}
-                    placeholder="Laravel, MySQL…"
-                />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {item && (
-                    <Btn
-                        variant="ghost"
-                        style={{ marginRight: 'auto' }}
-                        onClick={remove}
-                    >
-                        Remove
-                    </Btn>
-                )}
-                <span style={{ marginRight: item ? undefined : 'auto' }} />
-                <Btn onClick={onDone}>Cancel</Btn>
-                <Btn
-                    variant="primary"
-                    disabled={form.processing}
-                    onClick={submit}
-                >
-                    {form.processing ? 'Saving…' : 'Save'}
-                </Btn>
-            </div>
-        </Panel>
     );
 }

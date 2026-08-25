@@ -1,5 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { BuildingsIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
+import {
+    ArrowLeftIcon,
+    BuildingsIcon,
+    MagnifyingGlassIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
@@ -7,6 +11,7 @@ import { Input } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { index as boardIndex } from '@/routes/student/board';
 import {
     index as clientsIndex,
     show as clientsShow,
@@ -66,6 +71,13 @@ export default function StudentClients({ businesses, filters }: Props) {
                     gap: 18,
                 }}
             >
+                <Btn asChild variant="ghost" style={{ alignSelf: 'start' }}>
+                    <Link href={boardIndex.url(team.slug)}>
+                        <ArrowLeftIcon />
+                        Back to the board
+                    </Link>
+                </Btn>
+
                 <div>
                     <h3 style={{ margin: 0 }}>Client list</h3>
                     <div style={{ fontSize: 13, color: MUTED(60) }}>

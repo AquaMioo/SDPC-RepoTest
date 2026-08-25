@@ -170,16 +170,6 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         ))}
                     </nav>
 
-                    {user && (
-                        <span
-                            className="tag tag-outline"
-                            style={{ textTransform: 'capitalize' }}
-                            title="Your account type"
-                        >
-                            {page.props.auth?.role ?? user.role}
-                        </span>
-                    )}
-
                     <div className="app-bar-actions" style={{ fontSize: 18 }}>
                         <IconAction
                             label="Messages"
