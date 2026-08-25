@@ -1,36 +1,53 @@
 import { Head, useForm } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import {
+    BuildingsIcon,
+    PencilSimpleIcon,
+    UserIcon,
+} from '@phosphor-icons/react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
+
+import {
+    AccountDialog,
+    CompanyContactsDialog,
+    CompanyDetailsDialog,
+} from '@/components/client/profile-dialogs';
+import type {
+    Account,
+    BusinessProfile,
+} from '@/components/client/profile-dialogs';
 import Field from '@/components/sdpc/field';
-import Meter from '@/components/sdpc/meter';
-import { Panel, PanelKicker } from '@/components/sdpc/panel';
+import { Input } from '@/components/sdpc/input';
+import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
-import { update as clientProfileUpdate } from '@/routes/client-profile';
 import {
     destroy as testimonialDestroy,
     update as testimonialUpdate,
 } from '@/routes/testimonial';
 
+const MUTED = (pct: number) =>
+    `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
+
+/**
+ * Every business on this platform is in one city, so the zone is a constant
+ * rather than a column nobody would ever change. If clients outside the
+ * Philippines ever sign up, this is the line that has to become a field.
+ */
+const TIME_ZONE = 'UTC+08:00 (Philippine Standard Time)';
+
 type Props = {
-    profile: {
-        businessName: string;
-        businessDescription: string | null;
-        ownerName: string | null;
-        address: string | null;
-        city: string | null;
-        province: string | null;
-        phoneNumber: string | null;
-        contactEmail: string | null;
-        websiteUrl: string | null;
-        facebookUrl: string | null;
-        logoUrl: string | null;
-        hasPermit: boolean;
+    profile: BusinessProfile & {
+        industryLabel: string | null;
+        organizationSizeLabel: string | null;
         verificationLabel: string;
         verificationTagVariant: string;
         completion: number;
     };
+    account: Account;
+    industries: { value: string; label: string }[];
+    organizationSizes: { value: string; label: string }[];
     testimonial: {
         body: string;
         authorTitle: string | null;
@@ -38,11 +55,28 @@ type Props = {
     } | null;
     canPublishTestimonial: boolean;
     canUpdate: boolean;
-    locations: { province: string; cities: string[] }[];
+    locations: Record<string, string[]>;
 };
 
+/**
+ * Business profile.
+ *
+ * Read as cards and edited in dialogs, rather than as one long form behind a
+ * single "Save profile" button. The Account card at the top is the person
+ * signed in, not the business — it is the only place on the platform a client
+ * can change their own name, email address or picture, since the settings
+ * screen no longer carries an editor for them.
+ *
+ * The business permit upload that used to sit here is gone. Nobody reviews
+ * permits any more, and uploading one reset the profile to Pending with
+ * nothing able to grant it back, which quietly cost the client their ability
+ * to post work. See App\Actions\Client\UpdateClientProfile.
+ */
 export default function ClientProfilePage({
     profile,
+    account,
+    industries,
+    organizationSizes,
     testimonial,
     canPublishTestimonial,
     canUpdate,
@@ -50,164 +84,194 @@ export default function ClientProfilePage({
 }: Props) {
     const team = useCurrentTeam();
 
-    /*
-     * A stored place the list does not know about — anything typed in before
-     * these were dropdowns — starts blank instead of preselected. Leaving it
-     * in place would show a value the server now rejects, blocking a save the
-     * owner never asked to change.
-     */
-    const knownProvince = locations.find(
-        (entry) => entry.province === profile.province,
-    );
-    const initialProvince = knownProvince ? profile.province ?? '' : '';
-    const initialCity =
-        knownProvince && profile.city && knownProvince.cities.includes(profile.city)
-            ? profile.city
-            : '';
+    const [accountOpen, setAccountOpen] = useState(false);
+    const [companyOpen, setCompanyOpen] = useState(false);
+    const [contactsOpen, setContactsOpen] = useState(false);
 
-    const { data, setData, post, processing, errors, recentlySuccessful } =
-        useForm({
-            _method: 'patch',
-            business_name: profile.businessName ?? '',
-            business_description: profile.businessDescription ?? '',
-            owner_name: profile.ownerName ?? '',
-            address: profile.address ?? '',
-            city: initialCity,
-            province: initialProvince,
-            /*
-             * Stripped on the way in, not just as it is typed. Profiles saved
-             * before the digits-only rule hold values like "+63 917 555 0142",
-             * and loading one verbatim would fail validation the next time its
-             * owner pressed Save without having touched the field.
-             */
-            phone_number: (profile.phoneNumber ?? '').replace(/\D/g, ''),
-            contact_email: profile.contactEmail ?? '',
-            website_url: profile.websiteUrl ?? '',
-            facebook_url: profile.facebookUrl ?? '',
-            logo: null as File | null,
-            permit: null as File | null,
-        });
-
-    /*
-     * Preview of the logo the client just picked, before anything is saved.
-     * The object URL is revoked on replacement so choosing five files in a row
-     * does not leak five blobs.
-     */
-    const [pickedLogoUrl, setPickedLogoUrl] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (data.logo === null) {
-            setPickedLogoUrl(null);
-
-            return;
-        }
-
-        const url = URL.createObjectURL(data.logo);
-        setPickedLogoUrl(url);
-
-        return () => URL.revokeObjectURL(url);
-    }, [data.logo]);
-
-    // What the client sees now: the pick if there is one, the saved logo
-    // otherwise. Falling back keeps the slot filled instead of blinking empty.
-    const shownLogoUrl = pickedLogoUrl ?? profile.logoUrl;
-
-    // The city select follows whatever province is chosen right now, not the
-    // one that was stored.
-    const citiesForProvince =
-        locations.find((entry) => entry.province === data.province)?.cities ?? [];
-
-    /*
-     * Kept out of the profile form on purpose: this one is public copy on the
-     * landing page, saved and withdrawn on its own, and a client should be
-     * able to pull a quote down without re-submitting their whole business.
-     */
     const quote = useForm({
         body: testimonial?.body ?? '',
         author_title: testimonial?.authorTitle ?? '',
     });
 
+    const address = [profile.address, profile.city, profile.province]
+        .filter(Boolean)
+        .join(', ');
+
     return (
         <>
             <Head title="Business profile" />
 
-            <form
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    /* POST with _method spoofing so file uploads reach a PATCH route. */
-                    post(clientProfileUpdate.url(team.slug), {
-                        preserveScroll: true,
-                        forceFormData: true,
-                    });
-                }}
-                className="mx-auto grid max-w-[1060px] items-start gap-6 px-8 pt-6 pb-[72px] lg:grid-cols-[minmax(0,1fr)_300px]"
-            >
-                <div className="flex min-w-0 flex-col gap-4">
-                    <div className="flex items-end gap-4">
-                        <div className="mr-auto">
-                            <h3 className="m-0">Business profile</h3>
-                            <div className="text-[13px] text-muted-foreground">
-                                Students see this when they consider your
-                                postings.
-                            </div>
-                        </div>
-                        <Tag
-                            variant={
-                                profile.verificationTagVariant as
-                                    'accent' | 'neutral' | 'outline'
-                            }
-                        >
-                            {profile.verificationLabel}
-                        </Tag>
+            <div className="mx-auto max-w-[1060px] px-4 pt-6 pb-[72px] sm:px-6 lg:px-8">
+                <div className="mb-5 flex items-end gap-3">
+                    <div className="mr-auto">
+                        <h4 className="m-0">Business profile</h4>
+                        <p className="m-0 text-[12.5px] text-muted-foreground">
+                            Students see this when they consider your postings.
+                        </p>
                     </div>
 
-                    <Panel padding="lg" gap="lg">
-                        <h6 className="m-0">The business</h6>
+                    <Tag
+                        variant={
+                            profile.verificationTagVariant as
+                                'accent' | 'neutral' | 'outline'
+                        }
+                    >
+                        {profile.verificationLabel}
+                    </Tag>
+                </div>
 
-                        <Field
-                            label="Business name"
-                            error={errors.business_name}
-                            required
+                <div style={{ display: 'grid', gap: 16 }}>
+                    <SectionCard
+                        title="Account"
+                        editable={canUpdate}
+                        onEdit={() => setAccountOpen(true)}
+                    >
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: 16,
+                                alignItems: 'flex-start',
+                            }}
                         >
-                            {(props) => (
-                                <Input
-                                    {...props}
-                                    value={data.business_name}
-                                    onChange={(e) =>
-                                        setData('business_name', e.target.value)
-                                    }
-                                />
-                            )}
-                        </Field>
+                            <Avatar url={account.avatarUrl} />
 
-                        <Field
-                            label="Business description"
-                            error={errors.business_description}
+                            <div style={{ display: 'grid', gap: 12 }}>
+                                <div style={{ fontSize: 17 }}>
+                                    {account.name}
+                                </div>
+
+                                <Detail label="Account type">
+                                    {account.roleLabel}
+                                </Detail>
+
+                                <Detail label="Email">
+                                    {maskEmail(account.email)}
+                                </Detail>
+                            </div>
+                        </div>
+                    </SectionCard>
+
+                    <SectionCard
+                        title="Company details"
+                        editable={canUpdate}
+                        onEdit={() => setCompanyOpen(true)}
+                    >
+                        <div
+                            style={{
+                                display: 'flex',
+                                gap: 16,
+                                alignItems: 'flex-start',
+                            }}
                         >
-                            {(props) => (
-                                <textarea
-                                    {...props}
-                                    className="min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    value={data.business_description}
-                                    onChange={(e) =>
-                                        setData(
-                                            'business_description',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            )}
-                        </Field>
+                            <Logo url={profile.logoUrl} />
 
-                        <div className="grid gap-3.5 sm:grid-cols-2">
-                            <Field label="Owner name" error={errors.owner_name}>
+                            <div style={{ display: 'grid', gap: 12 }}>
+                                <div style={{ fontSize: 17 }}>
+                                    {profile.businessName}
+                                </div>
+
+                                {profile.tagline && (
+                                    <div
+                                        style={{
+                                            fontSize: 12.5,
+                                            color: MUTED(65),
+                                            marginTop: -6,
+                                        }}
+                                    >
+                                        {profile.tagline}
+                                    </div>
+                                )}
+
+                                <Detail label="Industry">
+                                    {profile.industryLabel}
+                                </Detail>
+
+                                <Detail label="Size">
+                                    {profile.organizationSizeLabel}
+                                </Detail>
+                            </div>
+                        </div>
+                    </SectionCard>
+
+                    <SectionCard
+                        title="Company contacts"
+                        editable={canUpdate}
+                        onEdit={() => setContactsOpen(true)}
+                    >
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns:
+                                    'repeat(auto-fit, minmax(160px, 1fr))',
+                                gap: '16px 24px',
+                            }}
+                        >
+                            <Detail label="Owner">{profile.ownerName}</Detail>
+                            <Detail label="Phone">
+                                {maskPhone(profile.phoneNumber)}
+                            </Detail>
+                            <Detail label="Time zone">{TIME_ZONE}</Detail>
+                            <Detail label="Address">{address || null}</Detail>
+                            <Detail label="Website">
+                                {profile.websiteUrl}
+                            </Detail>
+                            <Detail label="Facebook page">
+                                {profile.facebookUrl}
+                            </Detail>
+                        </div>
+                    </SectionCard>
+
+                    <form
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            quote.put(testimonialUpdate.url(team.slug), {
+                                preserveScroll: true,
+                            });
+                        }}
+                    >
+                        <Panel padding="lg" gap="lg">
+                            <div className="flex items-end gap-4">
+                                <div className="mr-auto">
+                                    <h6 className="m-0">
+                                        Your words on the homepage
+                                    </h6>
+                                    <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+                                        Tell visitors what working with a
+                                        student team was like. It appears on the
+                                        public landing page under your business
+                                        name, and stays there until you remove
+                                        it.
+                                    </p>
+                                </div>
+                                {testimonial?.updatedAt && (
+                                    <Tag variant="accent">
+                                        Live since {testimonial.updatedAt}
+                                    </Tag>
+                                )}
+                            </div>
+
+                            {!canPublishTestimonial && (
+                                <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+                                    Your business needs to be verified before
+                                    your quote can go on the homepage.
+                                </p>
+                            )}
+
+                            <Field
+                                label="What you would tell another business"
+                                error={quote.errors.body}
+                            >
                                 {(props) => (
-                                    <Input
+                                    <textarea
                                         {...props}
-                                        value={data.owner_name}
+                                        className="min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        maxLength={400}
+                                        disabled={!canPublishTestimonial}
+                                        placeholder="We had a spec sitting in a folder for two years…"
+                                        value={quote.data.body}
                                         onChange={(e) =>
-                                            setData(
-                                                'owner_name',
+                                            quote.setData(
+                                                'body',
                                                 e.target.value,
                                             )
                                         }
@@ -215,392 +279,278 @@ export default function ClientProfilePage({
                                 )}
                             </Field>
 
-                            <Field label="Business logo" error={errors.logo}>
-                                {(props) => (
-                                    <div className="flex items-center gap-3">
-                                        {/*
-                                         * The thumbnail sits in what was dead
-                                         * space beside the owner-name field, so
-                                         * the row fills out instead of leaving
-                                         * a gap above the picker.
-                                         */}
-                                        <span className="flex size-[42px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-input bg-background">
-                                            {shownLogoUrl ? (
-                                                <img
-                                                    src={shownLogoUrl}
-                                                    alt="Business logo"
-                                                    className="size-full object-cover"
-                                                />
-                                            ) : (
-                                                <span className="text-[10px] leading-none text-muted-foreground">
-                                                    No
-                                                    <br />
-                                                    logo
-                                                </span>
-                                            )}
-                                        </span>
+                            <div className="grid gap-3.5 sm:grid-cols-2">
+                                <Field
+                                    label="Your role at the business"
+                                    error={quote.errors.author_title}
+                                >
+                                    {(props) => (
                                         <Input
                                             {...props}
-                                            type="file"
-                                            accept="image/*"
-                                            className="min-w-0 flex-1"
+                                            placeholder="Owner"
+                                            disabled={!canPublishTestimonial}
+                                            value={quote.data.author_title}
                                             onChange={(e) =>
-                                                setData(
-                                                    'logo',
-                                                    e.target.files?.[0] ?? null,
+                                                quote.setData(
+                                                    'author_title',
+                                                    e.target.value,
                                                 )
                                             }
                                         />
-                                    </div>
-                                )}
-                            </Field>
-                        </div>
-                    </Panel>
+                                    )}
+                                </Field>
+                            </div>
 
-                    <Panel padding="lg" gap="lg">
-                        <h6 className="m-0">Contact</h6>
-
-                        <Field label="Address" error={errors.address}>
-                            {(props) => (
-                                <Input
-                                    {...props}
-                                    value={data.address}
-                                    onChange={(e) =>
-                                        setData('address', e.target.value)
-                                    }
-                                />
-                            )}
-                        </Field>
-
-                        <div className="grid gap-3.5 sm:grid-cols-2">
-                            {/*
-                              * Province first, because the city list is
-                              * filtered by it. Changing province clears the
-                              * city rather than leaving a city from the old
-                              * one selected, which is a pair the server would
-                              * reject.
-                              */}
-                            <Field label="Province" error={errors.province}>
-                                {(props) => (
-                                    <select
-                                        {...props}
-                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                        value={data.province}
-                                        onChange={(e) => {
-                                            setData('province', e.target.value);
-                                            setData('city', '');
-                                        }}
-                                    >
-                                        <option value="">
-                                            Select a province
-                                        </option>
-                                        {locations.map((entry) => (
-                                            <option
-                                                key={entry.province}
-                                                value={entry.province}
-                                            >
-                                                {entry.province}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            </Field>
-
-                            <Field label="City" error={errors.city}>
-                                {(props) => (
-                                    <select
-                                        {...props}
-                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm disabled:opacity-60"
-                                        value={data.city}
-                                        disabled={data.province === ''}
-                                        onChange={(e) =>
-                                            setData('city', e.target.value)
-                                        }
-                                    >
-                                        <option value="">
-                                            {data.province === ''
-                                                ? 'Choose a province first'
-                                                : 'Select a city or municipality'}
-                                        </option>
-                                        {citiesForProvince.map((city) => (
-                                            <option key={city} value={city}>
-                                                {city}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            </Field>
-
-                            <Field
-                                label="Phone number"
-                                error={errors.phone_number}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        type="tel"
-                                        inputMode="numeric"
-                                        autoComplete="tel"
-                                        placeholder="09171234567"
-                                        value={data.phone_number}
-                                        onChange={(e) =>
-                                            setData(
-                                                'phone_number',
-                                                // Digits only: typing a letter
-                                                // or a dash simply does not
-                                                // land, rather than being
-                                                // rejected later on save.
-                                                e.target.value.replace(
-                                                    /\D/g,
-                                                    '',
-                                                ),
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-
-                            <Field
-                                label="Contact email"
-                                error={errors.contact_email}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        type="email"
-                                        value={data.contact_email}
-                                        onChange={(e) =>
-                                            setData(
-                                                'contact_email',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-
-                            <Field label="Website" error={errors.website_url}>
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        type="url"
-                                        placeholder="https://"
-                                        value={data.website_url}
-                                        onChange={(e) =>
-                                            setData(
-                                                'website_url',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-
-                            <Field
-                                label="Facebook page"
-                                error={errors.facebook_url}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        type="url"
-                                        placeholder="https://facebook.com/"
-                                        value={data.facebook_url}
-                                        onChange={(e) =>
-                                            setData(
-                                                'facebook_url',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-                        </div>
-                    </Panel>
-
-                    <Panel padding="lg" gap="lg">
-                        <h6 className="m-0">Verification</h6>
-                        <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-                            Upload your business permit for an administrator to
-                            review. Replacing it returns the profile to pending.
-                        </p>
-
-                        <Field label="Business permit" error={errors.permit}>
-                            {(props) => (
-                                <Input
-                                    {...props}
-                                    type="file"
-                                    accept=".pdf,.jpg,.jpeg,.png"
-                                    onChange={(e) =>
-                                        setData(
-                                            'permit',
-                                            e.target.files?.[0] ?? null,
-                                        )
-                                    }
-                                />
-                            )}
-                        </Field>
-
-                        {profile.hasPermit && (
-                            <span className="text-[11.5px] text-muted-foreground">
-                                A permit is already on file.
-                            </span>
-                        )}
-                    </Panel>
-
-                    {canUpdate && (
-                        <div className="flex items-center gap-2.5">
-                            {recentlySuccessful && (
-                                <span className="mr-auto text-[12px] text-primary">
-                                    Saved.
+                            <div className="flex items-center gap-2.5">
+                                <span className="mr-auto text-[12px] text-muted-foreground">
+                                    {quote.recentlySuccessful
+                                        ? 'Saved.'
+                                        : `${quote.data.body.length}/400`}
                                 </span>
-                            )}
-                            <Button
-                                type="submit"
-                                disabled={processing}
-                                className="ml-auto px-5"
-                            >
-                                {processing ? 'Saving…' : 'Save profile'}
-                            </Button>
-                        </div>
-                    )}
-                </div>
 
-                <aside className="sticky top-[88px] flex flex-col gap-4">
-                    <Panel padding="lg" gap="lg">
-                        <PanelKicker>Profile completion</PanelKicker>
-                        <Meter label="Filled in" value={profile.completion} />
-                        <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-                            A complete profile gives students the context they
-                            need to take your postings seriously.
-                        </p>
-                    </Panel>
+                                {testimonial !== null && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            quote.delete(
+                                                testimonialDestroy.url(
+                                                    team.slug,
+                                                ),
+                                                { preserveScroll: true },
+                                            )
+                                        }
+                                    >
+                                        Remove from homepage
+                                    </Button>
+                                )}
 
-                    {shownLogoUrl && (
-                        <Panel padding="lg" gap="sm">
-                            <PanelKicker>
-                                {pickedLogoUrl
-                                    ? 'New logo — not saved yet'
-                                    : 'Current logo'}
-                            </PanelKicker>
-                            <img
-                                src={shownLogoUrl}
-                                alt=""
-                                className="max-w-full rounded-md"
-                            />
-                        </Panel>
-                    )}
-                </aside>
-            </form>
-
-            <form
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    quote.put(testimonialUpdate.url(team.slug), {
-                        preserveScroll: true,
-                    });
-                }}
-                className="mx-auto max-w-[1060px] px-8 pb-[72px]"
-            >
-                <Panel padding="lg" gap="lg">
-                    <div className="flex items-end gap-4">
-                        <div className="mr-auto">
-                            <h6 className="m-0">Your words on the homepage</h6>
-                            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-                                Tell visitors what working with a student team
-                                was like. It appears on the public landing page
-                                under your business name, and stays there until
-                                you remove it.
-                            </p>
-                        </div>
-                        {testimonial?.updatedAt && (
-                            <Tag variant="accent">
-                                Live since {testimonial.updatedAt}
-                            </Tag>
-                        )}
-                    </div>
-
-                    {!canPublishTestimonial && (
-                        <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-                            Your business needs to be verified before your
-                            quote can go on the homepage.
-                        </p>
-                    )}
-
-                    <Field label="What you would tell another business" error={quote.errors.body}>
-                        {(props) => (
-                            <textarea
-                                {...props}
-                                className="min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                maxLength={400}
-                                disabled={!canPublishTestimonial}
-                                placeholder="We had a spec sitting in a folder for two years…"
-                                value={quote.data.body}
-                                onChange={(e) =>
-                                    quote.setData('body', e.target.value)
-                                }
-                            />
-                        )}
-                    </Field>
-
-                    <div className="grid gap-3.5 sm:grid-cols-2">
-                        <Field
-                            label="Your role at the business"
-                            error={quote.errors.author_title}
-                        >
-                            {(props) => (
-                                <Input
-                                    {...props}
-                                    placeholder="Owner"
-                                    disabled={!canPublishTestimonial}
-                                    value={quote.data.author_title}
-                                    onChange={(e) =>
-                                        quote.setData(
-                                            'author_title',
-                                            e.target.value,
-                                        )
+                                <Button
+                                    type="submit"
+                                    disabled={
+                                        quote.processing ||
+                                        !canPublishTestimonial
                                     }
-                                />
-                            )}
-                        </Field>
-                    </div>
+                                    className="px-5"
+                                >
+                                    {quote.processing
+                                        ? 'Saving…'
+                                        : testimonial === null
+                                          ? 'Publish'
+                                          : 'Update'}
+                                </Button>
+                            </div>
+                        </Panel>
+                    </form>
+                </div>
+            </div>
 
-                    <div className="flex items-center gap-2.5">
-                        <span className="mr-auto text-[12px] text-muted-foreground">
-                            {quote.recentlySuccessful
-                                ? 'Saved.'
-                                : `${quote.data.body.length}/400`}
-                        </span>
+            <AccountDialog
+                open={accountOpen}
+                onOpenChange={setAccountOpen}
+                account={account}
+            />
 
-                        {testimonial !== null && (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() =>
-                                    quote.delete(
-                                        testimonialDestroy.url(team.slug),
-                                        { preserveScroll: true },
-                                    )
-                                }
-                            >
-                                Remove from homepage
-                            </Button>
-                        )}
+            <CompanyDetailsDialog
+                open={companyOpen}
+                onOpenChange={setCompanyOpen}
+                profile={profile}
+                industries={industries}
+                sizes={organizationSizes}
+            />
 
-                        <Button
-                            type="submit"
-                            disabled={quote.processing || !canPublishTestimonial}
-                            className="px-5"
-                        >
-                            {quote.processing
-                                ? 'Saving…'
-                                : testimonial === null
-                                  ? 'Publish'
-                                  : 'Update'}
-                        </Button>
-                    </div>
-                </Panel>
-            </form>
+            <CompanyContactsDialog
+                open={contactsOpen}
+                onOpenChange={setContactsOpen}
+                profile={profile}
+                locations={locations}
+            />
         </>
+    );
+}
+
+/**
+ * Hide most of an address without hiding whose it is.
+ *
+ * The domain stays because that is the part which tells you the account is the
+ * right one; the local part is what somebody reading over a shoulder would
+ * take. The real value is in the dialog, one click away.
+ */
+function maskEmail(email: string): string {
+    const [local, domain] = email.split('@');
+
+    if (!domain) {
+        return email;
+    }
+
+    return `${local.slice(0, 1)}${'•'.repeat(Math.max(local.length - 1, 1))}@${domain}`;
+}
+
+/** The same idea for a phone number: enough to recognise, not to dial. */
+function maskPhone(phone: string | null): string | null {
+    if (phone === null || phone === '') {
+        return null;
+    }
+
+    const digits = phone.replace(/\D/g, '');
+
+    if (digits.length < 6) {
+        return '•'.repeat(digits.length);
+    }
+
+    const country = digits.startsWith('63') ? '+63 ' : '';
+    const rest = country ? digits.slice(2) : digits;
+
+    return `${country}${rest.slice(0, 3)} ${'•'.repeat(Math.max(rest.length - 5, 0))}${rest.slice(-2)}`;
+}
+
+/** One titled card with a pencil in its corner. */
+function SectionCard({
+    title,
+    editable,
+    onEdit,
+    children,
+}: {
+    title: string;
+    editable: boolean;
+    onEdit: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <Panel style={{ padding: 22, gap: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                    style={{
+                        marginRight: 'auto',
+                        fontSize: 12,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        fontFamily: 'var(--font-heading)',
+                    }}
+                >
+                    {title}
+                </span>
+
+                {editable && (
+                    <button
+                        type="button"
+                        onClick={onEdit}
+                        aria-label={`Edit ${title.toLowerCase()}`}
+                        title={`Edit ${title.toLowerCase()}`}
+                        style={{
+                            width: 28,
+                            height: 28,
+                            flex: 'none',
+                            display: 'grid',
+                            placeItems: 'center',
+                            borderRadius: '50%',
+                            border: '1px solid var(--color-divider)',
+                            background: 'transparent',
+                            color: 'var(--color-accent)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <PencilSimpleIcon size={14} />
+                    </button>
+                )}
+            </div>
+
+            {children}
+        </Panel>
+    );
+}
+
+/** A labelled value, absent rather than blank when there is nothing to show. */
+function Detail({
+    label,
+    children,
+}: {
+    label: string;
+    children: ReactNode | null;
+}) {
+    if (children === null || children === undefined || children === '') {
+        return null;
+    }
+
+    return (
+        <div>
+            <div style={{ fontSize: 11, color: MUTED(50) }}>{label}</div>
+            <div style={{ fontSize: 13, color: 'var(--color-accent)' }}>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+/** The account holder's picture, or the placeholder standing in for it. */
+function Avatar({ url }: { url: string | null }) {
+    return (
+        <span
+            style={{
+                width: 72,
+                height: 72,
+                flex: 'none',
+                borderRadius: '50%',
+                display: 'grid',
+                placeItems: 'center',
+                overflow: 'hidden',
+                border: url ? 'none' : '1px dashed var(--color-divider)',
+                background: url ? 'transparent' : 'transparent',
+                color: MUTED(55),
+                fontSize: 10.5,
+                lineHeight: 1.35,
+                textAlign: 'center',
+            }}
+        >
+            {url ? (
+                <img
+                    src={url}
+                    alt=""
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                    }}
+                />
+            ) : (
+                <UserIcon size={26} />
+            )}
+        </span>
+    );
+}
+
+/** The business logo, square rather than round so a wordmark still reads. */
+function Logo({ url }: { url: string | null }) {
+    return (
+        <span
+            style={{
+                width: 72,
+                height: 72,
+                flex: 'none',
+                borderRadius: 'var(--radius-md)',
+                display: 'grid',
+                placeItems: 'center',
+                overflow: 'hidden',
+                background:
+                    'color-mix(in srgb, var(--color-accent) 14%, transparent)',
+            }}
+        >
+            {url ? (
+                <img
+                    src={url}
+                    alt=""
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                    }}
+                />
+            ) : (
+                <BuildingsIcon
+                    size={28}
+                    style={{ color: 'var(--color-accent)' }}
+                />
+            )}
+        </span>
     );
 }

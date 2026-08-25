@@ -1,17 +1,13 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
 import { UserIcon } from '@phosphor-icons/react';
 
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import AccountAppealCard, {
     type AccountStatus,
     type AppealState,
 } from '@/components/account-appeal-card';
 import DeleteUser from '@/components/delete-user';
-import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
-import { Input } from '@/components/sdpc/input';
 import { Tag } from '@/components/sdpc/tag';
-import { Spinner } from '@/components/ui/spinner';
 import { edit } from '@/routes/profile';
 import {
     returnMethod as verificationReturn,
@@ -27,12 +23,6 @@ type PageProps = {
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
-const TWO_UP: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 14,
-};
-
 const RULE: React.CSSProperties = {
     height: 1,
     background: 'var(--color-divider)',
@@ -41,10 +31,15 @@ const RULE: React.CSSProperties = {
 /**
  * Account settings.
  *
- * Only name and email are editable — those are what ProfileUpdateRequest
- * accepts. The design also sketches a username, phone, address, school and
- * bio, but none of them have a column to live in, so they are left out rather
- * than rendered as inputs that quietly discard what is typed into them.
+ * Who you are is edited on your profile screen, not here. This page used to
+ * carry a second editor for name, email and avatar, which meant two screens
+ * claimed to own the same three fields and neither said which one won. What is
+ * left is the account itself: which one you are signed in as, whether the
+ * address is confirmed, the optional enrolment check, an appeal if there is a
+ * decision to answer, and the way out.
+ *
+ * ProfileController::update and ProfileUpdateRequest are untouched — the
+ * profile screen posts to them. Only the duplicate form is gone.
  */
 type StudentVerification = {
     status: string;
@@ -121,186 +116,45 @@ export default function Profile({
                     </div>
                 </div>
 
-                <div style={RULE} />
+                {mustVerifyEmail && auth.user.email_verified_at === null && (
+                    <>
+                        <div style={RULE} />
 
-                <Form
-                    {...ProfileController.update.form()}
-                    options={{ preserveScroll: true }}
-                    style={{ display: 'contents' }}
-                >
-                    {({ processing, errors, reset }) => (
-                        <>
-                            <div style={TWO_UP}>
-                                <div className="field">
-                                    <label htmlFor="name">Full name</label>
-                                    <Input
-                                        id="name"
-                                        name="name"
-                                        required
-                                        autoComplete="name"
-                                        defaultValue={auth.user.name}
-                                        aria-invalid={Boolean(errors.name)}
-                                    />
-                                    <InputError
-                                        message={errors.name}
-                                        className="mt-1 text-[11px]"
-                                    />
-                                </div>
-
-                                <div className="field">
-                                    <label htmlFor="email">Email address</label>
-                                    <Input
-                                        id="email"
-                                        name="email"
-                                        type="email"
-                                        required
-                                        autoComplete="username"
-                                        defaultValue={auth.user.email}
-                                        aria-invalid={Boolean(errors.email)}
-                                    />
-                                    <InputError
-                                        message={errors.email}
-                                        className="mt-1 text-[11px]"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="field">
-                                <label htmlFor="avatar">Profile picture</label>
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 12,
-                                    }}
-                                >
-                                    <span
-                                        style={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: '50%',
-                                            overflow: 'hidden',
-                                            flex: 'none',
-                                            display: 'grid',
-                                            placeItems: 'center',
-                                            background:
-                                                'var(--color-accent-800)',
-                                            color: 'var(--color-accent-200)',
-                                            fontSize: 11,
-                                        }}
-                                    >
-                                        {auth.avatarUrl ? (
-                                            <img
-                                                src={auth.avatarUrl}
-                                                alt={auth.user.name}
-                                                style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'cover',
-                                                }}
-                                            />
-                                        ) : (
-                                            'None'
-                                        )}
-                                    </span>
-                                    <Input
-                                        id="avatar"
-                                        name="avatar"
-                                        type="file"
-                                        accept="image/*"
-                                        aria-invalid={Boolean(errors.avatar)}
-                                    />
-                                </div>
-                                <InputError
-                                    message={errors.avatar}
-                                    className="mt-1 text-[11px]"
-                                />
-                                <p
-                                    style={{
-                                        margin: '6px 0 0',
-                                        fontSize: 11.5,
-                                        color: MUTED(60),
-                                    }}
-                                >
-                                    Shown to clients, students and
-                                    administrators wherever your account
-                                    appears. PNG or JPG, up to 100 MB.
-                                </p>
-                            </div>
-
-                            {mustVerifyEmail &&
-                                auth.user.email_verified_at === null && (
-                                    <div
-                                        style={{
-                                            fontSize: 12,
-                                            lineHeight: 1.55,
-                                            color: MUTED(60),
-                                        }}
-                                    >
-                                        Your email address is unverified.{' '}
-                                        <Link
-                                            href={send()}
-                                            as="button"
-                                            style={{
-                                                color: 'var(--color-accent)',
-                                                textDecoration: 'underline',
-                                            }}
-                                        >
-                                            Re-send the verification email.
-                                        </Link>
-                                        {status ===
-                                            'verification-link-sent' && (
-                                            <div
-                                                style={{
-                                                    marginTop: 6,
-                                                    color: 'var(--color-accent)',
-                                                }}
-                                            >
-                                                A new verification link has been
-                                                sent to your email address.
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                            <div
+                        {/* Kept here rather than moved with the editor: this is
+                            about the account being confirmed, not about
+                            changing the address. */}
+                        <div
+                            style={{
+                                fontSize: 12,
+                                lineHeight: 1.55,
+                                color: MUTED(60),
+                            }}
+                        >
+                            Your email address is unverified.{' '}
+                            <Link
+                                href={send()}
+                                as="button"
                                 style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 10,
+                                    color: 'var(--color-accent)',
+                                    textDecoration: 'underline',
                                 }}
                             >
-                                <span
+                                Re-send the verification email.
+                            </Link>
+                            {status === 'verification-link-sent' && (
+                                <div
                                     style={{
-                                        fontSize: 11.5,
-                                        color: MUTED(45),
-                                        marginRight: 'auto',
+                                        marginTop: 6,
+                                        color: 'var(--color-accent)',
                                     }}
                                 >
-                                    Changes to your name are reviewed before
-                                    they appear publicly.
-                                </span>
-
-                                <Btn
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={() => reset()}
-                                >
-                                    Discard
-                                </Btn>
-
-                                <Btn
-                                    type="submit"
-                                    variant="primary"
-                                    data-test="update-profile-button"
-                                >
-                                    {processing && <Spinner />}
-                                    Save changes
-                                </Btn>
-                            </div>
-                        </>
-                    )}
-                </Form>
+                                    A new verification link has been sent to
+                                    your email address.
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
 
             {studentVerification && (

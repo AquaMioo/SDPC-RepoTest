@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Client;
 
+use App\Enums\Industry;
+use App\Enums\OrganizationSize;
 use App\Enums\TeamRole;
 use App\Enums\UserRole;
 use App\Enums\VerificationStatus;
@@ -12,6 +14,7 @@ use App\Models\User;
 use Database\Seeders\ClientModuleTaxonomySeeder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -48,7 +51,10 @@ class ClientProfileTest extends TestCase
             ),
         ));
 
-        $this->assertSame(9, $profile->completionPercentage());
+        // One of ten. It was one of eleven while permit_path counted; the
+        // permit upload is gone from the screen, so a field nothing can fill
+        // no longer holds the meter below 100.
+        $this->assertSame(10, $profile->completionPercentage());
     }
 
     public function test_completion_reaches_one_hundred_when_every_field_is_filled(): void
@@ -284,6 +290,95 @@ class ClientProfileTest extends TestCase
                 $this->profilePayload(['phone_number' => '']),
             )
             ->assertSessionHasNoErrors();
+    }
+
+    /* ---------------------------------------------------------------------
+     | The redesigned profile: company details, and the permit that was a trap
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Saving the profile must never cost a client their verification.
+     *
+     * It used to. Uploading a permit reset the profile to Pending, which was
+     * right while administrators reviewed permits - they no longer do, and a
+     * business is verified once at registration with nothing able to grant it
+     * again. So the reset was a one-way door out of posting work, hiring,
+     * inviting and publishing a testimonial.
+     */
+    public function test_saving_the_profile_never_costs_a_client_their_verification(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload([
+                    'permit' => UploadedFile::fake()->create('permit.pdf', 40, 'application/pdf'),
+                ]),
+            )
+            ->assertSessionHasNoErrors();
+
+        $profile = $team->clientProfile->fresh();
+
+        $this->assertSame(VerificationStatus::Verified, $profile->verification_status);
+        $this->assertNotNull($profile->verified_at);
+        // And they can still do the things verification unlocks.
+        $this->assertTrue($client->fresh()->isVerifiedForOperating());
+    }
+
+    public function test_a_business_records_its_industry_size_and_tagline(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload([
+                    'industry' => Industry::BusinessConsulting->value,
+                    'organization_size' => OrganizationSize::Medium->value,
+                    'tagline' => 'Operations systems for growing Bulacan businesses',
+                ]),
+            )
+            ->assertSessionHasNoErrors();
+
+        $profile = $team->clientProfile->fresh();
+
+        $this->assertSame(Industry::BusinessConsulting, $profile->industry);
+        $this->assertSame(OrganizationSize::Medium, $profile->organization_size);
+        $this->assertSame('Operations systems for growing Bulacan businesses', $profile->tagline);
+    }
+
+    public function test_an_industry_that_is_not_on_the_list_is_rejected(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+
+        $this->actingAs($client)
+            ->from(route('client-profile.edit', ['current_team' => $team->slug]))
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload(['industry' => 'interdimensional_freight']),
+            )
+            ->assertSessionHasErrors('industry');
+    }
+
+    /**
+     * The three cards the screen now draws, and the account behind them -
+     * this is the only place a client can edit their own name and address.
+     */
+    public function test_the_edit_screen_carries_the_account_and_the_company_options(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+
+        $this->actingAs($client)
+            ->get(route('client-profile.edit', ['current_team' => $team->slug]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('client/profile')
+                ->where('account.name', $client->name)
+                ->where('account.email', $client->email)
+                ->where('account.roleLabel', $client->role->label())
+                ->has('industries', count(Industry::cases()))
+                ->has('organizationSizes', count(OrganizationSize::cases())));
     }
 
     /**

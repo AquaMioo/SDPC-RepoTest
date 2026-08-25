@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Client;
 
 use App\Actions\Client\UpdateClientProfile;
+use App\Enums\Industry;
+use App\Enums\OrganizationSize;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\UpdateClientProfileRequest;
 use App\Models\ClientProfile;
@@ -30,6 +32,11 @@ class ClientProfileController extends Controller
             'profile' => [
                 'businessName' => $profile->business_name,
                 'businessDescription' => $profile->business_description,
+                'industry' => $profile->industry?->value,
+                'industryLabel' => $profile->industry?->label(),
+                'organizationSize' => $profile->organization_size?->value,
+                'organizationSizeLabel' => $profile->organization_size?->label(),
+                'tagline' => $profile->tagline,
                 'ownerName' => $profile->owner_name,
                 'address' => $profile->address,
                 'city' => $profile->city,
@@ -39,13 +46,27 @@ class ClientProfileController extends Controller
                 'websiteUrl' => $profile->website_url,
                 'facebookUrl' => $profile->facebook_url,
                 'logoUrl' => $profile->logo_path ? Storage::disk('public')->url($profile->logo_path) : null,
-                'hasPermit' => $profile->permit_path !== null,
                 'verificationStatus' => $profile->verification_status->value,
                 'verificationLabel' => $profile->verification_status->label(),
                 'verificationTagVariant' => $profile->verification_status->tagVariant(),
                 'verifiedAt' => $profile->verified_at?->toDateString(),
                 'completion' => $profile->completionPercentage(),
             ],
+            /*
+             * The account behind the business. This is the only screen a
+             * client can edit their own name, address and picture from - the
+             * settings page carries no editor any more - so it is served here
+             * rather than read off the shared auth prop, which does not carry
+             * the raw email.
+             */
+            'account' => [
+                'name' => $request->user()->name,
+                'email' => $request->user()->email,
+                'avatarUrl' => $request->user()->avatarUrl(),
+                'roleLabel' => $request->user()->role->label(),
+            ],
+            'industries' => Industry::options(),
+            'organizationSizes' => OrganizationSize::options(),
             'testimonial' => $this->testimonialFor($request->user()->currentTeam),
             /*
              * Writing one is gated on verification the same way posting work
@@ -96,7 +117,6 @@ class ClientProfileController extends Controller
             $profile,
             $request->validated(),
             $request->file('logo'),
-            $request->file('permit'),
         );
 
         return back()->with('success', 'Business profile updated.');

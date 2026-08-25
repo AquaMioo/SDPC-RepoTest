@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Client;
 
+use App\Enums\Industry;
+use App\Enums\OrganizationSize;
 use App\Models\ClientProfile;
 use App\Models\Location;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -32,6 +34,10 @@ class UpdateClientProfileRequest extends FormRequest
         return [
             'business_name' => ['required', 'string', 'max:255'],
             'business_description' => ['nullable', 'string', 'max:5000'],
+            'industry' => ['nullable', Rule::enum(Industry::class)],
+            'organization_size' => ['nullable', Rule::enum(OrganizationSize::class)],
+            /* One line, so it stays a line. */
+            'tagline' => ['nullable', 'string', 'max:160'],
             'owner_name' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             /*
@@ -49,8 +55,12 @@ class UpdateClientProfileRequest extends FormRequest
             'website_url' => ['nullable', 'url', 'max:255'],
             'facebook_url' => ['nullable', 'url', 'max:255'],
 
+            /*
+             * There is no `permit` rule any more. Nobody reviews permits, and
+             * accepting one used to reset the profile to Pending with no way
+             * back - see App\Actions\Client\UpdateClientProfile.
+             */
             'logo' => ['nullable', 'image', 'max:'.config('uploads.max_image_kilobytes')],
-            'permit' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:'.config('uploads.max_document_kilobytes')],
         ];
     }
 
@@ -95,14 +105,11 @@ class UpdateClientProfileRequest extends FormRequest
          */
         $phpLimit = ini_get('upload_max_filesize');
         $imageLimit = round(config('uploads.max_image_kilobytes') / 1024);
-        $documentLimit = round(config('uploads.max_document_kilobytes') / 1024);
 
         return [
             'logo.max' => "The business logo may not be larger than {$imageLimit} MB.",
             'logo.uploaded' => "The business logo is too large for the server to accept. This machine allows uploads up to {$phpLimit}.",
             'phone_number.regex' => 'The phone number may contain digits only.',
-            'permit.max' => "The business permit may not be larger than {$documentLimit} MB.",
-            'permit.uploaded' => "The business permit is too large for the server to accept. This machine allows uploads up to {$phpLimit}.",
         ];
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\Industry;
+use App\Enums\OrganizationSize;
 use App\Enums\VerificationStatus;
 use Database\Factories\ClientProfileFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -15,6 +17,9 @@ use Illuminate\Support\Carbon;
  * @property int $team_id
  * @property string $business_name
  * @property string|null $business_description
+ * @property Industry|null $industry
+ * @property OrganizationSize|null $organization_size
+ * @property string|null $tagline
  * @property string|null $owner_name
  * @property string|null $logo_path
  * @property string|null $address
@@ -33,6 +38,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'team_id', 'business_name', 'business_description', 'owner_name',
+    'industry', 'organization_size', 'tagline',
     'logo_path', 'address', 'city', 'province', 'phone_number',
     'contact_email', 'website_url', 'facebook_url', 'permit_path',
     'verification_status', 'verified_at',
@@ -59,7 +65,12 @@ class ClientProfile extends Model
         'phone_number',
         'contact_email',
         'website_url',
-        'permit_path',
+        /*
+         * permit_path is deliberately not counted. Nobody reviews permits any
+         * more and the profile screen no longer offers the upload, so leaving
+         * it in meant a meter that could never reach 100% however much of the
+         * profile somebody filled in.
+         */
     ];
 
     /**
@@ -100,6 +111,8 @@ class ClientProfile extends Model
     protected function casts(): array
     {
         return [
+            'industry' => Industry::class,
+            'organization_size' => OrganizationSize::class,
             'verification_status' => VerificationStatus::class,
             'verified_at' => 'datetime',
         ];
