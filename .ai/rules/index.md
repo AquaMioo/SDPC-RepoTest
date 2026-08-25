@@ -9,9 +9,11 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Actions/Agreements/** | .ai/rules/agreements.md |
 | app/Http/Controllers/Auth/RegistrationController.php, app/Http/Controllers/Auth/AccountAppealController.php, app/Http/Middleware/EnsureAccountIsNotMonitored.php | .ai/rules/auth.md |
 | app/Http/Controllers/Client/StudentProfileController.php | .ai/rules/client.md |
+| resources/js/components/** | .ai/rules/components.md |
 | config/billing.php, config/sheerid.php | .ai/rules/config.md |
 | app/Http/Controllers/Agreements/** | .ai/rules/controllers-agreements.md |
 | app/Http/Controllers/HomeController.php | .ai/rules/controllers.md |
+| resources/css/** | .ai/rules/css.md |
 | tests/Feature/** | .ai/rules/feature.md |
 | resources/js/** | .ai/rules/js.md |
 | tests/Feature/Matching/** | .ai/rules/matching.md |
