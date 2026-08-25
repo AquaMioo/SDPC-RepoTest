@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\Auth\EmailOneTimePassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -233,6 +234,166 @@ class AppealTest extends TestCase
         $this->assertSame(0, Appeal::count());
     }
 
+    /* ---------------------------------------------------------------------
+     | The page must not answer "does this address have an account?"
+     |
+     | A code is only really sent when there is something to appeal, so every
+     | observable built from the code row differs between an address under
+     | review and any other one. These three pin the three that did.
+     * ------------------------------------------------------------------ */
+
+    /**
+     * A wrong code has to read the same whether or not one was ever sent.
+     *
+     * It did not: an address with nothing to appeal has no code row, so the
+     * guess came back "no longer valid" while a held account got "incorrect".
+     * Two tries and you knew which addresses had been deactivated.
+     */
+    public function test_a_rejected_code_reads_the_same_whether_or_not_an_account_is_held(): void
+    {
+        Notification::fake();
+
+        $this->assertSame(
+            $this->rejectedCodeMessageFor(User::factory()->deactivated()->create()->email),
+            $this->rejectedCodeMessageFor(User::factory()->approved()->create()->email),
+        );
+
+        $this->assertSame(
+            $this->rejectedCodeMessageFor(User::factory()->deactivated()->create()->email),
+            $this->rejectedCodeMessageFor('nobody@example.com'),
+        );
+
+        $this->assertSame(0, Appeal::count());
+    }
+
+    /**
+     * The resend countdown is drawn straight onto the button, so it cannot be
+     * read off the code row either — only a held account has one.
+     */
+    public function test_the_resend_countdown_is_the_same_whether_or_not_an_account_is_held(): void
+    {
+        Notification::fake();
+
+        $held = $this->secondsUntilResendFor(User::factory()->deactivated()->create()->email);
+
+        $this->assertSame($held, $this->secondsUntilResendFor(User::factory()->approved()->create()->email));
+        $this->assertSame($held, $this->secondsUntilResendFor('nobody@example.com'));
+
+        // And it is a real countdown, not zero on both sides by accident.
+        $this->assertSame((int) config('otp.resend_after'), $held);
+    }
+
+    /**
+     * Asking for another code answers from the session clock, not from whether
+     * there was anywhere to send one.
+     */
+    public function test_asking_for_another_code_answers_the_same_either_way(): void
+    {
+        Notification::fake();
+
+        $held = User::factory()->deactivated()->create();
+        $stranger = User::factory()->approved()->create();
+
+        // Straight away: both are inside the resend floor.
+        $this->assertSame(
+            $this->resendToastFor($held->email),
+            $this->resendToastFor($stranger->email),
+        );
+
+        // And once it has elapsed, when a code really does go out for one of
+        // them and not the other.
+        $this->assertSame(
+            $this->resendToastFor($held->email, waitOut: true),
+            $this->resendToastFor($stranger->email, waitOut: true),
+        );
+    }
+
+    /**
+     * Start over as somebody who has never touched this page.
+     *
+     * The session goes, and so does the rate limiter: Laravel keys a guest
+     * throttle on the IP alone, so every one of these probes shares one bucket
+     * with the others and the fourth would come back 429 rather than the
+     * answer under test. Nothing about the product, everything about running
+     * several visitors down one loopback address.
+     */
+    private function asAFreshVisitor(): void
+    {
+        $this->flushSession();
+
+        Cache::flush();
+    }
+
+    /**
+     * Ask for a code, then submit a guess that is certainly wrong, and report
+     * what the page said about it.
+     */
+    private function rejectedCodeMessageFor(string $email): string
+    {
+        $this->asAFreshVisitor();
+
+        $this->post(route('appeal.code'), ['email' => $email]);
+
+        $this->from(route('appeal'))->post(route('appeal.submit'), [
+            'code' => '000000',
+            'body' => 'A body long enough to clear the thirty character floor on this field.',
+        ]);
+
+        $message = null;
+
+        /* Read where the reader reads it: off the page, not out of the bag. */
+        $this->get(route('appeal'))
+            ->assertInertia(function (Assert $page) use (&$message): void {
+                $message = $page->toArray()['props']['errors']['code'] ?? null;
+            });
+
+        $this->assertNotNull($message, "No code error was shown for {$email}.");
+
+        return $message;
+    }
+
+    /**
+     * Ask for a code, then report the countdown the page hands the button.
+     */
+    private function secondsUntilResendFor(string $email): int
+    {
+        $this->asAFreshVisitor();
+
+        $this->post(route('appeal.code'), ['email' => $email]);
+
+        $seconds = null;
+
+        $this->get(route('appeal'))
+            ->assertInertia(function (Assert $page) use (&$seconds): void {
+                $seconds = $page->toArray()['props']['secondsUntilResend'];
+            });
+
+        return (int) $seconds;
+    }
+
+    /**
+     * Ask for a code, optionally sit out the resend floor, then press "send
+     * another" and report the toast.
+     *
+     * @return array<string, mixed>
+     */
+    private function resendToastFor(string $email, bool $waitOut = false): array
+    {
+        $this->asAFreshVisitor();
+
+        $this->post(route('appeal.code'), ['email' => $email]);
+
+        if ($waitOut) {
+            $this->travel((int) config('otp.resend_after') + 1)->seconds();
+        }
+
+        $response = $this->from(route('appeal'))->post(route('appeal.code.resend'));
+
+        $this->travelBack();
+
+        return $response->getSession()->get('inertia')['flash_data']['toast'];
+    }
+
     /**
      * A signed-in account has no business on the guest page — settings is
      * where its appeal lives.
@@ -338,6 +499,42 @@ class AppealTest extends TestCase
             ->assertSessionHasErrors('decision');
 
         $this->assertSame(AppealStatus::Pending, $appeal->fresh()->status);
+    }
+
+    /**
+     * One decision per appeal.
+     *
+     * A resubmitted form, or a second administrator on the same screen, could
+     * otherwise turn a denial into a grant — restoring the account and writing
+     * over the note the first decision was recorded under, with nothing on the
+     * row to say it had happened.
+     */
+    public function test_an_appeal_that_has_been_decided_cannot_be_decided_again(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->deactivated()->create();
+        $appeal = Appeal::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.monitoring'))
+            ->patch(route('admin.appeals.update', $appeal), [
+                'decision' => 'deny',
+                'note' => 'The reports against this account were substantiated.',
+            ]);
+
+        $this->assertSame(AppealStatus::Denied, $appeal->fresh()->status);
+
+        $this->actingAs($admin)
+            ->from(route('admin.monitoring'))
+            ->patch(route('admin.appeals.update', $appeal), ['decision' => 'grant'])
+            ->assertConflict();
+
+        $appeal->refresh();
+
+        $this->assertSame(AppealStatus::Denied, $appeal->status);
+        $this->assertSame('The reports against this account were substantiated.', $appeal->decision_note);
+        // And above all, the account is still deactivated.
+        $this->assertSame(UserStatus::Deactivated, $user->fresh()->status);
     }
 
     public function test_non_admins_cannot_read_or_decide_appeals(): void

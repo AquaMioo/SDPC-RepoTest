@@ -25,3 +25,10 @@ Deactivated accounts never reach that middleware; they cannot sign in at all, so
 
 ## One OTP mechanism, two purposes
 App\Services\Verification\OneTimePasswordService backs both registration and appeals. The purpose is part of the unique key, so a registration code cannot be replayed as an appeal code. Codes are hashed at rest, expire, carry an attempt budget, and have a resend floor — see config/otp.php. A correct code is consumed on the way out, so pressing back does not open the door twice.
+
+## Every observable on the guest appeal page must come from the session, not the code row
+A code is only really sent when there is something to appeal, so anything derived from the OneTimePassword row differs between a held account and any other address — and that difference is the answer to "has this address been deactivated?".
+
+Three leaked before they were closed: the rejected-code message (Missing vs Mismatch), the resend toast (decided on whether send() succeeded), and secondsUntilResend (read off the row, so only held accounts got a countdown on the button).
+
+So: the resend clock lives in the session under `appeal.code_sent_at`, written whether or not an email went out; the resend toast is decided by that clock alone; and every rejected code gets the single CODE_REJECTED message rather than OneTimePasswordResult::message(). Do not "improve" that message back into the specific one — the specificity is safe on registration, where a code is always sent, and is an account oracle here. Three tests in tests/Feature/Admin/AppealTest.php pin all three.

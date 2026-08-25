@@ -29,12 +29,41 @@ use Inertia\Response;
  *
  * Nothing here says whether an address has an account. Every answer is the
  * same, so this page cannot be used to find out who is registered — or who has
- * been deactivated.
+ * been deactivated. That is harder than it looks, because a code is only
+ * really sent when there is something to appeal: every observable this page
+ * produces has to be built from the session rather than from whether a code
+ * row exists, or the difference shows through. See secondsUntilResend() and
+ * CODE_REJECTED for the two places it nearly did.
  */
 class AccountAppealController extends Controller
 {
     /** Where the address being appealed for waits between the two steps. */
     private const SESSION_KEY = 'appeal.email';
+
+    /**
+     * When this flow last told somebody a code was on its way.
+     *
+     * Recorded whether or not an email actually went out. The resend cooldown
+     * is measured from this rather than from the code row, because only an
+     * address with something to appeal has a code row — reading the cooldown
+     * off it put a 60-second countdown on the resend button for exactly those
+     * addresses and left it enabled for every other one, which told anybody
+     * watching the button which was which.
+     */
+    private const SENT_AT_KEY = 'appeal.code_sent_at';
+
+    /**
+     * The one answer every rejected code gets here.
+     *
+     * OneTimePasswordResult tells its failures apart so a screen can say
+     * something useful, and for registration that is safe: a code was
+     * definitely sent, so "expired" and "incorrect" are both about a code the
+     * person really has. On this page nothing is sent unless there is
+     * something to appeal, which makes "no code on file" and "wrong guess"
+     * the same question as "does this address have an account". So they read
+     * identically, at the deliberate cost of a vaguer message.
+     */
+    private const CODE_REJECTED = 'That code is incorrect or has expired. Ask for a new one.';
 
     public function __construct(
         private readonly OneTimePasswordService $passwords,
@@ -52,14 +81,12 @@ class AccountAppealController extends Controller
             'email' => $email,
             'codeLength' => (int) config('otp.length'),
             'expiresAfter' => (int) config('otp.expires_after'),
-            'secondsUntilResend' => is_string($email)
-                ? $this->passwords->secondsUntilResend($email, OneTimePasswordPurpose::Appeal)
-                : 0,
+            'secondsUntilResend' => $this->secondsUntilResend($request),
         ]);
     }
 
     /**
-     * Send a code to the address, if there is anything there to appeal for.
+     * Send a code to the address, if there is anything there to appeal.
      *
      * The response is identical either way. Only an account that actually has
      * a decision standing against it gets an email — appealing an approved
@@ -79,6 +106,7 @@ class AccountAppealController extends Controller
         }
 
         $request->session()->put(self::SESSION_KEY, $email);
+        $request->session()->put(self::SENT_AT_KEY, now()->getTimestamp());
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -113,7 +141,7 @@ class AccountAppealController extends Controller
         );
 
         if (! $result->isValid()) {
-            throw ValidationException::withMessages(['code' => [$result->message()]]);
+            throw ValidationException::withMessages(['code' => [__(self::CODE_REJECTED)]]);
         }
 
         $user = $this->appealableAccount($email);
@@ -136,6 +164,11 @@ class AccountAppealController extends Controller
 
     /**
      * Send another code, unless one went out moments ago.
+     *
+     * Which of the two answers comes back is decided by the session clock
+     * alone, never by whether there was anything to send to. Deciding it on
+     * the send itself said "a new code is on its way" only for addresses with
+     * an account under review, which is the one thing this page must not say.
      */
     public function resend(Request $request): RedirectResponse
     {
@@ -145,15 +178,39 @@ class AccountAppealController extends Controller
             return to_route('appeal');
         }
 
-        $sent = $this->appealableAccount($email) !== null
-            && $this->passwords->send($email, OneTimePasswordPurpose::Appeal);
+        $waiting = $this->secondsUntilResend($request) > 0;
 
-        Inertia::flash('toast', $sent
-            ? ['type' => 'success', 'message' => __('A new code is on its way.')]
-            : ['type' => 'error', 'message' => __('A code was just sent. Give it a moment before asking for another.')],
+        if (! $waiting) {
+            $request->session()->put(self::SENT_AT_KEY, now()->getTimestamp());
+
+            if ($this->appealableAccount($email) !== null) {
+                $this->passwords->send($email, OneTimePasswordPurpose::Appeal);
+            }
+        }
+
+        Inertia::flash('toast', $waiting
+            ? ['type' => 'error', 'message' => __('A code was just sent. Give it a moment before asking for another.')]
+            : ['type' => 'success', 'message' => __('A new code is on its way.')],
         );
 
         return back();
+    }
+
+    /**
+     * How long this page says it will be before another code may be asked for.
+     *
+     * Read from the session, so an address with nothing to appeal counts down
+     * exactly like one that really was sent a code.
+     */
+    private function secondsUntilResend(Request $request): int
+    {
+        $sentAt = $request->session()->get(self::SENT_AT_KEY);
+
+        if (! is_int($sentAt)) {
+            return 0;
+        }
+
+        return max(0, $sentAt + (int) config('otp.resend_after') - now()->getTimestamp());
     }
 
     /**
@@ -175,7 +232,7 @@ class AccountAppealController extends Controller
      */
     private function finish(Request $request, string $message, string $type = 'success'): RedirectResponse
     {
-        $request->session()->forget(self::SESSION_KEY);
+        $request->session()->forget([self::SESSION_KEY, self::SENT_AT_KEY]);
 
         Inertia::flash('toast', ['type' => $type, 'message' => $message]);
 
