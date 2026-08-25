@@ -1,11 +1,13 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import {
-    CircleIcon,
+    MapPinIcon,
     PencilSimpleIcon,
+    PlusIcon,
     SealCheckIcon,
     UserIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
@@ -14,6 +16,23 @@ import { Input, Select, Textarea } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
 import SkillInput from '@/components/sdpc/skill-input';
 import { Tag } from '@/components/sdpc/tag';
+import {
+    AboutDialog,
+    AccountDialog,
+    EducationDialog,
+    LanguageDialog,
+    PhotoDialog,
+    SkillsDialog,
+} from '@/components/student/profile-dialogs';
+import type { Education, Language } from '@/components/student/profile-dialogs';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
     destroy as portfolioDestroy,
@@ -48,7 +67,11 @@ type PortfolioItem = {
 type Props = {
     profile: {
         name: string;
+        email: string;
         avatarUrl: string | null;
+        displayLocation: string | null;
+        schoolName: string | null;
+        courseAbbreviation: string | null;
         headline: string | null;
         biography: string | null;
         location: string | null;
@@ -67,69 +90,84 @@ type Props = {
         hourlyRate: number | null;
         skills: string[];
     };
+    educations: Education[];
+    languages: Language[];
     portfolio: PortfolioItem[];
     options: {
         schools: { id: number; name: string }[];
         courses: { id: number; name: string; abbreviation: string | null }[];
         skills: { name: string; type: string }[];
         barangays: string[];
+        proficiencies: { value: string; label: string }[];
     };
-    /** Badge only — nothing on the platform is gated on it. */
+    maximumSkills: number;
+    photoLimits: { megabytes: number; pixels: number };
     isVerifiedStudent: boolean;
 };
 
 /**
- * The student's own profile — the screen the client-facing profile reads from.
+ * The student's own profile.
  *
- * The mockup shows this as a finished page with pencil affordances beside each
- * block; here those blocks are the form itself, because a student with nothing
- * filled in needs somewhere to start rather than an empty page to admire.
+ * Edited a section at a time. The page used to be one long form behind a
+ * single "Save profile" button, which meant correcting a typo in your headline
+ * re-submitted your rate, your availability and every skill you had — and made
+ * the page unreadable as a profile, because everything was an input whether or
+ * not you were changing it. Now it reads as the thing a client sees, and each
+ * card opens its own dialog.
+ *
+ * "Public view" hides the edit affordances rather than fetching anything: the
+ * client-facing screen lives behind EnsureUserIsClient, so a student cannot
+ * actually open it, and showing them the same content without the pencils is
+ * the honest version of the preview.
  */
 export default function StudentProfilePage({
     profile,
+    educations,
+    languages,
     portfolio,
     options,
+    maximumSkills,
+    photoLimits,
     isVerifiedStudent,
 }: Props) {
     const team = useCurrentTeam();
 
-    const form = useForm({
-        headline: profile.headline ?? '',
-        biography: profile.biography ?? '',
-        location: profile.location ?? '',
-        barangay: profile.barangay ?? '',
-        school_id: profile.schoolId?.toString() ?? '',
-        course_id: profile.courseId?.toString() ?? '',
-        year_level: profile.yearLevel?.toString() ?? '',
-        education_started_on: profile.educationStartedOn ?? '',
-        education_note: profile.educationNote ?? '',
-        github_url: profile.githubUrl ?? '',
-        portfolio_url: profile.portfolioUrl ?? '',
-        is_available: profile.isAvailable,
-        weekly_hours: profile.weeklyHours?.toString() ?? '',
-        availability_note: profile.availabilityNote ?? '',
-        response_time_hours: profile.responseTimeHours?.toString() ?? '',
-        hourly_rate: profile.hourlyRate?.toString() ?? '',
-        skills: profile.skills,
-    });
+    const [publicView, setPublicView] = useState(false);
+    const [photoOpen, setPhotoOpen] = useState(false);
+    const [accountOpen, setAccountOpen] = useState(false);
+    const [aboutOpen, setAboutOpen] = useState(false);
+    const [skillsOpen, setSkillsOpen] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [education, setEducation] = useState<Education | null>(null);
+    const [educationOpen, setEducationOpen] = useState(false);
+    const [language, setLanguage] = useState<Language | null>(null);
+    const [languageOpen, setLanguageOpen] = useState(false);
 
-    const save = () => {
-        form.transform((data) => ({
-            ...data,
-            school_id: data.school_id || null,
-            course_id: data.course_id || null,
-            year_level: data.year_level || null,
-            // "Not stated" is an empty option, and the rule is nullable rather
-            // than allowing an empty string through the exists check.
-            barangay: data.barangay || null,
-            education_started_on: data.education_started_on || null,
-            weekly_hours: data.weekly_hours || null,
-            response_time_hours: data.response_time_hours || null,
-            hourly_rate: data.hourly_rate || null,
-        }));
+    const editable = !publicView;
 
-        form.patch(profileUpdate.url(team.slug), { preserveScroll: true });
+    const openEducation = (entry: Education | null) => {
+        setEducation(entry);
+        setEducationOpen(true);
     };
+
+    const openLanguage = (entry: Language | null) => {
+        setLanguage(entry);
+        setLanguageOpen(true);
+    };
+
+    const studyLine = [
+        profile.schoolName,
+        [
+            profile.courseAbbreviation,
+            profile.yearLevel
+                ? `${profile.yearLevel}${ordinal(profile.yearLevel)} year`
+                : null,
+        ]
+            .filter(Boolean)
+            .join(' '),
+    ]
+        .filter((part) => part !== null && part !== '')
+        .join(' · ');
 
     return (
         <>
@@ -139,571 +177,1000 @@ export default function StudentProfilePage({
                 style={{
                     maxWidth: 1060,
                     margin: '0 auto',
-                    padding: '24px 32px 72px',
+                    padding: '24px clamp(16px, 4vw, 32px) 72px',
                 }}
             >
-                <div
+                <Panel
                     style={{
-                        display: 'flex',
-                        alignItems: 'flex-end',
-                        gap: 20,
-                        marginBottom: 26,
+                        padding: 20,
+                        gap: 16,
+                        flexDirection: 'row',
+                        alignItems: 'flex-start',
                     }}
                 >
-                    <span
-                        style={{
-                            width: 104,
-                            height: 104,
-                            borderRadius: '50%',
-                            background: 'var(--color-accent-800)',
-                            color: 'var(--color-accent-200)',
-                            display: 'grid',
-                            placeItems: 'center',
-                            fontSize: 44,
-                            flex: 'none',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        {profile.avatarUrl ? (
-                            <img
-                                src={profile.avatarUrl}
-                                alt={profile.name}
+                    <div style={{ position: 'relative', flex: 'none' }}>
+                        <span
+                            style={{
+                                width: 74,
+                                height: 74,
+                                borderRadius: '50%',
+                                display: 'grid',
+                                placeItems: 'center',
+                                overflow: 'hidden',
+                                background: 'var(--color-accent-200)',
+                                color: 'var(--color-accent-700)',
+                                border: profile.avatarUrl
+                                    ? 'none'
+                                    : '1px dashed var(--color-divider)',
+                                fontSize: 11,
+                                textAlign: 'center',
+                                lineHeight: 1.3,
+                            }}
+                        >
+                            {profile.avatarUrl ? (
+                                <img
+                                    src={profile.avatarUrl}
+                                    alt={profile.name}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'cover',
+                                    }}
+                                />
+                            ) : (
+                                <UserIcon size={28} />
+                            )}
+                        </span>
+
+                        {editable && (
+                            <IconButton
+                                label="Change profile photo"
+                                onClick={() => setPhotoOpen(true)}
                                 style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover',
+                                    position: 'absolute',
+                                    right: -4,
+                                    bottom: -4,
+                                    background: 'var(--color-surface)',
                                 }}
                             />
-                        ) : (
-                            <UserIcon />
                         )}
-                    </span>
-
-                    <div style={{ paddingBottom: 6, marginRight: 'auto' }}>
-                        <h3 style={{ margin: 0 }}>{profile.name}</h3>
-                        <div style={{ fontSize: 13, color: MUTED(68) }}>
-                            {[
-                                'Student developer',
-                                profile.headline,
-                                profile.location,
-                            ]
-                                .filter(Boolean)
-                                .join(' · ')}
-                        </div>
                     </div>
 
-                    {isVerifiedStudent && (
-                        <Tag variant="accent" style={{ marginBottom: 10 }}>
-                            <SealCheckIcon style={{ marginRight: 5 }} />
-                            Verified student
-                        </Tag>
-                    )}
-                </div>
-
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '270px minmax(0,1fr)',
-                        gap: 28,
-                        alignItems: 'start',
-                    }}
-                >
-                    <div
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 18,
-                        }}
-                    >
-                        <div>
-                            <h6 style={{ margin: '0 0 8px' }}>About me</h6>
-                            <Textarea
-                                aria-label="About me"
-                                value={form.data.biography}
-                                maxLength={5000}
-                                placeholder="What you build, and who you build it for."
-                                onChange={(event) =>
-                                    form.setData('biography', event.target.value)
-                                }
-                            />
-                            <InputError
-                                message={form.errors.biography}
-                                className="mt-1 text-[11px]"
-                            />
-                        </div>
-
-                        <Panel style={{ padding: 16, gap: 12 }}>
-                            <h6 style={{ margin: 0 }}>Technical arsenal</h6>
-                            <SkillInput
-                                value={form.data.skills}
-                                suggestions={options.skills}
-                                onChange={(skills) =>
-                                    form.setData('skills', skills)
-                                }
-                            />
-                            <InputError
-                                message={form.errors.skills}
-                                className="text-[11px]"
-                            />
-                        </Panel>
-
-                        <Panel style={{ padding: 16, gap: 10 }}>
-                            <h6 style={{ margin: 0 }}>Availability</h6>
-
-                            <label
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    fontSize: 12.5,
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    style={{
-                                        accentColor: 'var(--color-accent)',
-                                        width: 16,
-                                        height: 16,
-                                    }}
-                                    checked={form.data.is_available}
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'is_available',
-                                            event.target.checked,
-                                        )
-                                    }
-                                />
-                                <CircleIcon
-                                    weight="fill"
-                                    style={{
-                                        fontSize: 8,
-                                        color: form.data.is_available
-                                            ? 'var(--color-accent)'
-                                            : MUTED(40),
-                                    }}
-                                />
-                                Open to a project this term
-                            </label>
-
-                            <Field
-                                label="Availability note"
-                                error={form.errors.availability_note}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        value={form.data.availability_note}
-                                        maxLength={255}
-                                        placeholder="Open to one project this term"
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'availability_note',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-
-                            <div
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr',
-                                    gap: 10,
-                                }}
-                            >
-                                <Field
-                                    label="Hrs/week"
-                                    error={form.errors.weekly_hours}
-                                >
-                                    {(props) => (
-                                        <Input
-                                            {...props}
-                                            type="number"
-                                            min={1}
-                                            max={80}
-                                            value={form.data.weekly_hours}
-                                            placeholder="20"
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'weekly_hours',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </Field>
-
-                                <Field
-                                    label="₱/hr"
-                                    error={form.errors.hourly_rate}
-                                >
-                                    {(props) => (
-                                        <Input
-                                            {...props}
-                                            type="number"
-                                            min={0}
-                                            value={form.data.hourly_rate}
-                                            placeholder="260"
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'hourly_rate',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </Field>
-                            </div>
-
-                            <Field
-                                label="Responds within (hours)"
-                                error={form.errors.response_time_hours}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        type="number"
-                                        min={1}
-                                        max={168}
-                                        value={form.data.response_time_hours}
-                                        placeholder="3"
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'response_time_hours',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-                        </Panel>
-                    </div>
-
-                    <div
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 22,
-                        }}
-                    >
-                        <Panel style={{ padding: 16, gap: 12 }}>
-                            <h6 style={{ margin: 0 }}>How you introduce yourself</h6>
-
-                            <Field
-                                label="Headline"
-                                hint="One line a client reads first, e.g. Full-stack developer · Laravel and React."
-                                error={form.errors.headline}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        value={form.data.headline}
-                                        maxLength={255}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'headline',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-
-                            <Field
-                                label="Barangay"
-                                error={form.errors.barangay}
-                            >
-                                {(props) => (
-                                    <select
-                                        {...props}
-                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                        value={form.data.barangay}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'barangay',
-                                                event.target.value,
-                                            )
-                                        }
-                                    >
-                                        <option value="">
-                                            Not stated
-                                        </option>
-                                        {options.barangays.map((barangay) => (
-                                            <option
-                                                key={barangay}
-                                                value={barangay}
-                                            >
-                                                {barangay}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            </Field>
-
-                            {/*
-                              * The half no list can hold. Plenty of addresses
-                              * here are not on any map, so this stays free
-                              * text rather than refusing what a student
-                              * actually lives in.
-                              */}
-                            <Field
-                                label="Area or subdivision (optional)"
-                                error={form.errors.location}
-                            >
-                                {(props) => (
-                                    <Input
-                                        {...props}
-                                        value={form.data.location}
-                                        maxLength={255}
-                                        placeholder="Towerville, Phase 2, near the market"
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'location',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-
-                            <div
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr',
-                                    gap: 12,
-                                }}
-                            >
-                                <Field
-                                    label="GitHub"
-                                    error={form.errors.github_url}
-                                >
-                                    {(props) => (
-                                        <Input
-                                            {...props}
-                                            type="url"
-                                            value={form.data.github_url}
-                                            placeholder="https://github.com/you"
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'github_url',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </Field>
-
-                                <Field
-                                    label="Portfolio site"
-                                    error={form.errors.portfolio_url}
-                                >
-                                    {(props) => (
-                                        <Input
-                                            {...props}
-                                            type="url"
-                                            value={form.data.portfolio_url}
-                                            placeholder="https://"
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'portfolio_url',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </Field>
-                            </div>
-                        </Panel>
-
-                        <Panel style={{ padding: 16, gap: 12 }}>
-                            <h6 style={{ margin: 0 }}>Academic background</h6>
-
-                            <div
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr',
-                                    gap: 12,
-                                }}
-                            >
-                                <Field
-                                    label="School"
-                                    error={form.errors.school_id}
-                                >
-                                    {(props) => (
-                                        <Select
-                                            {...props}
-                                            value={form.data.school_id}
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'school_id',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        >
-                                            <option value="">
-                                                Not stated
-                                            </option>
-                                            {options.schools.map((school) => (
-                                                <option
-                                                    key={school.id}
-                                                    value={school.id}
-                                                >
-                                                    {school.name}
-                                                </option>
-                                            ))}
-                                        </Select>
-                                    )}
-                                </Field>
-
-                                <Field
-                                    label="Course"
-                                    error={form.errors.course_id}
-                                >
-                                    {(props) => (
-                                        <Select
-                                            {...props}
-                                            value={form.data.course_id}
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'course_id',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        >
-                                            <option value="">
-                                                Not stated
-                                            </option>
-                                            {options.courses.map((course) => (
-                                                <option
-                                                    key={course.id}
-                                                    value={course.id}
-                                                >
-                                                    {course.name}
-                                                </option>
-                                            ))}
-                                        </Select>
-                                    )}
-                                </Field>
-
-                                <Field
-                                    label="Year level"
-                                    error={form.errors.year_level}
-                                >
-                                    {(props) => (
-                                        /*
-                                         * A select rather than a number box:
-                                         * college runs four years, and a
-                                         * spinner invited a 5 or a 6 that the
-                                         * server then refused.
-                                         */
-                                        <select
-                                            {...props}
-                                            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                            value={form.data.year_level}
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'year_level',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        >
-                                            {/*
-                                             * Prompt, not a choice. `disabled`
-                                             * stops it being picked and
-                                             * `hidden` keeps it out of the open
-                                             * list, so it only ever shows as
-                                             * the resting label.
-                                             */}
-                                            <option value="" disabled hidden>
-                                                Select a year level
-                                            </option>
-                                            {YEAR_LEVELS.map((level) => (
-                                                <option
-                                                    key={level.value}
-                                                    value={level.value}
-                                                >
-                                                    {level.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )}
-                                </Field>
-
-                                <Field
-                                    label="Started"
-                                    error={form.errors.education_started_on}
-                                >
-                                    {(props) => (
-                                        <Input
-                                            {...props}
-                                            type="date"
-                                            value={
-                                                form.data.education_started_on
-                                            }
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'education_started_on',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </Field>
-                            </div>
-
-                            <Field
-                                label="Specialisation"
-                                error={form.errors.education_note}
-                            >
-                                {(props) => (
-                                    <Textarea
-                                        {...props}
-                                        value={form.data.education_note}
-                                        maxLength={2000}
-                                        placeholder="Specialised in web systems development; capstone track on AI-assisted client matching."
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'education_note',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                )}
-                            </Field>
-                        </Panel>
-
+                    <div style={{ marginRight: 'auto', minWidth: 0 }}>
                         <div
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 10,
+                                gap: 8,
                             }}
                         >
-                            <span
-                                style={{
-                                    fontSize: 11.5,
-                                    color: MUTED(68),
-                                    marginRight: 'auto',
-                                }}
-                            >
-                                Clients read this profile when they shortlist.
-                            </span>
-                            <Btn
-                                variant="primary"
-                                disabled={form.processing}
-                                onClick={save}
-                            >
-                                {form.processing ? 'Saving…' : 'Save profile'}
-                            </Btn>
+                            <h3 style={{ margin: 0 }}>{profile.name}</h3>
+                            {isVerifiedStudent && (
+                                <SealCheckIcon
+                                    weight="fill"
+                                    aria-label="Verified student"
+                                    style={{ color: 'var(--color-accent)' }}
+                                />
+                            )}
+                            {editable && (
+                                <IconButton
+                                    label="Edit your name and email"
+                                    onClick={() => setAccountOpen(true)}
+                                />
+                            )}
                         </div>
 
-                        <PortfolioSection items={portfolio} teamSlug={team.slug} />
+                        {profile.displayLocation && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    marginTop: 4,
+                                    fontSize: 12.5,
+                                    color: MUTED(65),
+                                }}
+                            >
+                                <MapPinIcon />
+                                {profile.displayLocation}
+                            </div>
+                        )}
+
+                        {studyLine && (
+                            <div
+                                style={{
+                                    marginTop: 2,
+                                    fontSize: 12.5,
+                                    color: 'var(--color-accent)',
+                                }}
+                            >
+                                {studyLine}
+                            </div>
+                        )}
+                    </div>
+
+                    {/*
+                     * A preview rather than a link. The client-facing profile
+                     * is behind EnsureUserIsClient, so a student opening it
+                     * would be turned away by their own role.
+                     */}
+                    <div style={{ display: 'flex', flex: 'none', gap: 0 }}>
+                        <ViewTab
+                            active={!publicView}
+                            onClick={() => setPublicView(false)}
+                        >
+                            My view
+                        </ViewTab>
+                        <ViewTab
+                            active={publicView}
+                            onClick={() => setPublicView(true)}
+                        >
+                            Public view
+                        </ViewTab>
+                    </div>
+                </Panel>
+
+                <div
+                    className="split"
+                    style={{
+                        ['--rail' as string]: 'minmax(0, 240px)',
+                        gap: 16,
+                        marginTop: 16,
+                    }}
+                >
+                    <div style={{ display: 'grid', gap: 16 }}>
+                        <Card
+                            title="Languages"
+                            editable={editable}
+                            onAdd={() => openLanguage(null)}
+                        >
+                            {languages.length === 0 ? (
+                                <Empty>No languages listed yet.</Empty>
+                            ) : (
+                                languages.map((entry) => (
+                                    <Row
+                                        key={entry.id}
+                                        editable={editable}
+                                        onEdit={() => openLanguage(entry)}
+                                        label={`Edit ${entry.name}`}
+                                    >
+                                        <span style={{ fontSize: 12.5 }}>
+                                            <strong style={{ fontWeight: 500 }}>
+                                                {entry.name}:
+                                            </strong>{' '}
+                                            <span style={{ color: MUTED(65) }}>
+                                                {entry.proficiencyLabel}
+                                            </span>
+                                        </span>
+                                    </Row>
+                                ))
+                            )}
+                        </Card>
+
+                        <Card
+                            title="Education"
+                            editable={editable}
+                            onAdd={() => openEducation(null)}
+                        >
+                            {educations.length === 0 ? (
+                                <Empty>No schools listed yet.</Empty>
+                            ) : (
+                                educations.map((entry) => (
+                                    <Row
+                                        key={entry.id}
+                                        editable={editable}
+                                        onEdit={() => openEducation(entry)}
+                                        label={`Edit ${entry.school}`}
+                                    >
+                                        <div style={{ minWidth: 0 }}>
+                                            <div style={{ fontSize: 12.5 }}>
+                                                {entry.school}
+                                            </div>
+                                            {entry.qualification && (
+                                                <div
+                                                    style={{
+                                                        fontSize: 11.5,
+                                                        color: 'var(--color-accent)',
+                                                    }}
+                                                >
+                                                    {entry.qualification}
+                                                </div>
+                                            )}
+                                            {entry.years && (
+                                                <div
+                                                    style={{
+                                                        fontSize: 11.5,
+                                                        color: MUTED(50),
+                                                    }}
+                                                >
+                                                    {entry.years}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Row>
+                                ))
+                            )}
+                        </Card>
+
+                        <Card
+                            title="Availability"
+                            editable={editable}
+                            onEdit={() => setDetailsOpen(true)}
+                        >
+                            <div style={{ fontSize: 12.5 }}>
+                                {profile.isAvailable
+                                    ? 'Open to a project this term'
+                                    : 'Not taking new work'}
+                            </div>
+                            <Detail
+                                label="Hours a week"
+                                value={profile.weeklyHours}
+                            />
+                            <Detail
+                                label="Rate"
+                                value={
+                                    profile.hourlyRate === null
+                                        ? null
+                                        : `₱${profile.hourlyRate.toLocaleString()}/hr`
+                                }
+                            />
+                            <Detail
+                                label="Replies within"
+                                value={
+                                    profile.responseTimeHours === null
+                                        ? null
+                                        : `${profile.responseTimeHours} hours`
+                                }
+                            />
+                            {profile.availabilityNote && (
+                                <div
+                                    style={{
+                                        fontSize: 11.5,
+                                        color: MUTED(60),
+                                    }}
+                                >
+                                    {profile.availabilityNote}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 16 }}>
+                        <Panel style={{ padding: 20, gap: 12 }}>
+                            <Heading
+                                editable={editable}
+                                onEdit={() => setAboutOpen(true)}
+                                label="Edit your introduction"
+                            >
+                                Student
+                            </Heading>
+
+                            {profile.headline && (
+                                <div
+                                    style={{
+                                        fontSize: 13,
+                                        color: 'var(--color-accent)',
+                                    }}
+                                >
+                                    {profile.headline}
+                                </div>
+                            )}
+
+                            {profile.biography ? (
+                                profile.biography
+                                    .split(/\n{2,}/)
+                                    .map((paragraph, index) => (
+                                        <p
+                                            key={index}
+                                            style={{
+                                                margin: 0,
+                                                fontSize: 13,
+                                                lineHeight: 1.7,
+                                                color: MUTED(78),
+                                            }}
+                                        >
+                                            {paragraph}
+                                        </p>
+                                    ))
+                            ) : (
+                                <Empty>
+                                    Say what you build and who you build it for.
+                                    This is the first thing a client reads.
+                                </Empty>
+                            )}
+                        </Panel>
+
+                        <Panel style={{ padding: 20, gap: 12 }}>
+                            <Heading
+                                editable={editable}
+                                onEdit={() => setSkillsOpen(true)}
+                                label="Edit skills"
+                            >
+                                Skills
+                            </Heading>
+
+                            <span
+                                style={{
+                                    fontSize: 10,
+                                    letterSpacing: '0.1em',
+                                    textTransform: 'uppercase',
+                                    color: MUTED(50),
+                                }}
+                            >
+                                Self-reported
+                            </span>
+
+                            {profile.skills.length === 0 ? (
+                                <Empty>No skills listed yet.</Empty>
+                            ) : (
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: 6,
+                                    }}
+                                >
+                                    {profile.skills.map((skill) => (
+                                        <Tag key={skill} variant="neutral">
+                                            {skill}
+                                        </Tag>
+                                    ))}
+                                </div>
+                            )}
+                        </Panel>
+
+                        <Panel style={{ padding: 20, gap: 10 }}>
+                            <Heading
+                                editable={editable}
+                                onEdit={() => setDetailsOpen(true)}
+                                label="Edit your links"
+                            >
+                                Links
+                            </Heading>
+
+                            {profile.githubUrl === null &&
+                            profile.portfolioUrl === null ? (
+                                <Empty>No links yet.</Empty>
+                            ) : (
+                                <>
+                                    <ExternalLink
+                                        label="GitHub"
+                                        href={profile.githubUrl}
+                                    />
+                                    <ExternalLink
+                                        label="Portfolio"
+                                        href={profile.portfolioUrl}
+                                    />
+                                </>
+                            )}
+                        </Panel>
+
+                        <PortfolioSection
+                            items={portfolio}
+                            teamSlug={team.slug}
+                        />
                     </div>
                 </div>
             </div>
+
+            <PhotoDialog
+                open={photoOpen}
+                onOpenChange={setPhotoOpen}
+                avatarUrl={profile.avatarUrl}
+                hasPhoto={profile.avatarUrl !== null}
+                maximumMegabytes={photoLimits.megabytes}
+                minimumPixels={photoLimits.pixels}
+            />
+
+            <AccountDialog
+                open={accountOpen}
+                onOpenChange={setAccountOpen}
+                name={profile.name}
+                email={profile.email}
+            />
+
+            <AboutDialog
+                open={aboutOpen}
+                onOpenChange={setAboutOpen}
+                headline={profile.headline}
+                biography={profile.biography}
+            />
+
+            <SkillsDialog
+                open={skillsOpen}
+                onOpenChange={setSkillsOpen}
+                skills={profile.skills}
+                catalogue={options.skills}
+                maximum={maximumSkills}
+            />
+
+            <EducationDialog
+                open={educationOpen}
+                onOpenChange={setEducationOpen}
+                education={education}
+                courses={options.courses}
+            />
+
+            <LanguageDialog
+                open={languageOpen}
+                onOpenChange={setLanguageOpen}
+                language={language}
+                proficiencies={options.proficiencies}
+            />
+
+            <DetailsDialog
+                open={detailsOpen}
+                onOpenChange={setDetailsOpen}
+                profile={profile}
+                options={options}
+            />
         </>
+    );
+}
+
+/** "1st", "2nd", "3rd", "4th" — the list only ever runs to four. */
+function ordinal(year: number): string {
+    return { 1: 'st', 2: 'nd', 3: 'rd' }[year] ?? 'th';
+}
+
+/** One of the two segmented tabs above the profile. */
+function ViewTab({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            style={{
+                padding: '6px 14px',
+                fontSize: 12.5,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-heading)',
+                border: '1px solid var(--color-divider)',
+                background: active
+                    ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                    : 'transparent',
+                color: active ? 'var(--color-accent)' : MUTED(60),
+            }}
+        >
+            {children}
+        </button>
+    );
+}
+
+/** The small round pencil the design hangs off every editable section. */
+function IconButton({
+    label,
+    onClick,
+    style,
+}: {
+    label: string;
+    onClick: () => void;
+    style?: React.CSSProperties;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            title={label}
+            style={{
+                width: 26,
+                height: 26,
+                display: 'grid',
+                placeItems: 'center',
+                borderRadius: '50%',
+                border: '1px solid var(--color-divider)',
+                background: 'transparent',
+                color: 'var(--color-accent)',
+                cursor: 'pointer',
+                flex: 'none',
+                ...style,
+            }}
+        >
+            <PencilSimpleIcon size={13} />
+        </button>
+    );
+}
+
+/** A left-column card: kicker, an add button, and its rows. */
+function Card({
+    title,
+    editable,
+    onAdd,
+    onEdit,
+    children,
+}: {
+    title: string;
+    editable: boolean;
+    onAdd?: () => void;
+    onEdit?: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <Panel style={{ padding: 16, gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span
+                    style={{
+                        marginRight: 'auto',
+                        fontSize: 10,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: MUTED(55),
+                    }}
+                >
+                    {title}
+                </span>
+
+                {editable && onAdd && (
+                    <button
+                        type="button"
+                        onClick={onAdd}
+                        aria-label={`Add ${title.toLowerCase()}`}
+                        title={`Add ${title.toLowerCase()}`}
+                        style={{
+                            width: 26,
+                            height: 26,
+                            display: 'grid',
+                            placeItems: 'center',
+                            borderRadius: '50%',
+                            border: '1px solid var(--color-divider)',
+                            background: 'transparent',
+                            color: 'var(--color-accent)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <PlusIcon size={13} />
+                    </button>
+                )}
+
+                {editable && onEdit && (
+                    <IconButton
+                        label={`Edit ${title.toLowerCase()}`}
+                        onClick={onEdit}
+                    />
+                )}
+            </div>
+
+            {children}
+        </Panel>
+    );
+}
+
+/** A row inside a left-column card, with its own pencil. */
+function Row({
+    editable,
+    onEdit,
+    label,
+    children,
+}: {
+    editable: boolean;
+    onEdit: () => void;
+    label: string;
+    children: ReactNode;
+}) {
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+            }}
+        >
+            <div style={{ marginRight: 'auto', minWidth: 0 }}>{children}</div>
+            {editable && <IconButton label={label} onClick={onEdit} />}
+        </div>
+    );
+}
+
+/** A right-hand heading with an optional pencil beside it. */
+function Heading({
+    editable,
+    onEdit,
+    label,
+    children,
+}: {
+    editable: boolean;
+    onEdit: () => void;
+    label: string;
+    children: ReactNode;
+}) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h5 style={{ margin: 0, marginRight: 'auto' }}>{children}</h5>
+            {editable && <IconButton label={label} onClick={onEdit} />}
+        </div>
+    );
+}
+
+/** The line a card shows when it has nothing in it yet. */
+function Empty({ children }: { children: ReactNode }) {
+    return (
+        <p
+            style={{
+                margin: 0,
+                fontSize: 12,
+                lineHeight: 1.6,
+                color: MUTED(50),
+            }}
+        >
+            {children}
+        </p>
+    );
+}
+
+/** A labelled figure in the availability card, hidden when unset. */
+function Detail({
+    label,
+    value,
+}: {
+    label: string;
+    value: string | number | null;
+}) {
+    if (value === null || value === '') {
+        return null;
+    }
+
+    return (
+        <div style={{ fontSize: 12, color: MUTED(65) }}>
+            {label}: <span style={{ color: MUTED(85) }}>{value}</span>
+        </div>
+    );
+}
+
+/** One outbound link, absent rather than empty when unset. */
+function ExternalLink({ label, href }: { label: string; href: string | null }) {
+    if (href === null) {
+        return null;
+    }
+
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 12.5, wordBreak: 'break-all' }}
+        >
+            {label}: {href}
+        </a>
+    );
+}
+
+/**
+ * Everything the redesign's cards do not each own: where you are, what you are
+ * enrolled in, your links and your availability.
+ *
+ * school_id, course_id and year_level are here rather than in the Education
+ * dialog on purpose. That dialog writes the readable list; these three are the
+ * columns RecruitController filters students by, so they stay one per profile
+ * and keep feeding the line under the name.
+ */
+function DetailsDialog({
+    open,
+    onOpenChange,
+    profile,
+    options,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    profile: Props['profile'];
+    options: Props['options'];
+}) {
+    const team = useCurrentTeam();
+
+    const form = useForm({
+        location: profile.location ?? '',
+        barangay: profile.barangay ?? '',
+        school_id: profile.schoolId?.toString() ?? '',
+        course_id: profile.courseId?.toString() ?? '',
+        year_level: profile.yearLevel?.toString() ?? '',
+        github_url: profile.githubUrl ?? '',
+        portfolio_url: profile.portfolioUrl ?? '',
+        is_available: profile.isAvailable,
+        weekly_hours: profile.weeklyHours?.toString() ?? '',
+        availability_note: profile.availabilityNote ?? '',
+        response_time_hours: profile.responseTimeHours?.toString() ?? '',
+        hourly_rate: profile.hourlyRate?.toString() ?? '',
+    });
+
+    const save = () => {
+        form.transform((data) => ({
+            ...data,
+            /*
+             * Empty selects post "", and every one of these rules is nullable
+             * rather than allowing a blank string past an exists check.
+             */
+            school_id: data.school_id || null,
+            course_id: data.course_id || null,
+            year_level: data.year_level || null,
+            barangay: data.barangay || null,
+            weekly_hours: data.weekly_hours || null,
+            response_time_hours: data.response_time_hours || null,
+            hourly_rate: data.hourly_rate || null,
+        }));
+
+        form.patch(profileUpdate.url(team.slug), {
+            preserveScroll: true,
+            onSuccess: () => onOpenChange(false),
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Profile details</DialogTitle>
+                </DialogHeader>
+
+                <div
+                    style={{
+                        display: 'grid',
+                        gap: 12,
+                        maxHeight: '60vh',
+                        overflowY: 'auto',
+                    }}
+                >
+                    <div className="field">
+                        <label htmlFor="location">
+                            Area or subdivision{' '}
+                            <span style={{ color: MUTED(50) }}>(optional)</span>
+                        </label>
+                        <Input
+                            id="location"
+                            value={form.data.location}
+                            placeholder="Towerville, Phase 2, near the market"
+                            onChange={(e) =>
+                                form.setData('location', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.location}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="barangay">Barangay</label>
+                        <Select
+                            id="barangay"
+                            value={form.data.barangay}
+                            onChange={(e) =>
+                                form.setData('barangay', e.target.value)
+                            }
+                        >
+                            <option value="">Not stated</option>
+                            {options.barangays.map((name) => (
+                                <option key={name} value={name}>
+                                    {name}
+                                </option>
+                            ))}
+                        </Select>
+                        <InputError
+                            message={form.errors.barangay}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="school_id">School</label>
+                        <Select
+                            id="school_id"
+                            value={form.data.school_id}
+                            onChange={(e) =>
+                                form.setData('school_id', e.target.value)
+                            }
+                        >
+                            <option value="">Not stated</option>
+                            {options.schools.map((school) => (
+                                <option key={school.id} value={school.id}>
+                                    {school.name}
+                                </option>
+                            ))}
+                        </Select>
+                        <InputError
+                            message={form.errors.school_id}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="course_id">Course</label>
+                        <Select
+                            id="course_id"
+                            value={form.data.course_id}
+                            onChange={(e) =>
+                                form.setData('course_id', e.target.value)
+                            }
+                        >
+                            <option value="">Not stated</option>
+                            {options.courses.map((course) => (
+                                <option key={course.id} value={course.id}>
+                                    {course.name}
+                                </option>
+                            ))}
+                        </Select>
+                        <InputError
+                            message={form.errors.course_id}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="year_level">Year level</label>
+                        <Select
+                            id="year_level"
+                            value={form.data.year_level}
+                            onChange={(e) =>
+                                form.setData('year_level', e.target.value)
+                            }
+                        >
+                            <option value="">Not stated</option>
+                            {YEAR_LEVELS.map((level) => (
+                                <option key={level.value} value={level.value}>
+                                    {level.label}
+                                </option>
+                            ))}
+                        </Select>
+                        <InputError
+                            message={form.errors.year_level}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="github_url">GitHub</label>
+                        <Input
+                            id="github_url"
+                            value={form.data.github_url}
+                            placeholder="https://github.com/you"
+                            onChange={(e) =>
+                                form.setData('github_url', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.github_url}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="portfolio_url">Portfolio site</label>
+                        <Input
+                            id="portfolio_url"
+                            value={form.data.portfolio_url}
+                            placeholder="https://you.dev"
+                            onChange={(e) =>
+                                form.setData('portfolio_url', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.portfolio_url}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <label
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            fontSize: 12.5,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={form.data.is_available}
+                            onChange={(e) =>
+                                form.setData('is_available', e.target.checked)
+                            }
+                            style={{
+                                accentColor: 'var(--color-accent)',
+                                width: 15,
+                                height: 15,
+                            }}
+                        />
+                        Open to a project this term
+                    </label>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns:
+                                'repeat(auto-fit, minmax(150px, 1fr))',
+                            gap: 10,
+                        }}
+                    >
+                        <div className="field">
+                            <label htmlFor="weekly_hours">Hrs/week</label>
+                            <Input
+                                id="weekly_hours"
+                                type="number"
+                                value={form.data.weekly_hours}
+                                onChange={(e) =>
+                                    form.setData('weekly_hours', e.target.value)
+                                }
+                            />
+                        </div>
+
+                        <div className="field">
+                            <label htmlFor="hourly_rate">₱/hr</label>
+                            <Input
+                                id="hourly_rate"
+                                type="number"
+                                value={form.data.hourly_rate}
+                                onChange={(e) =>
+                                    form.setData('hourly_rate', e.target.value)
+                                }
+                            />
+                        </div>
+
+                        <div className="field">
+                            <label htmlFor="response_time_hours">
+                                Replies in (h)
+                            </label>
+                            <Input
+                                id="response_time_hours"
+                                type="number"
+                                value={form.data.response_time_hours}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'response_time_hours',
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                        </div>
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="availability_note">
+                            Availability note
+                        </label>
+                        <Textarea
+                            id="availability_note"
+                            rows={2}
+                            value={form.data.availability_note}
+                            onChange={(e) =>
+                                form.setData(
+                                    'availability_note',
+                                    e.target.value,
+                                )
+                            }
+                        />
+                        <InputError
+                            message={form.errors.availability_note}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Btn type="button" variant="ghost">
+                            Cancel
+                        </Btn>
+                    </DialogClose>
+
+                    <Btn
+                        type="button"
+                        variant="secondary"
+                        disabled={form.processing}
+                        onClick={save}
+                        data-test="save-details-button"
+                    >
+                        Save
+                    </Btn>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -747,9 +1214,7 @@ function PortfolioSection({
                 contributions.
             </p>
 
-            <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {editingId === 'new' && (
                     <PortfolioForm
                         teamSlug={teamSlug}
@@ -759,9 +1224,7 @@ function PortfolioSection({
 
                 {items.length === 0 && editingId !== 'new' && (
                     <Panel style={{ padding: 16, gap: 6 }}>
-                        <span style={{ fontSize: 13 }}>
-                            Nothing here yet.
-                        </span>
+                        <span style={{ fontSize: 13 }}>Nothing here yet.</span>
                         <span style={{ fontSize: 12.5, color: MUTED(65) }}>
                             Capstone work, coursework and anything you have
                             shipped. This is what a client reads before they
@@ -779,10 +1242,7 @@ function PortfolioSection({
                             onDone={() => setEditingId(null)}
                         />
                     ) : (
-                        <Panel
-                            key={item.id}
-                            style={{ padding: 16, gap: 6 }}
-                        >
+                        <Panel key={item.id} style={{ padding: 16, gap: 6 }}>
                             <div
                                 style={{
                                     display: 'flex',
@@ -928,9 +1388,9 @@ function PortfolioForm({
             </Field>
 
             <div
+                className="stack"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 120px',
+                    ['--cols' as string]: '1fr 120px',
                     gap: 12,
                 }}
             >
@@ -980,7 +1440,7 @@ function PortfolioForm({
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: 12,
                 }}
             >
@@ -998,10 +1458,7 @@ function PortfolioForm({
                     )}
                 </Field>
 
-                <Field
-                    label="Repository"
-                    error={form.errors.repository_url}
-                >
+                <Field label="Repository" error={form.errors.repository_url}>
                     {(props) => (
                         <Input
                             {...props}

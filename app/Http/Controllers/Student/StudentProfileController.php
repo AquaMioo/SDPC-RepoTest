@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Enums\LanguageProficiency;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Student\SaveProfilePhotoRequest;
 use App\Http\Requests\Student\UpdateStudentProfileRequest;
 use App\Models\Barangay;
 use App\Models\Course;
 use App\Models\School;
 use App\Models\Skill;
+use App\Models\StudentEducation;
+use App\Models\StudentLanguage;
 use App\Models\StudentPortfolioItem;
 use App\Models\StudentProfile;
 use App\Models\Team;
@@ -34,12 +38,30 @@ class StudentProfileController extends Controller
     {
         $profile = $this->profileFor($request->user());
 
-        $profile->load(['skills', 'portfolioItems.skills']);
+        $profile->load([
+            'skills',
+            'portfolioItems.skills',
+            'educations.course',
+            'languages',
+            'school',
+            'course',
+        ]);
 
         return Inertia::render('student/profile', [
             'profile' => [
                 'name' => $request->user()->name,
+                /*
+                 * The account's own address, not a profile column. It is here
+                 * because this screen is the only place a student can change
+                 * their name or email — the settings screen carries no editor
+                 * for either any more.
+                 */
+                'email' => $request->user()->email,
                 'avatarUrl' => $request->user()->avatarUrl(),
+                /* The line under the name: where they are, what they study. */
+                'displayLocation' => $profile->displayLocation(),
+                'schoolName' => $profile->school?->name,
+                'courseAbbreviation' => $profile->course?->abbreviation ?? $profile->course?->name,
                 'headline' => $profile->headline,
                 'biography' => $profile->biography,
                 'location' => $profile->location,
@@ -62,6 +84,30 @@ class StudentProfileController extends Controller
 
                 'skills' => $profile->skills->pluck('name')->values()->all(),
             ],
+            'educations' => $profile->educations
+                ->map(fn (StudentEducation $education): array => [
+                    'id' => $education->id,
+                    'school' => $education->school,
+                    'courseId' => $education->course_id,
+                    'areaOfStudy' => $education->area_of_study,
+                    'fromYear' => $education->from_year,
+                    'toYear' => $education->to_year,
+                    'description' => $education->description,
+                    /* Composed here so the card and the public view agree. */
+                    'qualification' => $education->displayQualification(),
+                    'years' => $education->displayYears(),
+                ])
+                ->values()
+                ->all(),
+            'languages' => $profile->languages
+                ->map(fn (StudentLanguage $language): array => [
+                    'id' => $language->id,
+                    'name' => $language->name,
+                    'proficiency' => $language->proficiency->value,
+                    'proficiencyLabel' => $language->proficiency->label(),
+                ])
+                ->values()
+                ->all(),
             'portfolio' => $profile->portfolioItems
                 ->map(fn (StudentPortfolioItem $item): array => [
                     'id' => $item->id,
@@ -82,6 +128,18 @@ class StudentProfileController extends Controller
                 'skills' => Skill::query()->orderBy('name')->get(['name', 'type']),
                 // The platform serves one city, so this is the whole list.
                 'barangays' => Barangay::names(),
+                'proficiencies' => LanguageProficiency::options(),
+            ],
+            /* What the skills dialog will not let a student go past. */
+            'maximumSkills' => UpdateStudentProfileRequest::MAXIMUM_SKILLS,
+            /*
+             * The photo dialog states both of these to the student, so they
+             * are read from the rules that actually reject the upload rather
+             * than written into the copy where they could drift.
+             */
+            'photoLimits' => [
+                'megabytes' => (int) round(config('uploads.max_image_kilobytes') / 1024),
+                'pixels' => SaveProfilePhotoRequest::MINIMUM_PIXELS,
             ],
             /*
              * Badge presentation only. Whether a student may apply, message or
@@ -107,7 +165,16 @@ class StudentProfileController extends Controller
                 'availability_note', 'response_time_hours', 'hourly_rate',
             ]));
 
-            $profile->skills()->sync(Skill::idsForNames($request->array('skills')));
+            /*
+             * Only when the submission actually carried skills. The profile is
+             * edited a section at a time now, so a dialog saving nothing but a
+             * headline posts no `skills` key at all — and syncing an absent
+             * key against an empty array would silently strip every skill the
+             * student had.
+             */
+            if ($request->has('skills')) {
+                $profile->skills()->sync(Skill::idsForNames($request->array('skills')));
+            }
         });
 
         return back()->with('success', 'Profile saved.');

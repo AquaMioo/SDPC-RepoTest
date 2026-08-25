@@ -4,6 +4,9 @@ use App\Http\Controllers\Student\ClientDirectoryController;
 use App\Http\Controllers\Student\PortfolioItemController;
 use App\Http\Controllers\Student\ProjectBoardController;
 use App\Http\Controllers\Student\ProjectProcessController;
+use App\Http\Controllers\Student\StudentEducationController;
+use App\Http\Controllers\Student\StudentLanguageController;
+use App\Http\Controllers\Student\StudentPhotoController;
 use App\Http\Controllers\Student\StudentProfileController;
 use App\Http\Controllers\Student\StudentVerificationController;
 use App\Http\Controllers\Student\WorkflowController;
@@ -76,6 +79,31 @@ Route::prefix('{current_team}')
          */
         Route::get('my-profile', [StudentProfileController::class, 'edit'])->name('student.profile.edit');
         Route::patch('my-profile', [StudentProfileController::class, 'update'])->name('student.profile.update');
+
+        /*
+         * The profile's own sections, each edited in its own dialog rather
+         * than through one page-wide save. Every one of them resolves the row
+         * through the signed-in student's profile, so there is no policy on
+         * any of these — somebody else's id is a 404.
+         */
+        Route::post('my-profile/photo', [StudentPhotoController::class, 'update'])
+            ->name('student.photo.update');
+        Route::delete('my-profile/photo', [StudentPhotoController::class, 'destroy'])
+            ->name('student.photo.destroy');
+
+        Route::post('my-profile/education', [StudentEducationController::class, 'store'])
+            ->name('student.education.store');
+        Route::patch('my-profile/education/{education}', [StudentEducationController::class, 'update'])
+            ->name('student.education.update');
+        Route::delete('my-profile/education/{education}', [StudentEducationController::class, 'destroy'])
+            ->name('student.education.destroy');
+
+        Route::post('my-profile/languages', [StudentLanguageController::class, 'store'])
+            ->name('student.languages.store');
+        Route::patch('my-profile/languages/{language}', [StudentLanguageController::class, 'update'])
+            ->name('student.languages.update');
+        Route::delete('my-profile/languages/{language}', [StudentLanguageController::class, 'destroy'])
+            ->name('student.languages.destroy');
 
         Route::post('my-profile/portfolio', [PortfolioItemController::class, 'store'])
             ->name('student.portfolio.store');

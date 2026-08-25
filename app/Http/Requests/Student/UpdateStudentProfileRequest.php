@@ -20,6 +20,16 @@ use Illuminate\Validation\Rule;
 class UpdateStudentProfileRequest extends FormRequest
 {
     /**
+     * How many skills a profile may claim.
+     *
+     * A ceiling rather than a target. Past about this many the list stops
+     * telling a client what somebody is good at and starts reading as
+     * everything they have ever opened. The dialog counts against the same
+     * number, so the form and the rule cannot drift apart.
+     */
+    public const MAXIMUM_SKILLS = 20;
+
+    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
@@ -65,7 +75,7 @@ class UpdateStudentProfileRequest extends FormRequest
             'response_time_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
             'hourly_rate' => ['nullable', 'integer', 'min:0', 'max:100000'],
 
-            'skills' => ['array', 'max:30'],
+            'skills' => ['array', 'max:'.self::MAXIMUM_SKILLS],
             'skills.*' => ['required', 'string', 'max:60'],
         ];
     }

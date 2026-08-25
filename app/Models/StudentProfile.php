@@ -46,6 +46,8 @@ use Illuminate\Support\Carbon;
  * @property-read Course|null $course
  * @property-read Collection<int, Skill> $skills
  * @property-read Collection<int, StudentPortfolioItem> $portfolioItems
+ * @property-read Collection<int, StudentEducation> $educations
+ * @property-read Collection<int, StudentLanguage> $languages
  */
 #[Fillable([
     'user_id', 'headline', 'biography', 'location', 'barangay', 'photo_path', 'school_id',
@@ -128,6 +130,32 @@ class StudentProfile extends Model
         return $this->hasMany(StudentPortfolioItem::class)
             ->orderBy('position')
             ->orderByDesc('year');
+    }
+
+    /**
+     * Get the schools the student went to, most recent first.
+     *
+     * Separate from school_id / course_id above, which stay because the client
+     * recruit filters run through them. This is the list a reader sees.
+     *
+     * @return HasMany<StudentEducation, $this>
+     */
+    public function educations(): HasMany
+    {
+        return $this->hasMany(StudentEducation::class)
+            ->orderByDesc('to_year')
+            ->orderByDesc('from_year')
+            ->orderByDesc('id');
+    }
+
+    /**
+     * Get the languages the student can work in.
+     *
+     * @return HasMany<StudentLanguage, $this>
+     */
+    public function languages(): HasMany
+    {
+        return $this->hasMany(StudentLanguage::class)->orderBy('id');
     }
 
     /**
