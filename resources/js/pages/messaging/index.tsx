@@ -1,15 +1,22 @@
-import { useEcho } from '@laravel/echo-react';
 import { Head, router, useForm, usePoll } from '@inertiajs/react';
+import { useEcho } from '@laravel/echo-react';
 import {
     ImageIcon,
     PaperPlaneRightIcon,
     SmileyIcon,
+    VideoCameraIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 
+import VideoCall from '@/components/messaging/video-call';
+import type { MeetingCredentials } from '@/components/messaging/video-call';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import {
+    store as startMeeting,
+    token as meetingToken,
+} from '@/routes/meetings';
 import {
     edit as editMessage,
     react as reactToMessage,
@@ -32,6 +39,8 @@ type Thread = {
 };
 
 type Props = {
+    /** False when the platform holds no Agora credentials. */
+    videoEnabled: boolean;
     threads: Thread[];
     active: {
         id: number;
@@ -108,7 +117,7 @@ function isEmojiOnly(message: {
  * there is no websocket server in this stack, and a five second poll is
  * honest about that rather than pretending to be live.
  */
-export default function Messages({ threads, active }: Props) {
+export default function Messages({ videoEnabled, threads, active }: Props) {
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLInputElement>(null);
@@ -131,6 +140,122 @@ export default function Messages({ threads, active }: Props) {
         },
         [active?.id],
     );
+
+    /*
+     * The call in progress, and an invitation waiting to be answered.
+     *
+     * The invitation rides the thread's own private channel and deliberately
+     * carries no token. Joining asks the server for one, where the participant
+     * check runs again against the authenticated user rather than against
+     * whoever the socket happens to belong to.
+     */
+    const [call, setCall] = useState<MeetingCredentials | null>(null);
+    const [invitation, setInvitation] = useState<{
+        meetingId: number;
+        conversationId: number;
+    } | null>(null);
+    const [callBusy, setCallBusy] = useState(false);
+
+    useEcho(
+        `conversations.${active?.id ?? 0}`,
+        '.meeting.started',
+        (event: { id: number; conversationId: number }) => {
+            setInvitation({
+                meetingId: event.id,
+                conversationId: event.conversationId,
+            });
+        },
+        [active?.id],
+    );
+
+    /*
+     * Kept with the thread it belongs to rather than cleared when the thread
+     * changes: deriving it costs nothing and avoids a state write inside an
+     * effect, which would re-render every open thread twice.
+     */
+    const pendingInvitation =
+        invitation !== null && invitation.conversationId === active?.id
+            ? invitation.meetingId
+            : null;
+
+    /**
+     * These endpoints answer in JSON rather than with an Inertia page, so they
+     * are fetched directly. Laravel checks X-XSRF-TOKEN against the cookie it
+     * set, which is why the header is read back out of document.cookie.
+     */
+    const postJson = async (url: string, method = 'POST') => {
+        const xsrf = document.cookie
+            .split('; ')
+            .find((entry) => entry.startsWith('XSRF-TOKEN='))
+            ?.split('=')[1];
+
+        const response = await fetch(url, {
+            method,
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-XSRF-TOKEN': decodeURIComponent(xsrf ?? ''),
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(
+                `The call could not be placed (${response.status}).`,
+            );
+        }
+
+        return response.json();
+    };
+
+    const startCall = async () => {
+        if (active === null || callBusy) {
+            return;
+        }
+
+        setCallBusy(true);
+
+        try {
+            const body = await postJson(
+                startMeeting.url({
+                    current_team: team.slug,
+                    conversation: active.id,
+                }),
+            );
+
+            setInvitation(null);
+            setCall(body.token as MeetingCredentials);
+        } catch {
+            /* Left to the caller to retry; nothing has been created. */
+        } finally {
+            setCallBusy(false);
+        }
+    };
+
+    const joinCall = async (meetingId: number) => {
+        if (callBusy) {
+            return;
+        }
+
+        setCallBusy(true);
+
+        try {
+            const body = await postJson(
+                meetingToken.url({
+                    current_team: team.slug,
+                    meeting: meetingId,
+                }),
+            );
+
+            setInvitation(null);
+            setCall(body.token as MeetingCredentials);
+        } catch {
+            /* The meeting may have ended between the invitation and the tap. */
+            setInvitation(null);
+        } finally {
+            setCallBusy(false);
+        }
+    };
 
     const form = useForm({ body: '', image: null as File | null });
 
@@ -268,6 +393,10 @@ export default function Messages({ threads, active }: Props) {
     return (
         <>
             <Head title="Messages" />
+
+            {call !== null && (
+                <VideoCall credentials={call} onLeave={() => setCall(null)} />
+            )}
 
             <div
                 style={{
@@ -424,20 +553,82 @@ export default function Messages({ threads, active }: Props) {
                                         padding: '13px 18px',
                                         borderBottom:
                                             '1px solid var(--color-divider)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 12,
                                     }}
                                 >
-                                    <div style={{ fontSize: 14 }}>
-                                        {active.title}
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div style={{ fontSize: 14 }}>
+                                            {active.title}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: MUTED(65),
+                                            }}
+                                        >
+                                            {active.project}
+                                        </div>
                                     </div>
-                                    <div
-                                        style={{
-                                            fontSize: 11.5,
-                                            color: MUTED(65),
-                                        }}
-                                    >
-                                        {active.project}
-                                    </div>
+
+                                    {/* Absent, not disabled, when the platform
+                                        has no Agora credentials to call with. */}
+                                    {videoEnabled && (
+                                        <Btn
+                                            variant="secondary"
+                                            onClick={startCall}
+                                            disabled={callBusy}
+                                            title="Start a video call on this thread"
+                                        >
+                                            <VideoCameraIcon />
+                                            Call
+                                        </Btn>
+                                    )}
                                 </div>
+
+                                {/* Somebody on the other side opened a call.
+                                    The invitation carries no token — joining
+                                    asks the server for one of our own. */}
+                                {pendingInvitation !== null &&
+                                    call === null && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 12,
+                                                padding: '10px 18px',
+                                                background:
+                                                    'var(--color-accent-800)',
+                                                color: 'var(--color-accent-100)',
+                                                fontSize: 13,
+                                            }}
+                                        >
+                                            <span
+                                                style={{ marginRight: 'auto' }}
+                                            >
+                                                A video call is waiting on this
+                                                thread.
+                                            </span>
+                                            <Btn
+                                                variant="secondary"
+                                                onClick={() =>
+                                                    joinCall(pendingInvitation)
+                                                }
+                                                disabled={callBusy}
+                                            >
+                                                Join
+                                            </Btn>
+                                            <Btn
+                                                variant="ghost"
+                                                onClick={() =>
+                                                    setInvitation(null)
+                                                }
+                                            >
+                                                Dismiss
+                                            </Btn>
+                                        </div>
+                                    )}
 
                                 <div
                                     style={{

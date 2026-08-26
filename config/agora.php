@@ -4,26 +4,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Agora Signaling (RTM)
+    | Agora RTC — video meetings
     |--------------------------------------------------------------------------
     |
-    | The live half of messaging: the "a message just landed" ping that tells
-    | an open thread to refresh itself.
+    | The video half of the collaboration tools. Audio and video only: the
+    | live "a message just landed" ping is Laravel Reverb's job and stays
+    | there, so this file has nothing to do with chat delivery.
     |
-    | Agora carries the ping and nothing else. Conversations and messages stay
-    | in this database, in the tables they are already in — Signaling is not a
-    | message store here and must not become one. If a ping is lost the thread
-    | still catches up, because resources/js/pages/messaging/index.tsx polls
-    | every 30 seconds regardless.
+    | Meeting rows live in this database. Agora holds no state that matters —
+    | a channel exists because somebody joined it, and stops existing when the
+    | last person leaves. Everything worth keeping about a meeting is in the
+    | `meetings` table.
     |
-    | That is the same bargain Reverb was held to. App\Actions\Messaging\
-    | AnnounceMessage catches everything a broadcaster throws and logs it, so a
-    | signalling outage can never fail a message that has already been written.
-    | Whatever replaces Reverb inherits that rule rather than renegotiating it.
-    |
-    | While `enabled` is false — the shipped default, and the right default
-    | until a token has actually been minted and a ping actually received —
-    | nothing below is read and messaging behaves exactly as it does today.
+    | While `enabled` is false — the shipped default — no token is issued and
+    | the call routes 404, so the module is absent rather than broken.
     |
     */
 

@@ -61,6 +61,14 @@ class ConversationController extends Controller
         }
 
         return Inertia::render('messaging/index', [
+            /*
+             * Whether a call can be placed at all. The screen hides the button
+             * rather than offering one that 404s — MeetingController gates on
+             * the same three values.
+             */
+            'videoEnabled' => (bool) config('agora.enabled')
+                && filled(config('agora.app_id'))
+                && filled(config('agora.app_certificate')),
             'threads' => $threads->map(fn (Conversation $thread) => [
                 'id' => $thread->id,
                 'title' => $this->counterpartName($thread, $user),

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Messaging\ConversationController;
+use App\Http\Controllers\Messaging\MeetingController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 
@@ -28,4 +29,17 @@ Route::prefix('{current_team}')
         Route::patch('messages/{conversation}/{message}', [ConversationController::class, 'edit'])->name('messages.edit');
         Route::delete('messages/{conversation}/{message}', [ConversationController::class, 'remove'])->name('messages.remove');
         Route::post('messages/{conversation}/{message}/reactions', [ConversationController::class, 'react'])->name('messages.react');
+
+        /*
+         * Video meetings, on the same thread and behind the same participant
+         * check. They 404 while config('agora.enabled') is false, so the
+         * module is absent rather than offering a call that cannot be placed.
+         *
+         * The token is a separate call from starting the meeting because the
+         * other side joins a call it did not create, and because a token
+         * expires while the meeting it names may outlive it.
+         */
+        Route::post('messages/{conversation}/meetings', [MeetingController::class, 'store'])->name('meetings.store');
+        Route::post('meetings/{meeting}/token', [MeetingController::class, 'token'])->name('meetings.token');
+        Route::patch('meetings/{meeting}/end', [MeetingController::class, 'end'])->name('meetings.end');
     });

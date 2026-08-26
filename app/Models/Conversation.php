@@ -71,6 +71,16 @@ class Conversation extends Model
     }
 
     /**
+     * Get every video meeting held on this thread, newest first.
+     *
+     * @return HasMany<Meeting, $this>
+     */
+    public function meetings(): HasMany
+    {
+        return $this->hasMany(Meeting::class)->latest('id');
+    }
+
+    /**
      * Get the most recent message, for the thread list preview.
      *
      * @return HasOne<Message, $this>
