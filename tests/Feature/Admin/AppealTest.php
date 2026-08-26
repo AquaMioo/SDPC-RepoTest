@@ -274,6 +274,14 @@ class AppealTest extends TestCase
     {
         Notification::fake();
 
+        /*
+         * The countdown is derived from now(), so on a slow run the second
+         * ticks over between two of these calls and 60 is compared against
+         * 59. Freezing makes the three answers comparable, which is the only
+         * thing this test is actually asserting.
+         */
+        $this->freezeTime();
+
         $held = $this->secondsUntilResendFor(User::factory()->deactivated()->create()->email);
 
         $this->assertSame($held, $this->secondsUntilResendFor(User::factory()->approved()->create()->email));
