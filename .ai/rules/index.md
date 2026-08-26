@@ -15,6 +15,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Controllers/HomeController.php | .ai/rules/controllers.md |
 | resources/css/** | .ai/rules/css.md |
 | tests/Feature/** | .ai/rules/feature.md |
+| .env.example | .ai/rules/general.md |
 | resources/js/** | .ai/rules/js.md |
 | tests/Feature/Matching/** | .ai/rules/matching.md |
 | app/Actions/Messaging/**, app/Http/Controllers/Messaging/ConversationController.php | .ai/rules/messaging.md |
