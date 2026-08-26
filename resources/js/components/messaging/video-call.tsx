@@ -29,6 +29,51 @@ export type MeetingCredentials = {
 type Stage = 'connecting' | 'live' | 'failed';
 
 /**
+ * Say what went wrong in terms of something the reader can act on.
+ *
+ * The SDK reports "AgoraRTCError PERMISSION_DENIED: NotAllowedError", which is
+ * accurate and useless: it names a browser API to somebody who wants to know
+ * which button to press. Nearly every failure here is one of four situations,
+ * and all four have a fix the person in front of the screen can carry out.
+ */
+function explain(thrown: unknown): { message: string; hint: string | null } {
+    const raw =
+        thrown instanceof Error
+            ? `${thrown.name} ${thrown.message}`
+            : String(thrown);
+
+    if (/PERMISSION_DENIED|NotAllowedError|Permission denied/i.test(raw)) {
+        return {
+            message: 'Your browser blocked the camera and microphone.',
+            hint: 'Open the padlock beside the address bar, set Camera and Microphone to Allow, then reload the page. A browser only asks once — after that it remembers.',
+        };
+    }
+
+    if (/NOT_READABLE|NotReadableError|TrackStartError/i.test(raw)) {
+        return {
+            message: 'Something else is already using your camera.',
+            hint: 'Close any other call — Zoom, Meet, Teams, another tab of this page — and try again.',
+        };
+    }
+
+    if (/DEVICE_NOT_FOUND|NotFoundError|DevicesNotFound/i.test(raw)) {
+        return {
+            message: 'No camera or microphone was found.',
+            hint: 'Plug one in, or check it is not disabled in your system settings.',
+        };
+    }
+
+    if (/INVALID_TOKEN|TOKEN_EXPIRED|DYNAMIC_KEY/i.test(raw)) {
+        return {
+            message: 'This call pass is no longer valid.',
+            hint: 'Leave and start the call again to get a fresh one.',
+        };
+    }
+
+    return { message: 'The call could not be started.', hint: raw };
+}
+
+/**
  * A video call on one project conversation.
  *
  * The SDK is imported dynamically rather than at module scope: it is around
@@ -47,7 +92,17 @@ export default function VideoCall({
     onLeave: () => void;
 }) {
     const [stage, setStage] = useState<Stage>('connecting');
-    const [error, setError] = useState<string | null>(null);
+    const [failure, setFailure] = useState<{
+        message: string;
+        hint: string | null;
+    } | null>(null);
+
+    /*
+     * Bumped to retry. Granting a permission does not re-run the failed call,
+     * so without this the only way back in is to leave and start again — and
+     * the person has usually just fixed the very thing that stopped them.
+     */
+    const [attempt, setAttempt] = useState(0);
     const [micOn, setMicOn] = useState(true);
     const [cameraOn, setCameraOn] = useState(true);
     const [sharing, setSharing] = useState(false);
@@ -163,11 +218,7 @@ export default function VideoCall({
                  * permission, so say that rather than printing an SDK code at
                  * somebody who cannot act on it.
                  */
-                setError(
-                    thrown instanceof Error
-                        ? thrown.message
-                        : 'The call could not be started.',
-                );
+                setFailure(explain(thrown));
                 setStage('failed');
             }
         };
@@ -178,7 +229,7 @@ export default function VideoCall({
             cancelled = true;
             void teardown();
         };
-    }, [credentials, teardown]);
+    }, [credentials, teardown, attempt]);
 
     const toggleMic = async () => {
         if (!micTrack.current) {
@@ -306,9 +357,59 @@ export default function VideoCall({
                             padding: 24,
                         }}
                     >
-                        {stage === 'connecting'
-                            ? 'Connecting…'
-                            : (error ?? 'The call could not be started.')}
+                        {stage === 'connecting' ? (
+                            'Connecting…'
+                        ) : (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    maxWidth: 420,
+                                }}
+                            >
+                                <span style={{ fontSize: 15 }}>
+                                    {failure?.message ??
+                                        'The call could not be started.'}
+                                </span>
+
+                                {failure?.hint !== null &&
+                                    failure?.hint !== undefined && (
+                                        <span
+                                            style={{
+                                                fontSize: 13,
+                                                lineHeight: 1.5,
+                                                color: 'rgba(230,239,234,0.7)',
+                                            }}
+                                        >
+                                            {failure.hint}
+                                        </span>
+                                    )}
+
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        gap: 10,
+                                        marginTop: 4,
+                                    }}
+                                >
+                                    <Btn
+                                        variant="secondary"
+                                        onClick={() => {
+                                            setFailure(null);
+                                            setStage('connecting');
+                                            setAttempt(attempt + 1);
+                                        }}
+                                    >
+                                        Try again
+                                    </Btn>
+                                    <Btn variant="ghost" onClick={leave}>
+                                        Close
+                                    </Btn>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
