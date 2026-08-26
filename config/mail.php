@@ -61,6 +61,15 @@ return [
             // ],
         ],
 
+        /*
+         * Laravel ships this stanza, but resend/resend-laravel is NOT a
+         * dependency of this project — setting MAIL_MAILER=resend fails with
+         * "Unsupported mail transport [resend]".
+         *
+         * Reach Resend over the `smtp` mailer above instead: host
+         * smtp.resend.com, username the literal "resend", password the API
+         * key. No package, and one less thing to install on a deploy host.
+         */
         'resend' => [
             'transport' => 'resend',
         ],
