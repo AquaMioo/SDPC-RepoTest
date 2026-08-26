@@ -24,6 +24,17 @@ return [
         'enabled' => filled(env('GOOGLE_CLIENT_ID')) && filled(env('GOOGLE_CLIENT_SECRET')),
     ],
 
+    /*
+     * Brevo, over its HTTP API rather than SMTP — the deploy host blocks
+     * outbound 587/465/2525, so SMTP cannot leave the container at all.
+     * See App\Mail\Transport\BrevoTransport.
+     */
+    'brevo' => [
+        'key' => env('BREVO_API_KEY'),
+        'endpoint' => env('BREVO_ENDPOINT', 'https://api.brevo.com/v3/smtp/email'),
+        'timeout' => (int) env('BREVO_TIMEOUT', 10),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

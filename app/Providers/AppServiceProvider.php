@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\StudentVerifier;
 use App\Contracts\VerifiesStudentCredentials;
+use App\Mail\Transport\BrevoTransport;
 use App\Services\Credentials\AutomatedCredentialVerifier;
 use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\RecommendationService;
@@ -14,6 +15,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -55,6 +57,26 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->registerBrevoTransport();
+    }
+
+    /**
+     * Teach the mail manager the `brevo` transport.
+     *
+     * The deploy host blocks outbound SMTP, so mail leaves over HTTPS or
+     * not at all. Registered here rather than pulled in as a package —
+     * App\Mail\Transport\BrevoTransport is a hundred lines against
+     * Laravel's own Http client.
+     */
+    protected function registerBrevoTransport(): void
+    {
+        Mail::extend('brevo', function (array $config): BrevoTransport {
+            return new BrevoTransport(
+                (string) ($config['key'] ?? config('services.brevo.key')),
+                (string) config('services.brevo.endpoint'),
+                (int) config('services.brevo.timeout'),
+            );
+        });
     }
 
     /**

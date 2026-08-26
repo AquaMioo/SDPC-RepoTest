@@ -62,13 +62,20 @@ return [
         ],
 
         /*
+         * The one that actually works on this host. Brevo over HTTPS, because
+         * outbound SMTP is blocked in the container — see
+         * App\Mail\Transport\BrevoTransport, which AppServiceProvider
+         * registers against this name.
+         */
+        'brevo' => [
+            'transport' => 'brevo',
+        ],
+
+        /*
          * Laravel ships this stanza, but resend/resend-laravel is NOT a
          * dependency of this project — setting MAIL_MAILER=resend fails with
-         * "Unsupported mail transport [resend]".
-         *
-         * Reach Resend over the `smtp` mailer above instead: host
-         * smtp.resend.com, username the literal "resend", password the API
-         * key. No package, and one less thing to install on a deploy host.
+         * "Unsupported mail transport [resend]". It would also need a domain
+         * this project does not own, and SMTP is blocked here regardless.
          */
         'resend' => [
             'transport' => 'resend',
@@ -88,10 +95,20 @@ return [
             'transport' => 'array',
         ],
 
+        /*
+         * The production setting. Brevo first, the log behind it.
+         *
+         * The registration code is not queued — somebody is on the screen
+         * waiting to type it in — so a provider outage would otherwise throw
+         * a 500 at them mid-signup. This way the write succeeds, the code
+         * lands in the log where the team can read it out, and nobody is
+         * stranded. Failing over is only possible because BrevoTransport
+         * throws on a bad response rather than swallowing it.
+         */
         'failover' => [
             'transport' => 'failover',
             'mailers' => [
-                'smtp',
+                'brevo',
                 'log',
             ],
             'retry_after' => 60,
