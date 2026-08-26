@@ -3,6 +3,7 @@
 namespace Tests\Feature\Messaging;
 
 use App\Enums\ApplicationStatus;
+use App\Events\MeetingScheduled;
 use App\Events\MeetingStarted;
 use App\Models\Application;
 use App\Models\Conversation;
@@ -191,6 +192,125 @@ class MeetingTest extends TestCase
 
         $this->assertArrayNotHasKey('token', $payload);
         $this->assertArrayNotHasKey('channel', $payload);
+    }
+
+    public function test_a_meeting_can_be_booked_for_later_and_carries_no_token(): void
+    {
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $response = $this->actingAs($client)
+            ->postJson(route('meetings.store', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $thread,
+            ]), ['scheduled_at' => now()->addDay()->toIso8601String()])
+            ->assertCreated();
+
+        /*
+         * Nothing to join yet, and a token minted now would have expired by
+         * the time there was.
+         */
+        $this->assertNull($response->json('token'));
+        $this->assertTrue($response->json('meeting.isScheduled'));
+        $this->assertNull($response->json('meeting.startedAt'));
+    }
+
+    public function test_booking_invites_the_other_side_as_a_diary_entry_not_a_ringing_phone(): void
+    {
+        Event::fake([MeetingScheduled::class, MeetingStarted::class]);
+
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($client)
+            ->postJson(route('meetings.store', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $thread,
+            ]), ['scheduled_at' => now()->addDay()->toIso8601String()])
+            ->assertCreated();
+
+        Event::assertDispatched(MeetingScheduled::class);
+        Event::assertNotDispatched(MeetingStarted::class);
+    }
+
+    public function test_joining_a_booked_meeting_is_what_starts_it(): void
+    {
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $meeting = $thread->meetings()->create([
+            'created_by' => $client->id,
+            'channel_name' => Meeting::newChannelName(),
+            'scheduled_at' => now()->addHour(),
+            'started_at' => null,
+        ]);
+
+        $this->assertTrue($meeting->isScheduled());
+
+        $this->actingAs($student)
+            ->postJson(route('meetings.token', [
+                'current_team' => $student->currentTeam,
+                'meeting' => $meeting,
+            ]))
+            ->assertOk();
+
+        /*
+         * started_at means somebody was there. A meeting nobody turned up to
+         * must not read as one that ran.
+         */
+        $this->assertNotNull($meeting->fresh()->started_at);
+        $this->assertFalse($meeting->fresh()->isScheduled());
+    }
+
+    public function test_a_time_in_the_past_is_refused(): void
+    {
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($client)
+            ->postJson(route('meetings.store', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $thread,
+            ]), ['scheduled_at' => now()->subHour()->toIso8601String()])
+            ->assertJsonValidationErrors('scheduled_at');
+
+        $this->assertSame(0, Meeting::count());
+    }
+
+    public function test_the_thread_lists_only_meetings_still_worth_showing(): void
+    {
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $soon = $thread->meetings()->create([
+            'created_by' => $client->id,
+            'channel_name' => Meeting::newChannelName(),
+            'scheduled_at' => now()->addHour(),
+        ]);
+
+        /* Long gone, and one already joined: neither belongs in the list. */
+        $thread->meetings()->create([
+            'created_by' => $client->id,
+            'channel_name' => Meeting::newChannelName(),
+            'scheduled_at' => now()->subDays(2),
+        ]);
+
+        $thread->meetings()->create([
+            'created_by' => $client->id,
+            'channel_name' => Meeting::newChannelName(),
+            'scheduled_at' => now()->addHours(2),
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('messages.show', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('active.meetings', 1)
+                ->where('active.meetings.0.id', $soon->id));
     }
 
     public function test_the_routes_are_absent_while_agora_is_switched_off(): void

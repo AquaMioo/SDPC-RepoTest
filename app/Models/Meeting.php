@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\MeetingFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -52,6 +54,36 @@ class Meeting extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Booked meetings still worth showing on a thread.
+     *
+     * The hour of grace is deliberate: somebody running late for their own
+     * meeting should still find it in the thread rather than watch it vanish
+     * at the appointed minute.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function upcoming(Builder $query): void
+    {
+        $query->whereNotNull('scheduled_at')
+            ->whereNull('started_at')
+            ->whereNull('ended_at')
+            ->where('scheduled_at', '>=', now()->subHour())
+            ->orderBy('scheduled_at');
+    }
+
+    /**
+     * Booked for later and not yet begun.
+     *
+     * A meeting stops being scheduled the moment somebody joins it, which is
+     * what starting it means — the diary entry becomes a call in progress.
+     */
+    public function isScheduled(): bool
+    {
+        return $this->scheduled_at !== null && $this->started_at === null;
     }
 
     /**

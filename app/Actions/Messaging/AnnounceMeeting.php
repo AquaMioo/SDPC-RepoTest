@@ -2,6 +2,7 @@
 
 namespace App\Actions\Messaging;
 
+use App\Events\MeetingScheduled;
 use App\Events\MeetingStarted;
 use App\Models\Meeting;
 use Illuminate\Support\Facades\Log;
@@ -23,10 +24,17 @@ use Throwable;
  */
 class AnnounceMeeting
 {
+    /**
+     * A booked meeting and a ringing one are different events, because they
+     * ask different things of whoever receives them: one is a note in a diary,
+     * the other is a phone ringing.
+     */
     public function handle(Meeting $meeting): void
     {
         try {
-            MeetingStarted::dispatch($meeting);
+            $meeting->isScheduled()
+                ? MeetingScheduled::dispatch($meeting)
+                : MeetingStarted::dispatch($meeting);
         } catch (Throwable $exception) {
             Log::warning('A meeting was opened but its invitation could not be broadcast.', [
                 'conversation_id' => $meeting->conversation_id,

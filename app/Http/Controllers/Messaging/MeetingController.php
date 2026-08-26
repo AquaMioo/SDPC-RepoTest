@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMeeting;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Messaging\OpenMeetingRequest;
 use App\Models\Conversation;
 use App\Models\Meeting;
 use App\Models\Team;
@@ -30,9 +31,15 @@ class MeetingController extends Controller
     public function __construct(private readonly AnnounceMeeting $announce) {}
 
     /**
-     * Open a meeting on a thread and tell the other side it is happening.
+     * Open a meeting on a thread, now or for later.
+     *
+     * One endpoint for both because they create the same row — the only
+     * difference is whether anybody is in it yet. A call started now comes
+     * back with a token because the caller is about to join it; a meeting
+     * booked for later does not, because there is nothing to join and a token
+     * minted now would have expired by the time there was.
      */
-    public function store(Request $request, Team $currentTeam, Conversation $conversation): JsonResponse
+    public function store(OpenMeetingRequest $request, Team $currentTeam, Conversation $conversation): JsonResponse
     {
         $this->ensureEnabled();
 
@@ -40,10 +47,13 @@ class MeetingController extends Controller
 
         abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
+        $scheduledAt = $request->validated('scheduled_at');
+
         $meeting = DB::transaction(fn (): Meeting => $conversation->meetings()->create([
             'created_by' => $user->id,
             'channel_name' => Meeting::newChannelName(),
-            'started_at' => now(),
+            'scheduled_at' => $scheduledAt,
+            'started_at' => $scheduledAt === null ? now() : null,
         ]));
 
         /*
@@ -55,7 +65,9 @@ class MeetingController extends Controller
 
         return response()->json([
             'meeting' => $this->present($meeting),
-            'token' => $this->tokenFor($meeting, $user->id),
+            'token' => $meeting->isScheduled()
+                ? null
+                : $this->tokenFor($meeting, $user->id),
         ], HttpResponse::HTTP_CREATED);
     }
 
@@ -74,8 +86,17 @@ class MeetingController extends Controller
         abort_unless($meeting->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
         abort_unless($meeting->isJoinable(), HttpResponse::HTTP_GONE);
 
+        /*
+         * Joining a booked meeting is what starts it. Recorded here rather
+         * than on a schedule, because a meeting nobody turned up to should not
+         * read as one that ran — started_at means somebody was there.
+         */
+        if ($meeting->started_at === null) {
+            $meeting->forceFill(['started_at' => now()])->save();
+        }
+
         return response()->json([
-            'meeting' => $this->present($meeting),
+            'meeting' => $this->present($meeting->fresh()),
             'token' => $this->tokenFor($meeting, $user->id),
         ]);
     }
@@ -128,6 +149,8 @@ class MeetingController extends Controller
             'conversationId' => $meeting->conversation_id,
             'channel' => $meeting->channel_name,
             'createdBy' => $meeting->created_by,
+            'scheduledAt' => $meeting->scheduled_at?->toIso8601String(),
+            'isScheduled' => $meeting->isScheduled(),
             'startedAt' => $meeting->started_at?->toIso8601String(),
             'endedAt' => $meeting->ended_at?->toIso8601String(),
         ];

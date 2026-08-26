@@ -1,6 +1,7 @@
 import { Head, router, useForm, usePoll } from '@inertiajs/react';
 import { useEcho } from '@laravel/echo-react';
 import {
+    CalendarPlusIcon,
     ImageIcon,
     PaperPlaneRightIcon,
     SmileyIcon,
@@ -46,6 +47,12 @@ type Props = {
         id: number;
         title: string;
         project: string;
+        meetings: {
+            id: number;
+            scheduledAt: string | null;
+            scheduledFor: string | null;
+            isMine: boolean;
+        }[];
         messages: {
             id: number;
             body: string | null;
@@ -155,6 +162,8 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
         conversationId: number;
     } | null>(null);
     const [callBusy, setCallBusy] = useState(false);
+    const [scheduling, setScheduling] = useState(false);
+    const [scheduledAt, setScheduledAt] = useState('');
 
     useEcho(
         `conversations.${active?.id ?? 0}`,
@@ -164,6 +173,16 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                 meetingId: event.id,
                 conversationId: event.conversationId,
             });
+        },
+        [active?.id],
+    );
+
+    useEcho(
+        `conversations.${active?.id ?? 0}`,
+        '.meeting.scheduled',
+        () => {
+            /* Nothing to join yet — it just belongs in the thread's list. */
+            router.reload({ only: ['active'] });
         },
         [active?.id],
     );
@@ -183,7 +202,11 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
      * are fetched directly. Laravel checks X-XSRF-TOKEN against the cookie it
      * set, which is why the header is read back out of document.cookie.
      */
-    const postJson = async (url: string, method = 'POST') => {
+    const postJson = async (
+        url: string,
+        method = 'POST',
+        body?: Record<string, unknown>,
+    ) => {
         const xsrf = document.cookie
             .split('; ')
             .find((entry) => entry.startsWith('XSRF-TOKEN='))
@@ -192,6 +215,7 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
         const response = await fetch(url, {
             method,
             credentials: 'same-origin',
+            body: body === undefined ? undefined : JSON.stringify(body),
             headers: {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
@@ -227,6 +251,40 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
             setCall(body.token as MeetingCredentials);
         } catch {
             /* Left to the caller to retry; nothing has been created. */
+        } finally {
+            setCallBusy(false);
+        }
+    };
+
+    const scheduleCall = async () => {
+        if (active === null || scheduledAt === '' || callBusy) {
+            return;
+        }
+
+        setCallBusy(true);
+
+        try {
+            await postJson(
+                startMeeting.url({
+                    current_team: team.slug,
+                    conversation: active.id,
+                }),
+                'POST',
+                /*
+                 * The picker gives local wall-clock time with no zone. Sending
+                 * the browser's own offset means the server stores the instant
+                 * the person meant, not the same digits in UTC.
+                 */
+                { scheduled_at: new Date(scheduledAt).toISOString() },
+            );
+
+            setScheduling(false);
+            setScheduledAt('');
+
+            /* The booked call belongs in the thread, so re-read it. */
+            router.reload({ only: ['active'] });
+        } catch {
+            /* Validation refused it; the form stays open with the value in it. */
         } finally {
             setCallBusy(false);
         }
@@ -585,7 +643,123 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                                             Call
                                         </Btn>
                                     )}
+
+                                    {videoEnabled && (
+                                        <Btn
+                                            variant="ghost"
+                                            onClick={() =>
+                                                setScheduling(!scheduling)
+                                            }
+                                            title="Invite them to a call later"
+                                        >
+                                            <CalendarPlusIcon />
+                                            Schedule
+                                        </Btn>
+                                    )}
                                 </div>
+
+                                {scheduling && (
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            alignItems: 'center',
+                                            gap: 10,
+                                            padding: '10px 18px',
+                                            borderBottom:
+                                                '1px solid var(--color-divider)',
+                                        }}
+                                    >
+                                        <label
+                                            htmlFor="meeting-at"
+                                            style={{ fontSize: 12.5 }}
+                                        >
+                                            Meet at
+                                        </label>
+                                        <input
+                                            id="meeting-at"
+                                            type="datetime-local"
+                                            className="input"
+                                            value={scheduledAt}
+                                            onChange={(event) =>
+                                                setScheduledAt(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            style={{
+                                                width: 'auto',
+                                                flex: 1,
+                                                minWidth: 190,
+                                            }}
+                                        />
+                                        <Btn
+                                            variant="secondary"
+                                            onClick={scheduleCall}
+                                            disabled={
+                                                callBusy || scheduledAt === ''
+                                            }
+                                        >
+                                            Send invitation
+                                        </Btn>
+                                        <Btn
+                                            variant="ghost"
+                                            onClick={() => setScheduling(false)}
+                                        >
+                                            Cancel
+                                        </Btn>
+                                    </div>
+                                )}
+
+                                {/* Calls booked for later, soonest first.
+                                    Joinable at any time: turning up early
+                                    is not a thing worth preventing. */}
+                                {active.meetings.length > 0 && (
+                                    <div
+                                        style={{
+                                            borderBottom:
+                                                '1px solid var(--color-divider)',
+                                        }}
+                                    >
+                                        {active.meetings.map((meeting) => (
+                                            <div
+                                                key={meeting.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    flexWrap: 'wrap',
+                                                    alignItems: 'center',
+                                                    gap: 10,
+                                                    padding: '9px 18px',
+                                                    fontSize: 12.5,
+                                                }}
+                                            >
+                                                <CalendarPlusIcon
+                                                    style={{
+                                                        color: 'var(--color-accent)',
+                                                    }}
+                                                />
+                                                <span
+                                                    style={{
+                                                        marginRight: 'auto',
+                                                    }}
+                                                >
+                                                    {meeting.isMine
+                                                        ? 'You invited them to a call '
+                                                        : 'They invited you to a call '}
+                                                    {meeting.scheduledFor}
+                                                </span>
+                                                <Btn
+                                                    variant="secondary"
+                                                    onClick={() =>
+                                                        joinCall(meeting.id)
+                                                    }
+                                                    disabled={callBusy}
+                                                >
+                                                    Join
+                                                </Btn>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {/* Somebody on the other side opened a call.
                                     The invitation carries no token — joining

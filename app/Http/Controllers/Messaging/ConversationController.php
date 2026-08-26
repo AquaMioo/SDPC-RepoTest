@@ -10,6 +10,7 @@ use App\Http\Requests\Messaging\ReactToMessageRequest;
 use App\Http\Requests\Messaging\SendMessageRequest;
 use App\Models\Application;
 use App\Models\Conversation;
+use App\Models\Meeting;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\Project;
@@ -83,6 +84,14 @@ class ConversationController extends Controller
                 'id' => $active->id,
                 'title' => $this->counterpartName($active, $user),
                 'project' => $active->project->title,
+                /* Booked calls nobody has joined yet, soonest first. */
+                'meetings' => $active->meetings()->upcoming()->get()
+                    ->map(fn (Meeting $meeting) => [
+                        'id' => $meeting->id,
+                        'scheduledAt' => $meeting->scheduled_at?->toIso8601String(),
+                        'scheduledFor' => $meeting->scheduled_at?->diffForHumans(),
+                        'isMine' => $meeting->created_by === $user->id,
+                    ])->values()->all(),
                 'messages' => $active->messages->map(fn (Message $message) => [
                     'id' => $message->id,
                     'body' => $message->body,
