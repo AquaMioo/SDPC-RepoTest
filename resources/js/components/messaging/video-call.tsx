@@ -98,28 +98,43 @@ function chime(direction: 'on' | 'off'): void {
         }
 
         const ctx = new Ctor();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
 
-        const [from, to] = direction === 'on' ? [520, 790] : [660, 400];
-        const now = ctx.currentTime;
-        const length = direction === 'on' ? 0.1 : 0.14;
+        const play = async () => {
+            /*
+             * A fresh context can arrive suspended under the browser's
+             * autoplay policy even inside a click handler, and scheduling
+             * against a suspended clock plays nothing at all — silently. This
+             * is why the tone did not sound the first time.
+             */
+            if (ctx.state === 'suspended') {
+                await ctx.resume();
+            }
 
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(from, now);
-        osc.frequency.exponentialRampToValueAtTime(to, now + length);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
 
-        /* Ramped rather than switched, so it does not click at either end. */
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + length);
+            const [from, to] = direction === 'on' ? [520, 790] : [660, 400];
+            const now = ctx.currentTime;
+            const length = direction === 'on' ? 0.1 : 0.14;
 
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + length + 0.02);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(from, now);
+            osc.frequency.exponentialRampToValueAtTime(to, now + length);
 
-        /* Browsers cap concurrent contexts, so release it once it is done. */
-        osc.onended = () => void ctx.close();
+            /* Ramped rather than switched, so it does not click at either end. */
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + length);
+
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + length + 0.02);
+
+            /* Browsers cap concurrent contexts, so release it once done. */
+            osc.onended = () => void ctx.close();
+        };
+
+        void play().catch(() => void ctx.close());
     } catch {
         /* Audio is a courtesy; never let it interfere with the call. */
     }
@@ -316,6 +331,9 @@ export default function VideoCall({
                 }
 
                 setStage('live');
+
+                /* You are in. The one moment worth a sound of its own. */
+                chime('on');
             } catch (thrown) {
                 if (cancelled) {
                     return;
@@ -482,6 +500,7 @@ export default function VideoCall({
     };
 
     const leave = async () => {
+        chime('off');
         await teardown();
         onLeave();
     };

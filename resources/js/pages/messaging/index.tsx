@@ -127,6 +127,7 @@ function isEmojiOnly(message: {
 export default function Messages({ videoEnabled, threads, active }: Props) {
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLInputElement>(null);
 
     /*
@@ -369,8 +370,22 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
         [],
     );
 
+    /*
+     * Land on the newest message, every time.
+     *
+     * The scroll box is driven directly rather than through
+     * scrollIntoView(): that walks up every scrollable ancestor, so it used to
+     * drag the whole page down as well as the thread. Setting scrollTop moves
+     * one box and nothing else.
+     */
     useEffect(() => {
-        endRef.current?.scrollIntoView({ block: 'end' });
+        const box = scrollRef.current;
+
+        if (box === null) {
+            return;
+        }
+
+        box.scrollTop = box.scrollHeight;
     }, [active?.messages.length, active?.id]);
 
     const submit = (event: React.FormEvent) => {
@@ -460,10 +475,24 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                 style={{
                     maxWidth: 1320,
                     margin: '0 auto',
-                    padding: '30px clamp(16px, 4vw, 32px) 48px',
+                    padding: '24px clamp(16px, 4vw, 32px) 24px',
+                    /*
+                     * The inbox owns the viewport rather than growing with the
+                     * thread. Everything that scrolls does so inside its own
+                     * box, so the thread list stays put while you read back
+                     * through a conversation — the way a chat app behaves.
+                     *
+                     * 100dvh, not vh: on a phone the browser chrome comes and
+                     * goes, and vh measures the tallest case, which pushes the
+                     * composer under the address bar.
+                     */
+                    height: 'calc(100dvh - 64px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
                 }}
             >
-                <div style={{ marginBottom: 18 }}>
+                <div style={{ marginBottom: 14, flex: 'none' }}>
                     <h3 style={{ margin: 0 }}>Messages</h3>
                     <div style={{ fontSize: 13, color: MUTED(68) }}>
                         One thread per project you are working on together
@@ -486,18 +515,21 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                             ['--rail' as string]: '300px',
                             gap: 16,
                             /*
-                             * Stacked on a phone the thread list and the thread
-                             * cannot share one viewport height, so the pair is
-                             * left to its natural height until there is room
-                             * for two columns.
+                             * Fills the space the header leaves. minHeight: 0
+                             * is what actually lets the children scroll: a grid
+                             * item defaults to min-height auto, which refuses to
+                             * shrink below its content and pushes the overflow
+                             * onto the page instead of into the panel.
                              */
-                            minHeight: 420,
+                            flex: 1,
+                            minHeight: 0,
+                            alignItems: 'stretch',
                         }}
                     >
                         <Panel
                             padding="none"
                             gap="none"
-                            style={{ overflowY: 'auto' }}
+                            style={{ overflowY: 'auto', minHeight: 0 }}
                         >
                             {threads.map((thread) => (
                                 <button
@@ -805,9 +837,12 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                                     )}
 
                                 <div
+                                    ref={scrollRef}
                                     style={{
                                         flex: 1,
+                                        minHeight: 0,
                                         overflowY: 'auto',
+                                        overflowAnchor: 'none',
                                         padding: 18,
                                         display: 'flex',
                                         flexDirection: 'column',
