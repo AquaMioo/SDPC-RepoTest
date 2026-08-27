@@ -391,6 +391,19 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
 
+        /*
+         * form.processing is the important half of this guard.
+         *
+         * The box is only cleared once the server answers, so during that
+         * round trip the text is still sitting there — and Enter reaches this
+         * function directly from the textarea's onKeyDown, going around the
+         * Send button that is already disabled. Pressing Enter twice sent the
+         * same message twice, three times sent it three times.
+         */
+        if (form.processing) {
+            return;
+        }
+
         // A picture on its own is a message, so an empty box is only empty
         // when nothing is attached either.
         if (
@@ -408,6 +421,13 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
             {
                 preserveScroll: true,
                 forceFormData: true,
+                /*
+                 * Only the thread and the list change when a message lands.
+                 * Without this the whole page's props are rebuilt and sent
+                 * back on every send, which is most of the pause between
+                 * pressing Enter and seeing the line appear.
+                 */
+                only: ['threads', 'active'],
                 onSuccess: () => {
                     form.reset('body', 'image');
                     setEmojiOpen(false);
