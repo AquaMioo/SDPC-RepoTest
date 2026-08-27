@@ -390,7 +390,15 @@ export default function VideoCall({
         }
 
         const next = !micOn;
-        await micTrack.current.setEnabled(next);
+
+        /*
+         * setMuted, not setEnabled. setEnabled(false) releases the microphone
+         * back to the operating system, so unmuting has to re-acquire the
+         * hardware — which frequently failed, and is why mute was a one-way
+         * trip. setMuted keeps the device held and simply stops sending, which
+         * is what a mute button means everywhere else.
+         */
+        await micTrack.current.setMuted(!next);
         setMicOn(next);
         chime(next ? 'on' : 'off');
     };
@@ -429,9 +437,28 @@ export default function VideoCall({
         }
 
         const next = !cameraOn;
-        await cameraTrack.current.setEnabled(next);
-        setCameraOn(next);
-        chime(next ? 'on' : 'off');
+
+        /*
+         * setEnabled here rather than setMuted, deliberately: it releases the
+         * camera, so the light beside the lens actually goes out. A "camera
+         * off" that leaves the light on is a lie worth avoiding.
+         *
+         * The cost is that turning it back on has to re-acquire the device and
+         * can fail — so if it does, take a fresh track rather than leaving
+         * somebody stuck off, which is exactly what happened to the microphone.
+         */
+        try {
+            await cameraTrack.current.setEnabled(next);
+            setCameraOn(next);
+            chime(next ? 'on' : 'off');
+        } catch {
+            cameraTrack.current.close();
+            cameraTrack.current = null;
+            setCameraOn(false);
+            setDeviceNote(
+                'Your camera could not be turned back on. Press Camera on to try again.',
+            );
+        }
     };
 
     /**
