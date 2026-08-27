@@ -37,8 +37,26 @@ class AddSecurityHeaders
         // URLs such as a credential document never leak through Referer.
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-        // Nothing here uses the camera, microphone or location.
-        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        /*
+         * The camera and microphone are allowed to this origin and to nobody
+         * else, because video meetings run here.
+         *
+         * This header read camera=(), microphone=() while the meeting module
+         * was being built, which denies them to *every* origin including this
+         * one. getUserMedia then fails with NotAllowedError before the browser
+         * even consults the person, so granting permission changed nothing and
+         * it failed identically on every machine. Screen sharing kept working
+         * throughout, because getDisplayMedia answers to display-capture
+         * rather than to these two — which made it look like a device problem
+         * rather than a policy one.
+         *
+         * `self` and not `*`: an embedded frame still gets nothing, and
+         * X-Frame-Options: DENY above means there should never be one.
+         */
+        $response->headers->set(
+            'Permissions-Policy',
+            'camera=(self), microphone=(self), geolocation=()',
+        );
 
         // HSTS only over a real HTTPS connection: sending it over plain HTTP is
         // meaningless, and sending it from localhost would pin the whole of
