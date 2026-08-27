@@ -173,6 +173,49 @@ class ProjectWorkflowTest extends TestCase
         $this->assertTrue($project->refresh()->applications_open);
     }
 
+    public function test_a_saved_draft_can_still_be_published(): void
+    {
+        $user = User::factory()->verifiedBusiness()->create();
+        $project = Project::factory()->create([
+            'team_id' => $user->current_team_id,
+            'status' => ProjectStatus::Draft,
+        ]);
+
+        /*
+         * The edit screen used to fix the status at whatever the posting
+         * already was, so a draft re-saved as a draft forever and there was no
+         * control anywhere that moved it forward. It was invisible to students
+         * with no way out.
+         */
+        $this->actingAs($user)
+            ->patch($this->url('projects.update', $user, ['project' => $project]), [
+                'title' => $project->title,
+                'description' => $project->description,
+                'objectives' => $project->objectives,
+                'category' => $project->category,
+                'industry' => $project->industry,
+                'skills' => [],
+                'status' => ProjectStatus::PendingReview->value,
+            ])
+            ->assertRedirect();
+
+        $this->assertNotSame(ProjectStatus::Draft, $project->refresh()->status);
+    }
+
+    public function test_the_posting_screen_says_when_a_draft_is_not_yet_visible(): void
+    {
+        $user = User::factory()->verifiedBusiness()->create();
+        $project = Project::factory()->create([
+            'team_id' => $user->current_team_id,
+            'status' => ProjectStatus::Draft,
+        ]);
+
+        $this->actingAs($user)
+            ->get($this->url('projects.show', $user, ['project' => $project]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('project.isDraft', true));
+    }
+
     public function test_the_status_tag_says_applications_are_closed_rather_than_open(): void
     {
         $user = User::factory()->verifiedBusiness()->create();

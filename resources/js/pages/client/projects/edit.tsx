@@ -26,7 +26,7 @@ type Props = {
 export default function EditProject({ project, options }: Props) {
     const team = useCurrentTeam();
 
-    const { data, setData, patch, processing, errors, isDirty } =
+    const { data, setData, patch, transform, processing, errors, isDirty } =
         useForm<ProjectFormValues>({
             title: project.title,
             description: project.description,
@@ -34,9 +34,35 @@ export default function EditProject({ project, options }: Props) {
             category: project.category,
             industry: project.industry ?? INDUSTRIES[0],
             skills: project.skills,
-            /** Editing never sends a posting backwards into draft. */
+            /**
+             * Editing never sends a posting backwards into draft, so anything
+             * already submitted stays submitted. A draft is the exception:
+             * it can go either way, and which one is chosen by the button.
+             */
             status: project.status === 'draft' ? 'draft' : 'pending_review',
         });
+
+    const isDraft = project.status === 'draft';
+
+    /**
+     * Save, optionally moving a draft forward.
+     *
+     * useForm holds the status in state, and setData is asynchronous, so the
+     * next status is passed to transform() instead — otherwise pressing
+     * Publish sends the value the form had before the click, which is exactly
+     * how a draft became impossible to publish.
+     */
+    const save = (status: 'draft' | 'pending_review') => {
+        transform((values) => ({ ...values, status }));
+
+        patch(
+            projectsUpdate.url({
+                current_team: team.slug,
+                project: project.slug,
+            }),
+            { preserveScroll: true },
+        );
+    };
 
     return (
         <>
@@ -45,13 +71,7 @@ export default function EditProject({ project, options }: Props) {
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
-                    patch(
-                        projectsUpdate.url({
-                            current_team: team.slug,
-                            project: project.slug,
-                        }),
-                        { preserveScroll: true },
-                    );
+                    save(isDraft ? 'draft' : 'pending_review');
                 }}
                 className="mx-auto flex max-w-[1100px] flex-col gap-4 px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8"
             >
@@ -74,14 +94,39 @@ export default function EditProject({ project, options }: Props) {
                     options={options}
                 />
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {isDraft && (
+                        <span className="mr-auto text-[12.5px] text-muted-foreground">
+                            This posting is a draft. Students cannot see it
+                            until you publish it.
+                        </span>
+                    )}
+
                     <Button
                         type="submit"
+                        variant={isDraft ? 'secondary' : 'default'}
                         disabled={processing}
-                        className="ml-auto px-5"
+                        className={isDraft ? 'px-5' : 'ml-auto px-5'}
                     >
-                        {processing ? 'Saving…' : 'Save changes'}
+                        {processing
+                            ? 'Saving…'
+                            : isDraft
+                              ? 'Save draft'
+                              : 'Save changes'}
                     </Button>
+
+                    {/* The way out of draft. Without this a saved draft could
+                        only ever be saved again. */}
+                    {isDraft && (
+                        <Button
+                            type="button"
+                            disabled={processing}
+                            className="px-5"
+                            onClick={() => save('pending_review')}
+                        >
+                            {processing ? 'Publishing…' : 'Publish'}
+                        </Button>
+                    )}
                 </div>
             </form>
         </>

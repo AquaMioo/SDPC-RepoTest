@@ -18,6 +18,7 @@ type Props = {
         industry: string | null;
         statusLabel: string;
         isEditable: boolean;
+        isDraft: boolean;
         applicationsOpen: boolean;
         isAcceptingApplications: boolean;
         skills: string[];
@@ -133,6 +134,20 @@ export default function ShowProject({ project, applicantCounts }: Props) {
 
                     <Panel padding="lg" gap="lg">
                         <PanelKicker>Manage</PanelKicker>
+
+                        {/* A draft looks identical to a live posting from
+                            here, which is how somebody saves one and then
+                            wonders why no student ever sees it. */}
+                        {project.isDraft && (
+                            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+                                This is a draft. Students cannot see it until
+                                you publish it — open{' '}
+                                <strong className="font-medium">
+                                    Edit posting
+                                </strong>{' '}
+                                and press Publish.
+                            </p>
+                        )}
 
                         {project.isEditable && (
                             <>
