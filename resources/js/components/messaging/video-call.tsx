@@ -74,6 +74,58 @@ function explain(thrown: unknown): { message: string; hint: string | null } {
 }
 
 /**
+ * A short tone confirming a control did something.
+ *
+ * Synthesised rather than loaded from a file: two oscillator sweeps are a few
+ * lines, need no asset to fetch mid-call, and cannot fail on a slow
+ * connection. Rising for on, falling for off — the shape carries the meaning
+ * even when the call itself is noisy.
+ *
+ * Deliberately quiet and short. This is feedback for the person pressing the
+ * button, not an announcement to the room, and it plays locally: the tone is
+ * never published to the channel, so nobody else hears your microphone
+ * clicking on and off.
+ */
+function chime(direction: 'on' | 'off'): void {
+    try {
+        const Ctor =
+            window.AudioContext ??
+            (window as unknown as { webkitAudioContext?: typeof AudioContext })
+                .webkitAudioContext;
+
+        if (!Ctor) {
+            return;
+        }
+
+        const ctx = new Ctor();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        const [from, to] = direction === 'on' ? [520, 790] : [660, 400];
+        const now = ctx.currentTime;
+        const length = direction === 'on' ? 0.1 : 0.14;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(from, now);
+        osc.frequency.exponentialRampToValueAtTime(to, now + length);
+
+        /* Ramped rather than switched, so it does not click at either end. */
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + length);
+
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + length + 0.02);
+
+        /* Browsers cap concurrent contexts, so release it once it is done. */
+        osc.onended = () => void ctx.close();
+    } catch {
+        /* Audio is a courtesy; never let it interfere with the call. */
+    }
+}
+
+/**
  * A video call on one project conversation.
  *
  * The SDK is imported dynamically rather than at module scope: it is around
@@ -311,6 +363,7 @@ export default function VideoCall({
                 micTrack.current = mic;
                 await rtc.publish(mic);
                 setMicOn(true);
+                chime('on');
             } catch {
                 setDeviceNote('Your microphone is still unavailable.');
             }
@@ -321,6 +374,7 @@ export default function VideoCall({
         const next = !micOn;
         await micTrack.current.setEnabled(next);
         setMicOn(next);
+        chime(next ? 'on' : 'off');
     };
 
     /**
@@ -348,6 +402,7 @@ export default function VideoCall({
                 await rtc.publish(camera);
                 setCameraOn(true);
                 setDeviceNote(null);
+                chime('on');
             } catch {
                 setDeviceNote('Your camera is still unavailable.');
             }
@@ -358,6 +413,7 @@ export default function VideoCall({
         const next = !cameraOn;
         await cameraTrack.current.setEnabled(next);
         setCameraOn(next);
+        chime(next ? 'on' : 'off');
     };
 
     /**
@@ -390,6 +446,7 @@ export default function VideoCall({
                 }
 
                 setSharing(false);
+                chime('off');
 
                 return;
             }
@@ -418,6 +475,7 @@ export default function VideoCall({
             });
 
             setSharing(true);
+            chime('on');
         } catch {
             /* Cancelling the picker throws; that is not an error worth showing. */
         }
