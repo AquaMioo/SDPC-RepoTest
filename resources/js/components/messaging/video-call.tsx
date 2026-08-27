@@ -108,6 +108,9 @@ export default function VideoCall({
     const [sharing, setSharing] = useState(false);
     const [peers, setPeers] = useState(0);
 
+    /* Says what is missing, without turning it into a failed call. */
+    const [deviceNote, setDeviceNote] = useState<string | null>(null);
+
     const localRef = useRef<HTMLDivElement | null>(null);
     const remoteRef = useRef<HTMLDivElement | null>(null);
 
@@ -191,21 +194,74 @@ export default function VideoCall({
                     return;
                 }
 
-                const [mic, camera] =
-                    await AgoraRTC.createMicrophoneAndCameraTracks();
+                /*
+                 * Each device is asked for separately, and neither is
+                 * required. createMicrophoneAndCameraTracks() demands both in
+                 * one call, so a missing webcam — or a refused camera
+                 * permission — used to end the call before it began, with no
+                 * way to join even to listen. Somebody without a camera should
+                 * still be able to hear the meeting they were invited to.
+                 */
+                let mic: IMicrophoneAudioTrack | null = null;
+                let camera: ICameraVideoTrack | null = null;
+
+                try {
+                    mic = await AgoraRTC.createMicrophoneAudioTrack();
+                } catch {
+                    /* No microphone, or it was refused. Join muted. */
+                }
+
+                try {
+                    camera = await AgoraRTC.createCameraVideoTrack();
+                } catch {
+                    /* No camera, or it was refused. Join without video. */
+                }
+
+                if (cancelled) {
+                    mic?.close();
+                    camera?.close();
+
+                    return;
+                }
 
                 micTrack.current = mic;
                 cameraTrack.current = camera;
 
-                if (cancelled) {
-                    return;
-                }
+                setMicOn(mic !== null);
+                setCameraOn(camera !== null);
 
-                if (localRef.current) {
+                if (camera !== null && localRef.current) {
                     camera.play(localRef.current);
                 }
 
-                await rtc.publish([mic, camera]);
+                const publishing = [mic, camera].filter(
+                    (
+                        track,
+                    ): track is IMicrophoneAudioTrack & ICameraVideoTrack =>
+                        track !== null,
+                );
+
+                /* Nothing to publish is a valid way to be here: a viewer. */
+                if (publishing.length > 0) {
+                    await rtc.publish(publishing);
+                }
+
+                /*
+                 * Said plainly, and as a note rather than an error — the call
+                 * is running. Without this somebody joins to silence and
+                 * assumes the meeting is broken rather than their microphone.
+                 */
+                if (mic === null && camera === null) {
+                    setDeviceNote(
+                        'You joined with no camera or microphone. You can see and hear everyone; use the buttons below to turn either on.',
+                    );
+                } else if (camera === null) {
+                    setDeviceNote(
+                        'You joined without a camera. They can hear you.',
+                    );
+                } else if (mic === null) {
+                    setDeviceNote('You joined muted. They can see you.');
+                }
 
                 setStage('live');
             } catch (thrown) {
@@ -231,8 +287,34 @@ export default function VideoCall({
         };
     }, [credentials, teardown, attempt]);
 
+    /**
+     * Turn the microphone on or off — acquiring it first if joining had to go
+     * without one.
+     *
+     * Somebody who refused the permission and then changed their mind, or who
+     * plugged a headset in after joining, presses the same button they would
+     * otherwise. Failing to get the device leaves the call alone: they are
+     * still in the meeting, still muted, and can try again.
+     */
     const toggleMic = async () => {
+        const rtc = client.current;
+
+        if (!rtc) {
+            return;
+        }
+
         if (!micTrack.current) {
+            try {
+                const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
+                const mic = await AgoraRTC.createMicrophoneAudioTrack();
+
+                micTrack.current = mic;
+                await rtc.publish(mic);
+                setMicOn(true);
+            } catch {
+                setDeviceNote('Your microphone is still unavailable.');
+            }
+
             return;
         }
 
@@ -241,8 +323,35 @@ export default function VideoCall({
         setMicOn(next);
     };
 
+    /**
+     * The same for the camera, including the case where there was none to
+     * start with.
+     */
     const toggleCamera = async () => {
+        const rtc = client.current;
+
+        if (!rtc) {
+            return;
+        }
+
         if (!cameraTrack.current) {
+            try {
+                const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
+                const camera = await AgoraRTC.createCameraVideoTrack();
+
+                cameraTrack.current = camera;
+
+                if (localRef.current) {
+                    camera.play(localRef.current);
+                }
+
+                await rtc.publish(camera);
+                setCameraOn(true);
+                setDeviceNote(null);
+            } catch {
+                setDeviceNote('Your camera is still unavailable.');
+            }
+
             return;
         }
 
@@ -445,6 +554,21 @@ export default function VideoCall({
                     }}
                 />
             </div>
+
+            {stage === 'live' && deviceNote !== null && (
+                <div
+                    style={{
+                        padding: '9px clamp(12px, 4vw, 24px)',
+                        background: '#1b2419',
+                        borderTop: '1px solid rgba(230,239,234,0.12)',
+                        color: 'rgba(230,239,234,0.8)',
+                        fontSize: 12.5,
+                        textAlign: 'center',
+                    }}
+                >
+                    {deviceNote}
+                </div>
+            )}
 
             <div
                 style={{
