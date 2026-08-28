@@ -8,6 +8,7 @@ use App\Http\Requests\Teams\CreateTeamInvitationRequest;
 use App\Http\Requests\Teams\RespondToTeamInvitationRequest;
 use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Models\User;
 use App\Notifications\Teams\TeamInvitation as TeamInvitationNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -31,8 +32,18 @@ class TeamInvitationController extends Controller
             'expires_at' => now()->addDays(3),
         ]);
 
-        Notification::route('mail', $invitation->email)
-            ->notify(new TeamInvitationNotification($invitation));
+        /*
+         * Invitations are addressed to an email, which may or may not belong
+         * to somebody who has registered. When it does, notify the account so
+         * the invitation reaches their bell as well as their inbox; when it
+         * does not, there is nowhere to store a row and mail is all there is.
+         */
+        $invitee = User::query()->firstWhere('email', $invitation->email);
+
+        $invitee !== null
+            ? $invitee->notify(new TeamInvitationNotification($invitation))
+            : Notification::route('mail', $invitation->email)
+                ->notify(new TeamInvitationNotification($invitation));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Invitation sent.')]);
 

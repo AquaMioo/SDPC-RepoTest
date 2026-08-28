@@ -11,7 +11,9 @@ use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Notifications\Client\ProjectInvitation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -130,6 +132,35 @@ class RecruitOutreachTest extends TestCase
             'source' => ApplicationSource::Invited->value,
             'status' => ApplicationStatus::Pending->value,
         ]);
+    }
+
+    public function test_the_invited_student_is_told(): void
+    {
+        Notification::fake();
+
+        [$client, $student] = $this->pair();
+
+        $project = Project::factory()->create([
+            'team_id' => $client->current_team_id,
+            'status' => ProjectStatus::Open,
+        ]);
+
+        $this->actingAs($client)
+            ->from(route('students.show', [
+                'current_team' => $client->currentTeam,
+                'user' => $student,
+            ]))
+            ->post(route('projects.invitations.store', [
+                'current_team' => $client->currentTeam,
+                'project' => $project,
+            ]), ['user_id' => $student->id])
+            ->assertSessionHasNoErrors();
+
+        Notification::assertSentTo(
+            $student,
+            ProjectInvitation::class,
+            fn (ProjectInvitation $notification): bool => $notification->application->project_id === $project->id,
+        );
     }
 
     public function test_the_same_student_can_not_be_invited_to_one_posting_twice(): void

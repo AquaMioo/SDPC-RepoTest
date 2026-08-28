@@ -12,6 +12,8 @@ use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Team;
+use App\Models\User;
+use App\Notifications\Client\ProjectInvitation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -73,7 +75,7 @@ class ProjectApplicationController extends Controller
     {
         $student = $request->integer('user_id');
 
-        $project->applications()->create([
+        $application = $project->applications()->create([
             'user_id' => $student,
             'status' => ApplicationStatus::Pending,
             'source' => ApplicationSource::Invited,
@@ -89,6 +91,13 @@ class ProjectApplicationController extends Controller
             'project_id' => $project->id,
             'user_id' => $student,
         ]);
+
+        /*
+         * Inviting was silent until now: the row and the thread were both
+         * created and the student was told neither, so an invitation only
+         * surfaced to somebody who happened to open their workflow.
+         */
+        User::query()->find($student)?->notify(new ProjectInvitation($application));
 
         return back()->with('success', 'Invitation sent.');
     }
@@ -107,6 +116,12 @@ class ProjectApplicationController extends Controller
             'status' => $application->status->value,
             'statusLabel' => $application->status->label(),
             'isActionable' => $application->status->isActionable(),
+            /*
+             * Inviting already said yes, so the answer is the student's. The
+             * row stays actionable — it can still be shortlisted or taken back
+             * — but Accept belongs to the other side.
+             */
+            'awaitsStudentDecision' => $application->awaitsStudentDecision(),
             'source' => $application->source->value,
             'sourceLabel' => $application->source->label(),
             'coverLetter' => $application->cover_letter,

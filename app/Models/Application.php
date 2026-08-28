@@ -98,6 +98,20 @@ class Application extends Model
     }
 
     /**
+     * Determine if this one is the student's to decide.
+     *
+     * Whoever did not open the conversation is the one who answers it. A
+     * student applying is asking the client to say yes; a client inviting is
+     * asking the student. Both arrive as a Pending row, and the source is the
+     * only thing that says which way round it is.
+     */
+    public function awaitsStudentDecision(): bool
+    {
+        return $this->source === ApplicationSource::Invited
+            && $this->status->isActionable();
+    }
+
+    /**
      * Get the contract this application produced.
      *
      * Drafted the moment the client accepts, which is why an accepted

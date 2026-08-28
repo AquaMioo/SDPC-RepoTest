@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMessage;
+use App\Actions\Messaging\NotifyOfMessage;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Messaging\EditMessageRequest;
@@ -34,7 +35,10 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  */
 class ConversationController extends Controller
 {
-    public function __construct(private readonly AnnounceMessage $announce) {}
+    public function __construct(
+        private readonly AnnounceMessage $announce,
+        private readonly NotifyOfMessage $notify,
+    ) {}
 
     /**
      * Show the inbox, with one thread open.
@@ -171,6 +175,14 @@ class ConversationController extends Controller
 
         abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
+        /*
+         * Read before anything is written. Once the new message exists the
+         * thread is unread by definition, and the answer decides whether this
+         * is a thread waking up — worth a bell — or the next line of a
+         * conversation the other side has yet to catch up on.
+         */
+        $wasAlreadyUnread = $this->notify->wasAlreadyUnread($conversation, $user);
+
         // Stored before the transaction: writing the file is not something a
         // rollback could undo anyway, and a failed upload should stop here.
         $attachment = $request->hasFile('image')
@@ -205,6 +217,7 @@ class ConversationController extends Controller
          * delivered message into an error page.
          */
         $this->announce->handle($message);
+        $this->notify->handle($message, $wasAlreadyUnread);
 
         return back();
     }

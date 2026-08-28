@@ -3,9 +3,12 @@
 namespace Tests\Feature\Notifications;
 
 use App\Models\Application;
+use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\Client\ApplicationReceived;
+use App\Notifications\Client\ProjectInvitation;
+use App\Notifications\Messaging\NewMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -97,6 +100,53 @@ class NotificationCentreTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(0, $client->fresh()->unreadNotifications()->count());
+    }
+
+    public function test_an_invitation_onto_a_posting_reads_as_one_and_leads_to_the_workflow(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $application = Application::factory()->create([
+            'project_id' => Project::factory()->create(['title' => 'Inventory System'])->id,
+            'user_id' => $student->id,
+        ]);
+
+        $student->notify(new ProjectInvitation($application));
+
+        $this->actingAs($student)
+            ->get(route('notifications.index', ['current_team' => $student->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('notifications', 1)
+                ->where('notifications.0.url', route('student.workflow', [
+                    'current_team' => $student->currentTeam->slug,
+                ]))
+                ->where('notifications.0.title', fn (string $title): bool => str_contains($title, 'Inventory System')));
+    }
+
+    public function test_a_message_notification_leads_back_to_its_thread(): void
+    {
+        $student = User::factory()->student()->create();
+        $conversation = Conversation::create([
+            'project_id' => Project::factory()->create()->id,
+            'user_id' => $student->id,
+        ]);
+
+        $student->notify(new NewMessage($conversation->messages()->create([
+            'user_id' => User::factory()->client()->create()->id,
+            'body' => 'Thursday works for us',
+        ])));
+
+        $this->actingAs($student)
+            ->get(route('notifications.index', ['current_team' => $student->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('notifications', 1)
+                ->where('notifications.0.body', 'Thursday works for us')
+                ->where('notifications.0.url', route('messages.show', [
+                    'current_team' => $student->currentTeam->slug,
+                    'conversation' => $conversation->id,
+                ])));
     }
 
     public function test_a_payload_the_code_no_longer_recognises_still_renders(): void

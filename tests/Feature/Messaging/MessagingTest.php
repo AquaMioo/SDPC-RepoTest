@@ -17,7 +17,9 @@ use Illuminate\Contracts\Broadcasting\Broadcaster;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -417,6 +419,100 @@ class MessagingTest extends TestCase
         }
 
         return [$client->fresh(), $student->fresh(), $project];
+    }
+
+    public function test_a_message_into_a_quiet_thread_raises_a_notification(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($student)
+            ->post(route('messages.send', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]), ['body' => 'Are you free on Thursday?'])
+            ->assertSessionHasNoErrors();
+
+        $notification = $this->messageNotifications($client)->sole();
+
+        $this->assertSame($student->name, $notification->data['sender_name']);
+        $this->assertSame('Are you free on Thursday?', $notification->data['preview']);
+        $this->assertSame($thread->id, $notification->data['conversation_id']);
+    }
+
+    public function test_the_sender_is_never_notified_of_their_own_message(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($student)
+            ->post(route('messages.send', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]), ['body' => 'Are you free on Thursday?']);
+
+        $this->assertCount(0, $this->messageNotifications($student));
+    }
+
+    public function test_a_burst_into_a_thread_already_unread_raises_one_notification(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $url = route('messages.send', [
+            'current_team' => $student->currentTeam,
+            'conversation' => $thread,
+        ]);
+
+        /*
+         * Three lines in a row from somebody who has not been answered is one
+         * thread waking up, not three events. Without this the bell would
+         * carry a row per message and be unreadable after any real exchange.
+         */
+        $this->actingAs($student)->post($url, ['body' => 'Are you free on Thursday?']);
+        $this->actingAs($student)->post($url, ['body' => 'Morning would suit me']);
+        $this->actingAs($student)->post($url, ['body' => 'Or Friday, if that is easier']);
+
+        $this->assertCount(1, $this->messageNotifications($client));
+    }
+
+    public function test_a_thread_read_and_then_written_to_again_raises_another(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $url = route('messages.send', [
+            'current_team' => $student->currentTeam,
+            'conversation' => $thread,
+        ]);
+
+        $this->actingAs($student)->post($url, ['body' => 'Are you free on Thursday?']);
+
+        /* The client opens the thread, which marks their side read. */
+        $this->actingAs($client)->get(route('messages.show', [
+            'current_team' => $client->currentTeam,
+            'conversation' => $thread,
+        ]));
+
+        $this->actingAs($student)->post($url, ['body' => 'Still hoping to hear back']);
+
+        $this->assertCount(2, $this->messageNotifications($client));
+    }
+
+    /**
+     * The bell rows this feature raises, and nothing else.
+     *
+     * A pair() linked by an application already carries an ApplicationReceived
+     * row, so counting everything on the account would measure the wrong
+     * thing.
+     *
+     * @return Collection<int, DatabaseNotification>
+     */
+    private function messageNotifications(User $user): Collection
+    {
+        return $user->fresh()->notifications()->get()
+            ->where('data.type', 'message.received')
+            ->values();
     }
 
     public function test_a_sender_can_edit_their_own_message(): void

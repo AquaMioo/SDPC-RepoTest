@@ -40,6 +40,55 @@ class TeamInvitationTest extends TestCase
         ]);
     }
 
+    public function test_inviting_somebody_who_already_has_an_account_reaches_their_bell()
+    {
+        Notification::fake();
+
+        $owner = User::factory()->create();
+        $invited = User::factory()->create(['email' => 'invited@example.com']);
+        $team = Team::factory()->create();
+
+        $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+        $this->actingAs($owner)
+            ->post(route('teams.invitations.store', $team), [
+                'email' => $invited->email,
+                'role' => TeamRole::LeadProgrammer->value,
+            ]);
+
+        Notification::assertSentTo(
+            $invited,
+            TeamInvitationNotification::class,
+            fn (TeamInvitationNotification $notification): bool => $notification->via($invited) === ['mail', 'database'],
+        );
+    }
+
+    public function test_inviting_an_address_with_no_account_stays_email_only()
+    {
+        Notification::fake();
+
+        $owner = User::factory()->create();
+        $team = Team::factory()->create();
+
+        $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+        $this->actingAs($owner)
+            ->post(route('teams.invitations.store', $team), [
+                'email' => 'nobody@example.com',
+                'role' => TeamRole::LeadProgrammer->value,
+            ]);
+
+        /*
+         * There is no account to hang a row on, so the database channel has to
+         * drop out — asking for it on an AnonymousNotifiable is what would
+         * break the invitation for everybody who has not registered yet.
+         */
+        Notification::assertSentOnDemand(
+            TeamInvitationNotification::class,
+            fn (TeamInvitationNotification $notification, array $channels, object $notifiable): bool => $notification->via($notifiable) === ['mail'],
+        );
+    }
+
     public function test_invitation_email_for_existing_users_uses_login_route()
     {
         $owner = User::factory()->create();

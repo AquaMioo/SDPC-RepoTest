@@ -82,6 +82,36 @@ class PresentNotification
                     'project' => $slug,
                 ]),
             ],
+            'message.received' => [
+                __(':sender messaged you', [
+                    'sender' => $this->text($data, 'sender_name') ?? __('Somebody'),
+                ]),
+                $this->text($data, 'preview'),
+                $this->conversationUrl($data, $team),
+            ],
+            'project.invitation' => [
+                __(':client invited you to :project', [
+                    'client' => $this->text($data, 'client_name') ?? __('A client'),
+                    'project' => $project ?? __('a project'),
+                ]),
+                __('Look at the brief and reply from your workflow.'),
+                route('student.workflow', ['current_team' => $team->slug]),
+            ],
+            'team.invitation' => [
+                __(':inviter invited you to join :team', [
+                    'inviter' => $this->text($data, 'inviter_name') ?? __('Somebody'),
+                    'team' => $this->text($data, 'team_name') ?? __('a team'),
+                ]),
+                __('Accept or decline it from your dashboard.'),
+                null,
+            ],
+            'invitation.accepted' => [
+                __(':student accepted your invitation', [
+                    'student' => $this->text($data, 'student_name') ?? __('A student'),
+                ]),
+                __('An agreement has been drafted. The work starts once both sides have signed it.'),
+                route('agreements.index', ['current_team' => $team->slug]),
+            ],
             'application.accepted' => [
                 __('You were accepted for :project', ['project' => $project ?? __('a project')]),
                 __('An agreement has been drafted. The work starts once both sides have signed it.'),
@@ -99,6 +129,20 @@ class PresentNotification
             ],
             default => [__('Something happened on your account'), null, null],
         };
+    }
+
+    /**
+     * Build the link to a thread, when the payload names one.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function conversationUrl(array $data, Team $team): ?string
+    {
+        $id = $data['conversation_id'] ?? null;
+
+        return is_int($id) || is_string($id)
+            ? route('messages.show', ['current_team' => $team->slug, 'conversation' => $id])
+            : null;
     }
 
     /**
