@@ -7,6 +7,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Actions/Client/RespondToApplication.php, app/Actions/Client/UpdateClientProfile.php | .ai/rules/actions-client.md |
 | app/Http/Controllers/Admin/AdminPostingController.php | .ai/rules/admin.md |
 | app/Actions/Agreements/** | .ai/rules/agreements.md |
+| app/Notifications/** | .ai/rules/app-notifications.md |
 | app/Http/Controllers/Auth/RegistrationController.php, app/Http/Controllers/Auth/AccountAppealController.php, app/Http/Middleware/EnsureAccountIsNotMonitored.php | .ai/rules/auth.md |
 | app/Http/Controllers/Client/StudentProfileController.php | .ai/rules/client.md |
 | resources/js/components/** | .ai/rules/components.md |
@@ -23,6 +24,8 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Models/Conversation.php, app/Models/Agreement.php | .ai/rules/models.md |
 | app/Actions/Notifications/** | .ai/rules/notifications.md |
 | app/Policies/ProjectPolicy.php | .ai/rules/policies.md |
+| app/Services/Recommendation/** | .ai/rules/recommendation.md |
+| app/Http/Responses/** | .ai/rules/responses.md |
 | resources/js/routes/** | .ai/rules/routes.md |
 | app/Services/Matching/SkillInference.php | .ai/rules/services-matching.md |
 | app/Http/Controllers/Student/**, app/Http/Controllers/Student/StudentEducationController.php | .ai/rules/student.md |
