@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Actions\Student\RespondToInvitation;
 use App\Enums\ApplicationSource;
 use App\Enums\ApplicationStatus;
 use App\Enums\IssueCategory;
@@ -20,6 +21,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -297,6 +299,41 @@ class ProjectBoardController extends Controller
         $application->update(['status' => ApplicationStatus::Withdrawn]);
 
         return back()->with('success', 'Your application has been withdrawn.');
+    }
+
+    /**
+     * Take up an invitation a client sent.
+     *
+     * The mirror of the client accepting an application: whoever did not open
+     * the conversation is the one who answers it.
+     */
+    public function acceptInvitation(
+        Request $request,
+        Team $currentTeam,
+        Application $application,
+        RespondToInvitation $respondToInvitation,
+    ): RedirectResponse {
+        Gate::authorize('acceptInvitation', $application);
+
+        $respondToInvitation->accept($application);
+
+        return back()->with('success', 'Invitation accepted. Your agreement is ready to review.');
+    }
+
+    /**
+     * Turn an invitation down.
+     */
+    public function declineInvitation(
+        Request $request,
+        Team $currentTeam,
+        Application $application,
+        RespondToInvitation $respondToInvitation,
+    ): RedirectResponse {
+        Gate::authorize('declineInvitation', $application);
+
+        $respondToInvitation->decline($application);
+
+        return back()->with('success', 'Invitation declined.');
     }
 
     /**

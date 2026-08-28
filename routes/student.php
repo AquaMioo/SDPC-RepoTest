@@ -65,6 +65,18 @@ Route::prefix('{current_team}')
             ->name('student.applications.withdraw');
 
         /*
+         * An invitation is answered by the student it was sent to, so these
+         * carry the same verification gate as applying: taking work on is the
+         * thing that waits on a proved credential, not browsing for it.
+         */
+        Route::post('my-applications/{application}/accept', [ProjectBoardController::class, 'acceptInvitation'])
+            ->middleware($verified)
+            ->name('student.applications.accept');
+        Route::post('my-applications/{application}/decline', [ProjectBoardController::class, 'declineInvitation'])
+            ->middleware($verified)
+            ->name('student.applications.decline');
+
+        /*
          * Client List. Browsing businesses is open to any student, the same
          * way browsing postings is — what waits on verification is applying.
          */

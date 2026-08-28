@@ -97,8 +97,15 @@ class WorkflowController extends Controller
                 'source' => $application->source->label(),
                 'appliedAt' => $application->created_at?->format('j M Y'),
                 'respondedAt' => $application->responded_at?->format('j M Y'),
-                /** Only an undecided application can be taken back. */
-                'canWithdraw' => $application->status->isActionable(),
+                /*
+                 * An invitation is the student's to answer, so it offers
+                 * Accept and Decline instead of Withdraw — there is nothing to
+                 * take back from a conversation the client opened.
+                 */
+                'awaitsMyDecision' => $application->awaitsStudentDecision(),
+                /** Only an undecided application the student made can be taken back. */
+                'canWithdraw' => $application->status->isActionable()
+                    && ! $application->awaitsStudentDecision(),
             ])
             ->values()
             ->all();

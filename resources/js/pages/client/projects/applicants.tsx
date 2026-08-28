@@ -13,6 +13,7 @@ type Applicant = {
     status: string;
     statusLabel: string;
     isActionable: boolean;
+    awaitsStudentDecision: boolean;
     sourceLabel: string;
     coverLetter: string | null;
     proposedRate: number | null;
@@ -186,22 +187,42 @@ export default function Applicants({ project, applications }: Props) {
                                         >
                                             Shortlist
                                         </Button>
-                                        <Button
-                                            onClick={() =>
-                                                respond(application, 'accepted')
-                                            }
-                                        >
-                                            Accept
-                                        </Button>
+                                        {/*
+                                         * No Accept on an invitation this
+                                         * business sent: inviting already
+                                         * said yes, and the answer is the
+                                         * student's to give.
+                                         */}
+                                        {!application.awaitsStudentDecision && (
+                                            <Button
+                                                onClick={() =>
+                                                    respond(
+                                                        application,
+                                                        'accepted',
+                                                    )
+                                                }
+                                            >
+                                                Accept
+                                            </Button>
+                                        )}
                                         <Button
                                             variant="ghost"
                                             onClick={() =>
                                                 respond(application, 'rejected')
                                             }
                                         >
-                                            Reject
+                                            {application.awaitsStudentDecision
+                                                ? 'Cancel invitation'
+                                                : 'Reject'}
                                         </Button>
                                     </div>
+                                )}
+
+                                {application.awaitsStudentDecision && (
+                                    <p className="text-sm text-muted-foreground">
+                                        Waiting for {application.student.name}{' '}
+                                        to accept or decline your invitation.
+                                    </p>
                                 )}
                             </Panel>
                         ))}

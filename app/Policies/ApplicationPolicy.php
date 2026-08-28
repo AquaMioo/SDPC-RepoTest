@@ -26,10 +26,32 @@ class ApplicationPolicy
 
     /**
      * Determine whether the user can accept the applicant onto the project.
+     *
+     * Not on an invitation the business itself sent. Inviting already says
+     * yes; the answer belongs to the student, and a client accepting on their
+     * behalf would put somebody on a project they never agreed to.
      */
     public function accept(User $user, Application $application): bool
     {
-        return $this->respond($user, $application);
+        return ! $application->awaitsStudentDecision()
+            && $this->respond($user, $application);
+    }
+
+    /**
+     * Determine whether the student can accept an invitation sent to them.
+     */
+    public function acceptInvitation(User $user, Application $application): bool
+    {
+        return $application->user_id === $user->id
+            && $application->awaitsStudentDecision();
+    }
+
+    /**
+     * Determine whether the student can turn an invitation down.
+     */
+    public function declineInvitation(User $user, Application $application): bool
+    {
+        return $this->acceptInvitation($user, $application);
     }
 
     /**

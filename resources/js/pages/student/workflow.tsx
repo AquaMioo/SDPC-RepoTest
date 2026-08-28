@@ -4,9 +4,13 @@ import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
-import { process as studentProcess } from '@/routes/student';
-import { withdraw as applicationWithdraw } from '@/routes/student/applications';
 import { store as messagesStore } from '@/routes/messages';
+import { process as studentProcess } from '@/routes/student';
+import {
+    accept as applicationAccept,
+    decline as applicationDecline,
+    withdraw as applicationWithdraw,
+} from '@/routes/student/applications';
 import { index as boardIndex, show as boardShow } from '@/routes/student/board';
 
 const MUTED = (pct: number) =>
@@ -40,6 +44,7 @@ type Props = {
         source: string;
         appliedAt: string | null;
         respondedAt: string | null;
+        awaitsMyDecision: boolean;
         canWithdraw: boolean;
         canMessage: boolean;
     }[];
@@ -259,6 +264,54 @@ export default function StudentWorkflow({ projects, applications }: Props) {
                                         >
                                             Message
                                         </Btn>
+                                    )}
+
+                                    {/*
+                                     * A client who invites has already said
+                                     * yes, so this row is waiting on the
+                                     * student rather than on the business.
+                                     */}
+                                    {application.awaitsMyDecision && (
+                                        <>
+                                            <Btn
+                                                variant="primary"
+                                                onClick={() =>
+                                                    router.post(
+                                                        applicationAccept.url({
+                                                            current_team:
+                                                                team.slug,
+                                                            application:
+                                                                application.id,
+                                                        }),
+                                                        {},
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                Accept
+                                            </Btn>
+                                            <Btn
+                                                variant="ghost"
+                                                onClick={() =>
+                                                    router.post(
+                                                        applicationDecline.url({
+                                                            current_team:
+                                                                team.slug,
+                                                            application:
+                                                                application.id,
+                                                        }),
+                                                        {},
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                Decline
+                                            </Btn>
+                                        </>
                                     )}
 
                                     {application.canWithdraw && (
