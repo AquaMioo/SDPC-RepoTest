@@ -17,6 +17,7 @@ use App\Services\Matching\ScopeProfile;
 use App\Services\Matching\SkillInference;
 use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\RecommendationService;
+use App\Services\Recommendation\ScoresFreeText;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
@@ -45,7 +46,7 @@ class RecruitController extends Controller
          */
         $isScopeSearch = $project === null
             && $scope !== null
-            && $recommendations instanceof ComputedRecommendationService;
+            && $recommendations instanceof ScoresFreeText;
 
         $students = $isScopeSearch
             ? $this->rankedByScope($filters, $scope, $recommendations, $request)

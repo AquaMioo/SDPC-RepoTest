@@ -7,6 +7,7 @@ use App\Contracts\VerifiesStudentCredentials;
 use App\Mail\Transport\BrevoTransport;
 use App\Services\Credentials\AutomatedCredentialVerifier;
 use App\Services\Recommendation\ComputedRecommendationService;
+use App\Services\Recommendation\GeminiRecommendationService;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\StoredRecommendationService;
 use App\Services\Verification\NullStudentVerifier;
@@ -33,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
          */
         $this->app->bind(RecommendationService::class, fn () => match (config('recommendations.driver')) {
             'stored' => $this->app->make(StoredRecommendationService::class),
+            'gemini' => $this->app->make(GeminiRecommendationService::class),
             default => $this->app->make(ComputedRecommendationService::class),
         });
 

@@ -22,7 +22,7 @@ use Illuminate\Support\Collection;
  * Cheap enough to do inline: the work is set intersection over a page of
  * students, with no external call and nothing to keep warm.
  */
-class ComputedRecommendationService implements RecommendationService
+class ComputedRecommendationService implements RecommendationService, ScoresFreeText
 {
     public function __construct(
         protected MatchingEngine $engine,
