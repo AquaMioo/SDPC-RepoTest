@@ -38,6 +38,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | History Encryption
+    |--------------------------------------------------------------------------
+    |
+    | Inertia keeps each visited page's props in the browser's history state so
+    | that going back is instant. Without this that state outlives the session:
+    | after logging out you could press Back — or Forward, from the login
+    | screen you had just been returned to — and the admin dashboard rendered
+    | again, users, counts and review queue included, straight out of history.
+    |
+    | Encrypted, that state is only readable with a key held in session
+    | storage. ClearInertiaHistory listens for the logout event and rotates the
+    | key, so every earlier entry becomes undecryptable and Inertia asks the
+    | server for the page instead — which redirects to the login screen.
+    |
+    | Needs window.crypto.subtle, so it is inert over plain http on anything
+    | that is not localhost. Production is HTTPS.
+    |
+    */
+
+    'history' => [
+
+        'encrypt' => true,
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pages
     |--------------------------------------------------------------------------
     |

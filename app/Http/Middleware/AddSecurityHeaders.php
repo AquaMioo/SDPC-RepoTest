@@ -58,6 +58,28 @@ class AddSecurityHeaders
             'camera=(self), microphone=(self), geolocation=()',
         );
 
+        /*
+         * A signed-in page is never kept by the browser.
+         *
+         * Without this the document sits in the back/forward cache and is
+         * replayed without asking the server anything: sign out of the admin
+         * portal, land on the login screen, press Forward, and the dashboard
+         * was drawn again from that copy. Nothing was authorised — the session
+         * had gone — but the numbers, the account list and the review queue
+         * were all still legible.
+         *
+         * no-store is what disables the back/forward cache; the other two are
+         * for proxies and for browsers old enough to want Pragma. Inertia's
+         * own history state is handled separately, by ClearInertiaHistory.
+         *
+         * Only for a signed-in response: a guest's login screen and the public
+         * pages are the same for everybody and may be cached normally.
+         */
+        if ($request->user() !== null) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            $response->headers->set('Pragma', 'no-cache');
+        }
+
         // HSTS only over a real HTTPS connection: sending it over plain HTTP is
         // meaningless, and sending it from localhost would pin the whole of
         // localhost to HTTPS in the developer's browser.

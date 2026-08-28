@@ -154,6 +154,14 @@ class ProfileController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        /*
+         * After the invalidate, not before: clearHistory leaves a flag in the
+         * session for the next Inertia response, and invalidating throws an
+         * earlier one away. Fortify's logout route does the same thing in
+         * App\Http\Responses\LogoutResponse; this is the other way out.
+         */
+        Inertia::clearHistory();
+
         return redirect('/');
     }
 }

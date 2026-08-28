@@ -68,4 +68,33 @@ class SecurityHeadersTest extends TestCase
             ->get(route('dashboard', ['current_team' => $user->personalTeam()->slug]))
             ->assertHeader('X-Frame-Options', 'DENY');
     }
+
+    public function test_a_signed_in_page_is_never_kept_by_the_browser(): void
+    {
+        /*
+         * no-store is what turns off the back/forward cache. Without it the
+         * admin dashboard was replayed from history after signing out —
+         * pressing Forward from the login screen drew it again, counts and
+         * account list included, without asking the server anything.
+         */
+        $user = User::factory()->create();
+
+        $cacheControl = $this->actingAs($user)
+            ->get(route('dashboard', ['current_team' => $user->personalTeam()->slug]))
+            ->headers->get('Cache-Control');
+
+        $this->assertStringContainsString('no-store', $cacheControl);
+        $this->assertStringContainsString('private', $cacheControl);
+    }
+
+    public function test_a_guests_page_may_still_be_cached(): void
+    {
+        /*
+         * The login screen is the same for everybody, and there is nothing on
+         * it worth forbidding a browser to keep.
+         */
+        $cacheControl = $this->get(route('login'))->headers->get('Cache-Control');
+
+        $this->assertStringNotContainsString('no-store', (string) $cacheControl);
+    }
 }
