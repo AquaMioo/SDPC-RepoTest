@@ -65,7 +65,7 @@ export default function AuthLayout({
                     textDecoration: 'none',
                 }}
             >
-                SDPCC
+                SDPC
             </Link>
 
             {children}

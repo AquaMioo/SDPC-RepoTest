@@ -73,8 +73,8 @@ class EmailOneTimePassword extends Notification
     private function reason(): string
     {
         return match ($this->purpose) {
-            OneTimePasswordPurpose::Registration => __('Somebody used this address to sign up for SDPCC. Enter the code below to finish creating the account.'),
-            OneTimePasswordPurpose::Appeal => __('Somebody asked to appeal a decision on the SDPCC account at this address. Enter the code below to continue.'),
+            OneTimePasswordPurpose::Registration => __('Somebody used this address to sign up for SDPC. Enter the code below to finish creating the account.'),
+            OneTimePasswordPurpose::Appeal => __('Somebody asked to appeal a decision on the SDPC account at this address. Enter the code below to continue.'),
         };
     }
 }

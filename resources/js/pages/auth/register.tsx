@@ -329,8 +329,8 @@ export default function Register({
                                         marginTop: 1,
                                     }}
                                 />
-                                Yes, I understand and agree to the SDPCC Terms
-                                of Service, including the User Agreement and
+                                Yes, I understand and agree to the SDPC Terms of
+                                Service, including the User Agreement and
                                 Privacy Policy.
                             </label>
                             <InputError

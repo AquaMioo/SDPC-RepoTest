@@ -157,7 +157,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                     style={{ maxWidth: 1320, paddingBlock: 14 }}
                 >
                     <Link href={home} style={BRAND}>
-                        SDPCC
+                        SDPC
                     </Link>
 
                     <nav className="app-bar-nav">

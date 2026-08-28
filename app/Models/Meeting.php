@@ -118,7 +118,7 @@ class Meeting extends Model
      */
     public static function newChannelName(): string
     {
-        return 'sdpcc-'.Str::lower(Str::random(24));
+        return 'sdpc-'.Str::lower(Str::random(24));
     }
 
     /**

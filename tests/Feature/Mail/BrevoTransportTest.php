@@ -22,8 +22,8 @@ class BrevoTransportTest extends TestCase
 
         config([
             'mail.default' => 'brevo',
-            'mail.from.address' => 'sender@sdpcc.test',
-            'mail.from.name' => 'SDPCC',
+            'mail.from.address' => 'sender@sdpc.test',
+            'mail.from.name' => 'SDPC',
             'services.brevo.key' => 'test-key',
             'services.brevo.endpoint' => 'https://api.brevo.com/v3/smtp/email',
             'services.brevo.timeout' => 10,
@@ -44,7 +44,7 @@ class BrevoTransportTest extends TestCase
 
             return $request->url() === 'https://api.brevo.com/v3/smtp/email'
                 && $request->hasHeader('api-key', 'test-key')
-                && $body['sender']['email'] === 'sender@sdpcc.test'
+                && $body['sender']['email'] === 'sender@sdpc.test'
                 && $body['to'][0]['email'] === 'student@example.test'
                 && $body['subject'] === 'Confirm your email address'
                 /* The code itself has to survive the trip. */

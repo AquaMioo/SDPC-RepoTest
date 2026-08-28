@@ -282,7 +282,7 @@ export default function Welcome({
                              */}
                             <img
                                 src="/images/hero.webp"
-                                alt="The four students who built SDPC, outside STI College San Jose Del Monte"
+                                alt="The four students who built SDPC, outside their school"
                                 style={{
                                     width: '100%',
                                     height: 380,

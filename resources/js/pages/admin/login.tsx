@@ -69,7 +69,7 @@ export default function AdminLogin({ status }: Props) {
                         textDecoration: 'none',
                     }}
                 >
-                    SDPCC
+                    SDPC
                 </Link>
                 <span
                     style={{

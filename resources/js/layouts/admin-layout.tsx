@@ -103,7 +103,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 textDecoration: 'none',
                             }}
                         >
-                            SDPCC
+                            SDPC
                         </Link>
                         <span
                             style={{

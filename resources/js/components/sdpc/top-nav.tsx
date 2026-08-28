@@ -85,7 +85,7 @@ export default function TopNav({
                     }}
                 >
                     <Link href="/" style={BRAND}>
-                        SDPCC
+                        SDPC
                     </Link>
                     {suffix && (
                         <span

@@ -91,7 +91,7 @@ export default function Login({
                     style={{ borderRight: '1px solid var(--color-divider)' }}
                 >
                     <Link href="/" style={wordmark}>
-                        SDPCC
+                        SDPC
                     </Link>
 
                     <div style={{ maxWidth: 460 }}>
@@ -153,7 +153,7 @@ export default function Login({
                     {/* Stands in for the one in the pitch panel, which is not
                         drawn at this width. */}
                     <Link href="/" className="lg:hidden" style={wordmark}>
-                        SDPCC
+                        SDPC
                     </Link>
 
                     {teamInvitation && (
@@ -344,7 +344,7 @@ export default function Login({
                                 color: MUTED,
                             }}
                         >
-                            Don&apos;t have an SDPCC account?{' '}
+                            Don&apos;t have an SDPC account?{' '}
                             <Btn
                                 asChild
                                 variant="ghost"
