@@ -15,7 +15,6 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Matching\ScopeProfile;
 use App\Services\Matching\SkillInference;
-use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\ScoresFreeText;
 use Illuminate\Database\Eloquent\Builder;
@@ -224,7 +223,14 @@ class RecruitController extends Controller
     protected function rankedByScope(
         StudentFilters $filters,
         ScopeProfile $scope,
-        ComputedRecommendationService $recommendations,
+        /*
+         * The contract, not a driver. This read ComputedRecommendationService
+         * and __invoke() had already been changed to test for ScoresFreeText,
+         * so the moment a second capable driver was bound the scope search
+         * died with a TypeError instead of ranking. See
+         * .ai/rules/recommendation.md — the same trap, one call site later.
+         */
+        ScoresFreeText $recommendations,
         Request $request,
     ): LengthAwarePaginator {
         $candidates = $this->query($filters, applySearch: false)

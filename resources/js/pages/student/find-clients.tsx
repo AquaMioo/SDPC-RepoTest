@@ -6,6 +6,8 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import CapstoneDialog from '@/components/student/capstone-dialog';
+
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
@@ -41,6 +43,8 @@ type Props = {
         total: number;
     };
     filters: { search: string; skills: string[]; sort: string };
+    /** What the board is ranking against, when a capstone was described. */
+    capstone: { title: string; description: string };
     sorts: { value: string; label: string }[];
     skillGroups: {
         type: string;
@@ -71,6 +75,7 @@ type Props = {
 export default function FindClients({
     projects,
     filters,
+    capstone,
     sorts,
     skillGroups,
     canApply,
@@ -80,13 +85,34 @@ export default function FindClients({
 }: Props) {
     const team = useCurrentTeam();
     const [search, setSearch] = useState(filters.search);
+    const [capstoneOpen, setCapstoneOpen] = useState(false);
 
-    const go = (next: Partial<Props['filters']>) =>
+    /*
+     * The capstone rides in the query string rather than in state, so a
+     * ranked board can be shared, reloaded and navigated back to. Every
+     * filter change carries it along or the ranking would silently reset to
+     * the profile the moment somebody picked a skill.
+     */
+    const go = (
+        next: Partial<Props['filters']> & {
+            capstone_title?: string;
+            capstone_description?: string;
+        },
+    ) =>
         router.get(
             boardIndex.url(team.slug),
-            { ...filters, search, ...next },
+            {
+                ...filters,
+                search,
+                capstone_title: capstone.title,
+                capstone_description: capstone.description,
+                ...next,
+            },
             { preserveState: true, preserveScroll: true, replace: true },
         );
+
+    const rankingByCapstone =
+        capstone.title !== '' || capstone.description !== '';
 
     const toggleSkill = (slug: string) =>
         go({
@@ -148,6 +174,43 @@ export default function FindClients({
                             You already have a project in hand. Browse all you
                             like — applying opens up again once that build is
                             finished.
+                        </span>
+                    </Panel>
+                )}
+
+                <CapstoneDialog
+                    open={capstoneOpen}
+                    onOpenChange={setCapstoneOpen}
+                    title={capstone.title}
+                    description={capstone.description}
+                    onConfirm={(next) =>
+                        go({
+                            capstone_title: next.title,
+                            capstone_description: next.description,
+                        })
+                    }
+                />
+
+                {rankingByCapstone && (
+                    <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
+                        <span style={{ fontSize: 12.5, color: MUTED(70) }}>
+                            Ranked against your capstone
+                            {capstone.title !== ''
+                                ? `, "${capstone.title}"`
+                                : ''}
+                            .{' '}
+                            <button
+                                type="button"
+                                className="link"
+                                onClick={() =>
+                                    go({
+                                        capstone_title: '',
+                                        capstone_description: '',
+                                    })
+                                }
+                            >
+                                Rank by my profile instead
+                            </button>
                         </span>
                     </Panel>
                 )}
@@ -235,6 +298,19 @@ export default function FindClients({
                             placeholder="Search briefs"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            /*
+                             * Clicking the box asks what you are building
+                             * rather than what you want to type. Typing still
+                             * filters by keyword — the two are different
+                             * questions and the box answers both.
+                             *
+                             * onClick and NOT onFocus. Radix returns focus to
+                             * the element that opened a dialog when it closes,
+                             * so on focus the dialog reopened itself the
+                             * instant you confirmed or cancelled — closing it
+                             * was impossible without clicking elsewhere.
+                             */
+                            onClick={() => setCapstoneOpen(true)}
                         />
                     </form>
                 </div>

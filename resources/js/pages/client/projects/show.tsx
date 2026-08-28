@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Deferred, Head, Link, router } from '@inertiajs/react';
 import { PencilSimpleIcon, UsersThreeIcon } from '@phosphor-icons/react';
 import { Panel, PanelDivider, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { archive, edit as projectsEdit } from '@/routes/projects';
 import { index as applicantsIndex } from '@/routes/projects/applicants';
+import { show as studentsShow } from '@/routes/students';
 import { toggle as intakeToggle } from '@/routes/projects/intake';
 
 type Props = {
@@ -25,9 +26,27 @@ type Props = {
         attachments: { id: number; name: string; size: string }[];
     };
     applicantCounts: { total: number; pending: number; accepted: number };
+    /**
+     * Deferred: scoring calls a model, so the brief renders first and the
+     * candidates arrive after. Undefined while in flight, [] when the posting
+     * is not live or nothing scored.
+     */
+    recommended?: {
+        id: number;
+        name: string;
+        headline: string | null;
+        course: string | null;
+        yearLevel: number | null;
+        compatibility: number;
+        insight: string | null;
+    }[];
 };
 
-export default function ShowProject({ project, applicantCounts }: Props) {
+export default function ShowProject({
+    project,
+    applicantCounts,
+    recommended,
+}: Props) {
     const team = useCurrentTeam();
     const routeArgs = { current_team: team.slug, project: project.slug };
 
@@ -131,6 +150,76 @@ export default function ShowProject({ project, applicantCounts }: Props) {
                             </Link>
                         </Button>
                     </Panel>
+
+                    {/* Only for a live posting: a draft has not been
+                        approved and no student can see it, so there is
+                        nobody to recommend for it yet. */}
+                    {project.applicationsOpen && !project.isDraft && (
+                        <Panel padding="lg" gap="lg">
+                            <PanelKicker>AI recommended students</PanelKicker>
+
+                            <Deferred
+                                data="recommended"
+                                fallback={
+                                    <div className="flex flex-col gap-2">
+                                        {[0, 1, 2].map((row) => (
+                                            <div
+                                                key={row}
+                                                className="h-12 animate-pulse rounded bg-muted"
+                                            />
+                                        ))}
+                                    </div>
+                                }
+                            >
+                                {recommended === undefined ||
+                                recommended.length === 0 ? (
+                                    <p className="m-0 text-[13px] text-muted-foreground">
+                                        No candidates to suggest yet. Students
+                                        appear here once profiles have enough to
+                                        match your brief against.
+                                    </p>
+                                ) : (
+                                    <div className="flex flex-col gap-3">
+                                        {recommended.map((student) => (
+                                            <div
+                                                key={student.id}
+                                                className="flex items-start gap-3"
+                                            >
+                                                <div className="min-w-0 flex-1">
+                                                    <Link
+                                                        href={studentsShow.url({
+                                                            current_team:
+                                                                team.slug,
+                                                            user: student.id,
+                                                        })}
+                                                        className="text-[14px] font-semibold hover:underline"
+                                                    >
+                                                        {student.name}
+                                                    </Link>
+                                                    <div className="text-[12px] text-muted-foreground">
+                                                        {[
+                                                            student.headline,
+                                                            student.course,
+                                                        ]
+                                                            .filter(Boolean)
+                                                            .join(' · ')}
+                                                    </div>
+                                                    {student.insight && (
+                                                        <p className="m-0 mt-1 text-[12px] leading-relaxed opacity-85">
+                                                            {student.insight}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <Tag variant="accent">
+                                                    {student.compatibility}%
+                                                </Tag>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </Deferred>
+                        </Panel>
+                    )}
 
                     <Panel padding="lg" gap="lg">
                         <PanelKicker>Manage</PanelKicker>

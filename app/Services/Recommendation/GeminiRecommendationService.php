@@ -2,7 +2,9 @@
 
 namespace App\Services\Recommendation;
 
+use App\Enums\ProjectStatus;
 use App\Models\Project;
+use App\Models\StudentEducation;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Services\Matching\ScopeProfile;
@@ -33,7 +35,7 @@ use Throwable;
  *
  * @see .ai/rules/services-matching.md for the computed scorer this falls back to
  */
-class GeminiRecommendationService implements RecommendationService, ScoresFreeText
+class GeminiRecommendationService implements RecommendationService, ScoresFreeText, ScoresProjectsForText
 {
     public function __construct(
         protected ComputedRecommendationService $fallback,
@@ -54,7 +56,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         }
 
         $candidates = StudentProfile::query()
-            ->with(['skills', 'course', 'school'])
+            ->with(['skills', 'course', 'educations.course', 'languages'])
             ->limit($this->maxCandidates())
             ->get();
 
@@ -69,17 +71,69 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     /**
      * Score every open posting against a student, keyed by project id.
      *
-     * Deliberately delegated. The model reads one brief against many students;
-     * turning it round means one student against many briefs, which is a
-     * different prompt, a different cache shape and a second set of failure
-     * modes for a screen where the computed ranking is already good. When the
-     * student board needs model judgement this is where it goes — not before.
+     * The mirror of scoresFor(): one reader, many briefs. This is what puts a
+     * real judgement behind the board's "Recommended" order and behind the
+     * match panel at the top of it — both of which were already drawn, and
+     * both of which were being fed by keyword overlap until now.
      *
      * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
      */
     public function scoresForStudent(User $student): Collection
     {
-        return $this->fallback->scoresForStudent($student);
+        $profile = $student->studentProfile;
+
+        if ($profile === null) {
+            return collect();
+        }
+
+        $profile->loadMissing(['skills', 'course', 'educations.course', 'languages']);
+
+        return $this->rankBriefs(
+            reader: "STUDENT:\n".$this->encode($this->describe($profile)),
+            briefs: $this->openBriefs(),
+            /*
+             * Keyed on the profile's own timestamp, so editing your skills
+             * re-asks rather than serving an hour-old judgement of the person
+             * you used to be.
+             */
+            cacheKey: 'gemini.student.'.$student->id.'.'.$profile->updated_at?->timestamp,
+            fallback: fn (): Collection => $this->fallback->scoresForStudent($student),
+        );
+    }
+
+    /**
+     * Score open postings against the capstone a student describes.
+     *
+     * The advanced search: a student types what they are building this term
+     * and gets the briefs that map onto it. There is no profile involved and
+     * no skill list — only two sentences — which is precisely the case the
+     * keyword scorer cannot answer.
+     *
+     * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
+     */
+    public function projectScoresForText(string $title, string $description, User $student): Collection
+    {
+        $capstone = trim($title."\n".$description);
+
+        if ($capstone === '') {
+            return collect();
+        }
+
+        return $this->rankBriefs(
+            reader: "The student is building this capstone project this term:\n"
+                .$this->encode(array_filter([
+                    'capstone_title' => trim($title) ?: null,
+                    'capstone_description' => trim($description) ?: null,
+                ])),
+            briefs: $this->openBriefs(),
+            cacheKey: 'gemini.capstone.'.md5($capstone),
+            /*
+             * Without a model there is no sensible reading of two sentences,
+             * so the board falls back to ranking against the saved profile —
+             * which is what it did before this search existed.
+             */
+            fallback: fn (): Collection => $this->fallback->scoresForStudent($student),
+        );
     }
 
     /**
@@ -125,6 +179,181 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     }
 
     /**
+     * Render a payload fragment as readable JSON for the prompt.
+     *
+     * Pretty-printed and with slashes left alone: the model reads this, and
+     * escaped slashes in a URL or a course code are noise it has to undo.
+     *
+     * @param  array<mixed>  $value
+     */
+    protected function encode(array $value): string
+    {
+        return (string) json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Temperature and the response schema, shared by both prompt shapes.
+     *
+     * responseSchema is what makes this usable at all. Without it the reply is
+     * prose that happens to contain numbers, and parsing prose from a model is
+     * how you get a feature that works until the day it does not.
+     *
+     * @return array<string, mixed>
+     */
+    protected function generationConfig(): array
+    {
+        return [
+            /* A ranking should not wander between page loads. */
+            'temperature' => 0.2,
+            /*
+             * Gemini 3 reasons by default and it costs seconds, not
+             * milliseconds — enough to blow the request timeout on its own.
+             * See config/gemini.php for the measurements.
+             */
+            'thinkingConfig' => ['thinkingLevel' => config('gemini.thinking_level')],
+            'responseMimeType' => 'application/json',
+            'responseSchema' => [
+                'type' => 'OBJECT',
+                'properties' => [
+                    'matches' => [
+                        'type' => 'ARRAY',
+                        'items' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'id' => ['type' => 'INTEGER'],
+                                'compatibility' => ['type' => 'INTEGER'],
+                                'insight' => ['type' => 'STRING'],
+                                'recommendation' => ['type' => 'STRING'],
+                                /*
+                                     * The per-factor bars the board and the
+                                     * recruit screen already draw. Without
+                                     * these the match panel renders its ring
+                                     * over an empty space.
+                                     */
+                                'factors' => [
+                                    'type' => 'ARRAY',
+                                    'items' => [
+                                        'type' => 'OBJECT',
+                                        'properties' => [
+                                            'label' => ['type' => 'STRING'],
+                                            'value' => ['type' => 'INTEGER'],
+                                        ],
+                                        'required' => ['label', 'value'],
+                                    ],
+                                ],
+                                'matched_skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                                'missing_skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                            ],
+                            'required' => ['id', 'compatibility', 'insight'],
+                        ],
+                    ],
+                ],
+                'required' => ['matches'],
+            ],
+        ];
+    }
+
+    /**
+     * The open postings a student could be matched against.
+     *
+     * @return Collection<int, Project>
+     */
+    protected function openBriefs(): Collection
+    {
+        return Project::query()
+            ->where('status', ProjectStatus::Open)
+            ->with('skills')
+            ->limit($this->maxCandidates())
+            ->get();
+    }
+
+    /**
+     * Rank briefs for one reader — a student profile, or a typed capstone.
+     *
+     * The same shape as rank(), turned round: there the model reads one brief
+     * against many people, here one person against many briefs. Kept separate
+     * rather than generalised into one method with a flag, because the prompt,
+     * the ids and the fallback all differ and a shared version would be three
+     * conditionals wearing a trench coat.
+     *
+     * @param  Collection<int, Project>  $briefs
+     * @param  callable(): Collection<int, array<string, mixed>>  $fallback
+     * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
+     */
+    protected function rankBriefs(string $reader, Collection $briefs, string $cacheKey, callable $fallback): Collection
+    {
+        if (! $this->isConfigured() || $briefs->isEmpty()) {
+            return $fallback();
+        }
+
+        $ids = $briefs->pluck('id')->all();
+
+        $judgements = Cache::remember(
+            $cacheKey,
+            now()->addMinutes((int) config('gemini.cache_minutes')),
+            fn (): ?array => $this->ask($this->briefPayload($reader, $briefs), $ids),
+        );
+
+        if ($judgements === null) {
+            Cache::forget($cacheKey);
+
+            return $fallback();
+        }
+
+        $computed = $fallback();
+
+        /* A brief the model skipped keeps its computed score, never vanishes. */
+        return $briefs->mapWithKeys(fn (Project $project): array => [
+            $project->id => $judgements[$project->id]
+                ?? $computed[$project->id]
+                ?? $this->empty(),
+        ]);
+    }
+
+    /**
+     * Build the request body for ranking briefs against one reader.
+     *
+     * @param  Collection<int, Project>  $briefs
+     * @return array<string, mixed>
+     */
+    protected function briefPayload(string $reader, Collection $briefs): array
+    {
+        return [
+            'systemInstruction' => [
+                'parts' => [[
+                    'text' => implode(' ', [
+                        'You match client project briefs to a student developer for a university platform.',
+                        'For each brief, judge how well it fits what this student can build and wants to build, and return a compatibility score from 0 to 100.',
+                        'Be strict: 90+ means an excellent fit they should apply to today, 50 means a stretch worth considering, under 30 means the wrong brief for them.',
+                        'Recognise that a plain-English description and a technical term can mean the same work.',
+                        'The insight must be one sentence addressed to the student, specific to this brief, and must never invent experience they have not claimed.',
+                        'Give two to four factors: the named dimensions you judged on, each scored 0 to 100.',
+                        'The recommendation is one sentence telling the student how to pitch themselves for this brief.',
+                        'Return every brief id you were given, exactly once.',
+                    ]),
+                ]],
+            ],
+            'contents' => [[
+                'role' => 'user',
+                'parts' => [[
+                    'text' => $reader."\n\nOPEN BRIEFS:\n".$this->encode(
+                        $briefs->map(fn (Project $project): array => array_filter([
+                            'id' => $project->id,
+                            'title' => $project->title,
+                            'category' => $project->category,
+                            'industry' => $project->industry,
+                            'description' => $project->description,
+                            'objectives' => $project->objectives,
+                            'skills' => $project->skills->pluck('name')->all(),
+                        ]))->values()->all(),
+                    ),
+                ]],
+            ]],
+            'generationConfig' => $this->generationConfig(),
+        ];
+    }
+
+    /**
      * Ask the model to rank the candidates, or hand back to the computed scorer.
      *
      * @param  Collection<int, StudentProfile>  $candidates
@@ -140,7 +369,10 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         $judgements = Cache::remember(
             $cacheKey,
             now()->addMinutes((int) config('gemini.cache_minutes')),
-            fn (): ?array => $this->ask($brief, $candidates),
+            fn (): ?array => $this->ask(
+                $this->payload($brief, $candidates),
+                $candidates->pluck('user_id')->all(),
+            ),
         );
 
         if ($judgements === null) {
@@ -178,7 +410,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      * @param  Collection<int, StudentProfile>  $candidates
      * @return array<int, array{score: float, compatibility: int, reason: array<string, mixed>}>|null
      */
-    protected function ask(string $brief, Collection $candidates): ?array
+    protected function ask(array $payload, array $knownIds): ?array
     {
         try {
             $response = Http::asJson()
@@ -189,7 +421,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                  * error reports; a header is not.
                  */
                 ->withHeaders(['x-goog-api-key' => (string) config('gemini.api_key')])
-                ->post($this->endpoint(), $this->payload($brief, $candidates));
+                ->post($this->endpoint(), $payload);
         } catch (ConnectionException $exception) {
             return $this->logFailure('unreachable', $exception->getMessage());
         } catch (Throwable $exception) {
@@ -200,7 +432,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             return $this->logFailure('rejected', 'HTTP '.$response->status());
         }
 
-        return $this->parse($response->json(), $candidates);
+        return $this->parse($response->json(), $knownIds);
     }
 
     /**
@@ -224,6 +456,9 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                         'Be strict: 90+ means they could start tomorrow, 50 means a plausible stretch, under 30 means the wrong person.',
                         'Recognise that a plain-English description and a technical term can mean the same work.',
                         'The insight must be one sentence, specific to this candidate and this brief, and must never invent experience the profile does not claim.',
+                        'Give two to four factors: the named dimensions you actually judged on, each scored 0 to 100.',
+                        'A factor label names a capability the brief calls for, such as "Laravel and MySQL" or "Multi-tenant data" — never a generic word like "Skills".',
+                        'The recommendation is one sentence of advice to the reader on how to act on this match.',
                         'Return every candidate id you were given, exactly once.',
                     ]),
                 ]],
@@ -237,31 +472,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                     ),
                 ]],
             ]],
-            'generationConfig' => [
-                /* A ranking should not wander between page loads. */
-                'temperature' => 0.2,
-                'responseMimeType' => 'application/json',
-                'responseSchema' => [
-                    'type' => 'OBJECT',
-                    'properties' => [
-                        'matches' => [
-                            'type' => 'ARRAY',
-                            'items' => [
-                                'type' => 'OBJECT',
-                                'properties' => [
-                                    'id' => ['type' => 'INTEGER'],
-                                    'compatibility' => ['type' => 'INTEGER'],
-                                    'insight' => ['type' => 'STRING'],
-                                    'matched_skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
-                                    'missing_skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
-                                ],
-                                'required' => ['id', 'compatibility', 'insight'],
-                            ],
-                        ],
-                    ],
-                    'required' => ['matches'],
-                ],
-            ],
+            'generationConfig' => $this->generationConfig(),
         ];
     }
 
@@ -306,6 +517,30 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             'about' => $profile->biography,
             'course' => $profile->course?->name,
             'year_level' => $profile->year_level,
+            /*
+             * Degree and area of study, but never the school's name. "BSIT,
+             * 4th year, majoring in systems development" is the part that
+             * bears on whether somebody can build a thing; the campus is not,
+             * and in a cohort of forty at one school it narrows the field to a
+             * person. See the privacy note on this method.
+             */
+            'studied' => $profile->relationLoaded('educations')
+                ? $profile->educations
+                    ->map(fn (StudentEducation $education): ?string => $education->displayQualification())
+                    ->filter()
+                    ->take(3)
+                    ->values()
+                    ->all()
+                : [],
+            /*
+             * Spoken languages, asked for by the brief spec: a client writing
+             * in Filipino is better served by somebody who reads it.
+             */
+            'languages' => $profile->relationLoaded('languages')
+                ? $profile->languages
+                    ->map(fn ($language): string => $language->name.' ('.$language->proficiency->value.')')
+                    ->all()
+                : [],
             'completed_projects' => $profile->completed_projects_count,
             'skills' => $profile->skills->pluck('name')->all(),
         ]);
@@ -318,7 +553,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      * @param  Collection<int, StudentProfile>  $candidates
      * @return array<int, array{score: float, compatibility: int, reason: array<string, mixed>}>|null
      */
-    protected function parse(?array $body, Collection $candidates): ?array
+    protected function parse(?array $body, array $knownIds): ?array
     {
         $text = data_get($body, 'candidates.0.content.parts.0.text');
 
@@ -333,14 +568,13 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             return $this->logFailure('unparseable', 'reply was not the requested shape');
         }
 
-        $known = $candidates->pluck('user_id')->all();
         $scores = [];
 
         foreach ($matches as $match) {
             $id = data_get($match, 'id');
 
             /* An id we never sent is a hallucination, not a match. */
-            if (! is_int($id) || ! in_array($id, $known, true)) {
+            if (! is_int($id) || ! in_array($id, $knownIds, true)) {
                 continue;
             }
 
@@ -353,6 +587,8 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                 'compatibility' => $compatibility,
                 'reason' => [
                     'insight' => (string) data_get($match, 'insight', ''),
+                    'recommendation' => $this->text($match, 'recommendation'),
+                    'factors' => $this->factors($match),
                     'matchedSkills' => array_values(array_filter(
                         (array) data_get($match, 'matched_skills', []),
                         'is_string',
@@ -367,6 +603,41 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         }
 
         return $scores === [] ? $this->logFailure('unusable', 'no recognisable candidate in the reply') : $scores;
+    }
+
+    /**
+     * The per-factor bars, kept only where both halves are usable.
+     *
+     * ProjectBoardController::highlight() already skips anything that is not
+     * a {label, value} pair rather than guessing, so a malformed factor is
+     * survivable — but filtering here means the stored reason is clean rather
+     * than merely tolerated downstream.
+     *
+     * @return list<array{label: string, value: int}>
+     */
+    protected function factors(mixed $match): array
+    {
+        return collect((array) data_get($match, 'factors', []))
+            ->filter(fn ($factor): bool => is_array($factor)
+                && is_string($factor['label'] ?? null)
+                && ($factor['label'] ?? '') !== ''
+                && is_numeric($factor['value'] ?? null))
+            ->map(fn (array $factor): array => [
+                'label' => (string) $factor['label'],
+                'value' => max(0, min(100, (int) $factor['value'])),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * One optional string off the model's reply, or null.
+     */
+    protected function text(mixed $match, string $key): ?string
+    {
+        $value = data_get($match, $key);
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }
 
     /**

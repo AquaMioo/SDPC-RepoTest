@@ -16,6 +16,7 @@ use App\Models\Skill;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Recommendation\RecommendationService;
+use App\Services\Recommendation\ScoresProjectsForText;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,7 +56,24 @@ class ProjectBoardController extends Controller
             : self::SORT_RECOMMENDED;
 
         $applied = $this->appliedProjectIds($student);
-        $scores = $recommendations->scoresForStudent($student);
+
+        /*
+         * The advanced search. A student describes the capstone they are
+         * building this term and the board ranks against that instead of
+         * against their saved profile — the case a skill list cannot answer,
+         * because what you are building is not always what your profile says
+         * you know. Falls back to the profile ranking when the driver cannot
+         * read text, so the board is never worse off for having asked.
+         */
+        $capstone = [
+            'title' => trim((string) $request->query('capstone_title', '')),
+            'description' => trim((string) $request->query('capstone_description', '')),
+        ];
+        $hasCapstone = $capstone['title'] !== '' || $capstone['description'] !== '';
+
+        $scores = $hasCapstone && $recommendations instanceof ScoresProjectsForText
+            ? $recommendations->projectScoresForText($capstone['title'], $capstone['description'], $student)
+            : $recommendations->scoresForStudent($student);
 
         /*
          * The board lists work you could still take. A posting already under
@@ -97,6 +115,12 @@ class ProjectBoardController extends Controller
                 'skills' => array_values($skills),
                 'sort' => $sort,
             ],
+            /*
+             * Echoed back so the dialog reopens with what was typed, and the
+             * board can say it is ranking against a capstone rather than a
+             * profile without the screen having to guess.
+             */
+            'capstone' => $capstone,
             'sorts' => [
                 ['value' => self::SORT_RECOMMENDED, 'label' => 'Recommended'],
                 ['value' => self::SORT_NEWEST, 'label' => 'Newest'],

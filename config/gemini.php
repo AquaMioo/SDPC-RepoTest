@@ -26,8 +26,17 @@ return [
     | Flash rather than Pro on purpose: this is a ranking task over short
     | profile text, and the difference in judgement is not worth the difference
     | in latency and price when a client is waiting on a page render.
+    |
+    | Pinned to a version, not gemini-flash-latest. A ranking that quietly
+    | changes its mind because Google shipped a new model is not something you
+    | want to discover during a demo — an upgrade should be a commit.
+    |
+    | This was gemini-2.5-flash, which the API still LISTS but refuses with a
+    | 404 for any key created after it was retired: "no longer available to new
+    | users". So a listed model is not a usable one, and the only way to find
+    | out is to call it.
     */
-    'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+    'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
 
     'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
 
@@ -36,7 +45,24 @@ return [
     | costs a millisecond — waiting 30 seconds for a slightly better one is the
     | wrong trade on a page load.
     */
-    'timeout' => (int) env('GEMINI_TIMEOUT', 12),
+    'timeout' => (int) env('GEMINI_TIMEOUT', 20),
+
+    /*
+    | How hard the model is allowed to think before answering.
+    |
+    | Gemini 3 reasons by default, and it is not free: a bare "reply with the
+    | word ok" took 11.2 seconds against gemini-3.6-flash, which blew straight
+    | through the old 12-second timeout before a real prompt was even tried.
+    | The same call at "low" takes 2.5.
+    |
+    | Low is right for this work. Ranking a profile against a brief is a
+    | judgement about overlap, not a problem that rewards deliberation, and
+    | somebody is waiting on a page render.
+    |
+    | Note thinkingBudget — the Gemini 2.x way to say this — is rejected with
+    | INVALID_ARGUMENT on 3.x. It is thinkingLevel now.
+    */
+    'thinking_level' => env('GEMINI_THINKING_LEVEL', 'low'),
 
     /*
     | How many students go into one request. The prompt carries every

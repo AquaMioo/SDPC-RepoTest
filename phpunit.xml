@@ -32,6 +32,17 @@
         <!-- Pinned so the suite always exercises the real reviewed workflow,
              whatever a developer has switched on in their own .env. -->
         <env name="PROJECTS_AUTO_APPROVE" value="false"/>
+        <!--
+            Matching is pinned to the keyword scorer, and the key is blanked.
+            Otherwise the suite quietly changes behaviour depending on whether
+            the developer running it happens to have a Gemini key in .env —
+            and three tests failed for exactly that reason.
+
+            The tests that DO cover the model set both with config()->set()
+            and fake the HTTP client, so nothing here reaches Google.
+        -->
+        <env name="RECOMMENDATIONS_DRIVER" value="computed"/>
+        <env name="GEMINI_API_KEY" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

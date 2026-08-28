@@ -22,7 +22,7 @@ use Illuminate\Support\Collection;
  * Cheap enough to do inline: the work is set intersection over a page of
  * students, with no external call and nothing to keep warm.
  */
-class ComputedRecommendationService implements RecommendationService, ScoresFreeText
+class ComputedRecommendationService implements RecommendationService, ScoresFreeText, ScoresProjectsForText
 {
     public function __construct(
         protected MatchingEngine $engine,
@@ -100,6 +100,46 @@ class ComputedRecommendationService implements RecommendationService, ScoresFree
         return $students->mapWithKeys(fn (StudentProfile $profile) => [
             $profile->user_id => $this->shape($this->engine->score($scope, $profile)),
         ]);
+    }
+
+    /**
+     * Score open briefs against a described capstone, keyed by project id.
+     *
+     * Honest about what it can do. Stemming two sentences a student typed and
+     * counting the overlap with each brief is a keyword search, not a reading
+     * — so when the words are too thin to mean anything, this returns the
+     * ranking against their saved profile instead of a page of zeroes.
+     *
+     * @return Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>
+     */
+    public function projectScoresForText(string $title, string $description, User $student): Collection
+    {
+        $scope = ScopeProfile::fromSearch(trim($title.' '.$description), $this->inference);
+        $profile = $student->studentProfile;
+
+        if (! $scope->isMeaningful() || $profile === null) {
+            return $this->scoresForStudent($student);
+        }
+
+        $profile->loadMissing('skills');
+
+        return Project::query()
+            ->where('status', ProjectStatus::Open)
+            ->with('skills')
+            ->get()
+            ->mapWithKeys(function (Project $project) use ($scope, $profile): array {
+                /*
+                 * The capstone text describes the work, and the brief is the
+                 * other description of work — so this scores the student's
+                 * own scope against each posting's, which is the closest a
+                 * keyword engine gets to the question being asked.
+                 */
+                $brief = ScopeProfile::fromProject($project, $this->inference);
+
+                return $brief->isMeaningful()
+                    ? [$project->id => $this->shape($this->engine->score($scope, $profile))]
+                    : [];
+            });
     }
 
     /**

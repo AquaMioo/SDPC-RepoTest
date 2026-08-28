@@ -12,7 +12,9 @@ use App\Models\Project;
 use App\Models\School;
 use App\Models\Skill;
 use App\Models\Team;
+use App\Models\User;
 use App\Notifications\Client\ProjectStatusChanged;
+use App\Services\Recommendation\RecommendationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -91,7 +93,7 @@ class ProjectController extends Controller
     /**
      * Show a single posting.
      */
-    public function show(Team $currentTeam, Project $project): Response
+    public function show(Team $currentTeam, Project $project, RecommendationService $recommendations): Response
     {
         Gate::authorize('view', $project);
 
@@ -104,7 +106,65 @@ class ProjectController extends Controller
                 'pending' => $project->applications()->awaitingDecision()->count(),
                 'accepted' => $project->members()->count(),
             ],
+            /*
+             * AI-recommended students for THIS posting, deferred.
+             *
+             * Deferred because it is the one thing on this screen that can
+             * take a second: scoring calls a model. The brief renders straight
+             * away and the candidates arrive after, rather than the whole page
+             * waiting on Google.
+             *
+             * Only for a posting that is actually live. A draft has not been
+             * approved and nobody can apply to it, so recommending people for
+             * it would invite a client to reach out on the strength of a
+             * posting no student can even see.
+             */
+            'recommended' => Inertia::defer(
+                fn (): array => $project->status === ProjectStatus::Open
+                    ? $this->recommendedStudents($project, $recommendations)
+                    : [],
+            ),
         ]);
+    }
+
+    /**
+     * The best-matching students for one posting, shaped for the screen.
+     *
+     * Anyone who already has an application here is left out: they are on the
+     * applicants screen, and recommending somebody who has already written to
+     * you reads as the system having lost track of them.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function recommendedStudents(Project $project, RecommendationService $recommendations): array
+    {
+        $scores = $recommendations->scoresFor($project);
+
+        if ($scores->isEmpty()) {
+            return [];
+        }
+
+        $applied = $project->applications()->pluck('user_id')->all();
+
+        return User::query()
+            ->whereIn('id', $scores->keys()->all())
+            ->whereNotIn('id', $applied)
+            ->with('studentProfile.course')
+            ->get()
+            ->map(fn (User $student): array => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'headline' => $student->studentProfile?->headline,
+                'course' => $student->studentProfile?->course?->abbreviation
+                    ?? $student->studentProfile?->course?->name,
+                'yearLevel' => $student->studentProfile?->year_level,
+                'compatibility' => $scores[$student->id]['compatibility'] ?? 0,
+                'insight' => $scores[$student->id]['reason']['insight'] ?? null,
+            ])
+            ->sortByDesc('compatibility')
+            ->take(5)
+            ->values()
+            ->all();
     }
 
     /**
