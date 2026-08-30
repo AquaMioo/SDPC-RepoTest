@@ -168,19 +168,33 @@ class ClientModuleTaxonomySeeder extends Seeder
      */
     protected function seedSchools(): void
     {
+        /*
+         * Name => the email domain that school issues, or null.
+         *
+         * A domain is what lets a student prove enrolment by reading back a
+         * code — see SchoolEmailVerifier — so only real ones belong here. The
+         * sample schools below are placeholders with invented names, and
+         * giving them invented domains would put a verification route behind
+         * an address nobody can hold. They stay null, which simply means that
+         * route is not offered for them.
+         *
+         * An administrator adds the rest; the column exists so that does not
+         * need a deploy.
+         */
         $schools = [
-            'City College of Technology',
-            'Northgate Institute of Technology',
-            'Riverside Polytechnic College',
-            'St. Andrew College',
-            'Metro State University — Main Campus',
-            'Central Computer College',
+            'STI College San Jose Del Monte' => 'sti.edu.ph',
+            'City College of Technology' => null,
+            'Northgate Institute of Technology' => null,
+            'Riverside Polytechnic College' => null,
+            'St. Andrew College' => null,
+            'Metro State University — Main Campus' => null,
+            'Central Computer College' => null,
         ];
 
-        foreach ($schools as $name) {
+        foreach ($schools as $name => $domain) {
             School::updateOrCreate(
                 ['slug' => Str::slug($name)],
-                ['name' => $name, 'city' => 'Sample City'],
+                ['name' => $name, 'city' => 'Sample City', 'domain' => $domain],
             );
         }
     }

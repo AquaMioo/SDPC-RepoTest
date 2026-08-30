@@ -16,11 +16,12 @@ use Illuminate\Support\Str;
  * @property string $name
  * @property string $slug
  * @property string|null $city
+ * @property string|null $domain
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Collection<int, StudentProfile> $studentProfiles
  */
-#[Fillable(['name', 'slug', 'city'])]
+#[Fillable(['name', 'slug', 'city', 'domain'])]
 class School extends Model
 {
     /** @use HasFactory<SchoolFactory> */
@@ -41,11 +42,28 @@ class School extends Model
     }
 
     /**
-     * Get every school name, alphabetically.
+     * Find the school that issues addresses on the given email domain.
      *
-     * The credential picker is built from this list and the credential rules
-     * validate against it, so the two can never disagree about what counts as
-     * a recognised school.
+     * EXACT equality, never a suffix or substring match. `endsWith('.edu.ph')`
+     * would admit anybody who can register any .edu.ph domain, and
+     * str_contains would admit "sti.edu.ph.attacker.com" — the whole strength
+     * of this check is that the domain is one somebody put on the list on
+     * purpose.
+     *
+     * Compared lowercased on both sides: domains are case-insensitive, and a
+     * seeder or an administrator will eventually type one with a capital.
+     */
+    public static function forEmailDomain(string $domain): ?self
+    {
+        $domain = mb_strtolower(trim($domain));
+
+        return $domain === ''
+            ? null
+            : self::query()->whereRaw('LOWER(domain) = ?', [$domain])->first();
+    }
+
+    /**
+     * Get every school name, alphabetically.
      *
      * @return array<int, string>
      */

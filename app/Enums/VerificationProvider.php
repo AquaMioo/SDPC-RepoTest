@@ -21,6 +21,15 @@ enum VerificationProvider: string
     case Document = 'document';
 
     /**
+     * A code mailed to an address the school itself issues.
+     *
+     * Unlike the two above, this one DOES gate: while it is enabled,
+     * User::hasPassedStudentVerification() requires a confirmed row, so
+     * applying, messaging and signing wait on it.
+     */
+    case SchoolEmail = 'school_email';
+
+    /**
      * Get the display label for the provider.
      */
     public function label(): string
@@ -28,6 +37,7 @@ enum VerificationProvider: string
         return match ($this) {
             self::SheerId => 'SheerID',
             self::Document => 'Uploaded document',
+            self::SchoolEmail => 'School email',
         };
     }
 }

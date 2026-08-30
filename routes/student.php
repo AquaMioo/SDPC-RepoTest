@@ -4,6 +4,7 @@ use App\Http\Controllers\Student\ClientDirectoryController;
 use App\Http\Controllers\Student\PortfolioItemController;
 use App\Http\Controllers\Student\ProjectBoardController;
 use App\Http\Controllers\Student\ProjectProcessController;
+use App\Http\Controllers\Student\SchoolEmailVerificationController;
 use App\Http\Controllers\Student\StudentEducationController;
 use App\Http\Controllers\Student\StudentLanguageController;
 use App\Http\Controllers\Student\StudentPhotoController;
@@ -39,6 +40,19 @@ Route::prefix('settings')
             ->name('student.verification.store');
         Route::get('student-verification/return', [StudentVerificationController::class, 'update'])
             ->name('student.verification.return');
+
+        /*
+         * Proving enrolment with a code mailed to a school-issued address.
+         *
+         * Both 404 while config('verification.school_email.enabled') is false
+         * or no school carries a domain — see config/verification.php. Unlike
+         * the two routes above, this one DOES gate: while it is available,
+         * User::hasPassedStudentVerification() waits on a confirmed row.
+         */
+        Route::post('school-email', [SchoolEmailVerificationController::class, 'store'])
+            ->name('student.school-email.store');
+        Route::post('school-email/confirm', [SchoolEmailVerificationController::class, 'update'])
+            ->name('student.school-email.confirm');
     });
 
 Route::prefix('{current_team}')
