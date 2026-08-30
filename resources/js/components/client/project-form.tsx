@@ -1,6 +1,5 @@
 import Field from '@/components/sdpc/field';
 import { Panel } from '@/components/sdpc/panel';
-import SkillInput from '@/components/sdpc/skill-input';
 import { Input } from '@/components/ui/input';
 import type { ProjectFormOptions } from '@/types/client';
 import { CATEGORIES, INDUSTRIES } from '@/types/client';
@@ -22,7 +21,6 @@ type Props = {
         value: ProjectFormValues[K],
     ) => void;
     errors: Partial<Record<string, string>>;
-    options: ProjectFormOptions;
 };
 
 const SELECT_CLASSES =
@@ -35,7 +33,7 @@ const SELECT_CLASSES =
  * and action bar, so "post a project" and "edit a posting" can differ in what
  * they submit while presenting identical fields.
  */
-export default function ProjectForm({ data, setData, errors, options }: Props) {
+export default function ProjectForm({ data, setData, errors }: Props) {
     return (
         <>
             <Panel padding="lg" gap="lg">
@@ -122,21 +120,6 @@ export default function ProjectForm({ data, setData, errors, options }: Props) {
                             onChange={(e) =>
                                 setData('objectives', e.target.value)
                             }
-                        />
-                    )}
-                </Field>
-            </Panel>
-
-            <Panel padding="lg" gap="lg">
-                <h6 className="m-0">Required skills</h6>
-
-                <Field label="Required skills" error={errors.skills}>
-                    {(props) => (
-                        <SkillInput
-                            {...props}
-                            value={data.skills}
-                            suggestions={options.skills}
-                            onChange={(skills) => setData('skills', skills)}
                         />
                     )}
                 </Field>

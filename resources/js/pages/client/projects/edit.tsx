@@ -5,7 +5,6 @@ import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { update as projectsUpdate } from '@/routes/projects';
-import type { ProjectFormOptions } from '@/types/client';
 import { INDUSTRIES } from '@/types/client';
 
 type Props = {
@@ -20,10 +19,9 @@ type Props = {
         statusLabel: string;
         skills: string[];
     };
-    options: ProjectFormOptions;
 };
 
-export default function EditProject({ project, options }: Props) {
+export default function EditProject({ project }: Props) {
     const team = useCurrentTeam();
 
     const { data, setData, patch, transform, processing, errors, isDirty } =
@@ -87,12 +85,7 @@ export default function EditProject({ project, options }: Props) {
                     </Tag>
                 </div>
 
-                <ProjectForm
-                    data={data}
-                    setData={setData}
-                    errors={errors}
-                    options={options}
-                />
+                <ProjectForm data={data} setData={setData} errors={errors} />
 
                 <div className="flex flex-wrap items-center gap-2.5">
                     {isDraft && (

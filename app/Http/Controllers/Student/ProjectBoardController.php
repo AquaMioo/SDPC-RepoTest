@@ -7,7 +7,6 @@ use App\Enums\ApplicationSource;
 use App\Enums\ApplicationStatus;
 use App\Enums\IssueCategory;
 use App\Enums\ProjectStatus;
-use App\Enums\SkillType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Student\ApplyToProjectRequest;
 use App\Models\Application;
@@ -44,13 +43,21 @@ class ProjectBoardController extends Controller
     public const SORTS = [self::SORT_RECOMMENDED, self::SORT_NEWEST];
 
     /**
+     * Briefs to a page.
+     *
+     * Five, and a footer to reach the rest. Both halves matter: the model
+     * scores the whole board before paging (see rankedByScore), so the page
+     * size is only ever about how much a reader is asked to take in at once.
+     */
+    private const PER_PAGE = 5;
+
+    /**
      * List the postings this student is allowed to see.
      */
     public function index(Request $request, RecommendationService $recommendations): Response
     {
         $student = $request->user();
         $search = trim((string) $request->query('search', ''));
-        $skills = array_filter((array) $request->query('skills', []));
         $sort = in_array($request->query('sort'), self::SORTS, true)
             ? $request->query('sort')
             : self::SORT_RECOMMENDED;
@@ -88,12 +95,7 @@ class ProjectBoardController extends Controller
                     ->where('title', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('category', 'like', "%{$search}%")))
-            ->when($skills, function (Builder $query, array $slugs) {
-                foreach ($slugs as $slug) {
-                    $query->whereHas('skills', fn (Builder $skill) => $skill->where('slug', $slug));
-                }
-            })
-            ->with(['team.clientProfile', 'skills'])
+            ->with('team.clientProfile')
             ->withCount('applications');
 
         /*
@@ -104,7 +106,7 @@ class ProjectBoardController extends Controller
          */
         $projects = $sort === self::SORT_RECOMMENDED && $scores->isNotEmpty()
             ? $this->rankedByScore($query, $scores, $request)
-            : $query->latest('published_at')->paginate(12)->withQueryString();
+            : $query->latest('published_at')->paginate(self::PER_PAGE)->withQueryString();
 
         $projects->through(fn (Project $project) => $this->toCard($project, $applied, $scores));
 
@@ -112,7 +114,6 @@ class ProjectBoardController extends Controller
             'projects' => $projects,
             'filters' => [
                 'search' => $search,
-                'skills' => array_values($skills),
                 'sort' => $sort,
             ],
             /*
@@ -125,7 +126,6 @@ class ProjectBoardController extends Controller
                 ['value' => self::SORT_RECOMMENDED, 'label' => 'Recommended'],
                 ['value' => self::SORT_NEWEST, 'label' => 'Newest'],
             ],
-            'skillGroups' => $this->skillGroups(),
             'canApply' => $student->isVerifiedForOperating(),
             /* One build at a time, so the board says so before they try. */
             'holdsProjectInHand' => $student->holdsProjectInHand(),
@@ -160,7 +160,7 @@ class ProjectBoardController extends Controller
             ])
             ->values();
 
-        $perPage = 12;
+        $perPage = self::PER_PAGE;
         $page = max(1, (int) $request->query('page', 1));
 
         return new LengthAwarePaginator(
@@ -413,7 +413,6 @@ class ProjectBoardController extends Controller
              * saying so out loud is what a student is looking for.
              */
             'isBusinessVerified' => $project->team->clientProfile?->isVerified() ?? false,
-            'skills' => $project->skills->pluck('name')->all(),
             'applicants' => $project->applications_count ?? $project->applications()->count(),
             'isAcceptingApplications' => $project->isAcceptingApplications(),
             'hasApplied' => $applied->has($project->id),
@@ -435,25 +434,5 @@ class ProjectBoardController extends Controller
             ->pluck('project_id')
             ->flip()
             ->map(fn () => true);
-    }
-
-    /**
-     * Get the skill filter options grouped by type.
-     *
-     * @return array<array{type: string, label: string, skills: mixed}>
-     */
-    protected function skillGroups(): array
-    {
-        $skills = Skill::query()->orderBy('name')->get(['slug', 'name', 'type'])->groupBy('type');
-
-        return collect(SkillType::cases())
-            ->map(fn (SkillType $type) => [
-                'type' => $type->value,
-                'label' => $type->groupLabel(),
-                'skills' => $skills->get($type->value, collect())->map->only(['slug', 'name'])->values(),
-            ])
-            ->filter(fn (array $group) => $group['skills']->isNotEmpty())
-            ->values()
-            ->all();
     }
 }

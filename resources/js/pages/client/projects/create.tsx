@@ -12,19 +12,14 @@ import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { store } from '@/routes/projects';
-import type { ProjectFormOptions } from '@/types/client';
 import { CATEGORIES, INDUSTRIES, projectFormCompletion } from '@/types/client';
 
 type Props = {
-    options: ProjectFormOptions;
     /** False when projects.auto_approve skips the admin review queue. */
     reviewedBeforeGoingLive: boolean;
 };
 
-export default function CreateProject({
-    options,
-    reviewedBeforeGoingLive,
-}: Props) {
+export default function CreateProject({ reviewedBeforeGoingLive }: Props) {
     const team = useCurrentTeam();
 
     const form = useForm<ProjectFormValues>({
@@ -74,7 +69,6 @@ export default function CreateProject({
                         data={data}
                         setData={setData}
                         errors={errors}
-                        options={options}
                     />
 
                     <div className="flex flex-wrap items-center gap-2.5">

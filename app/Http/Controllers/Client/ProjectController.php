@@ -7,10 +7,7 @@ use App\Actions\Client\SaveProject;
 use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\SaveProjectRequest;
-use App\Models\Course;
 use App\Models\Project;
-use App\Models\School;
-use App\Models\Skill;
 use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Client\ProjectStatusChanged;
@@ -62,7 +59,6 @@ class ProjectController extends Controller
         Gate::authorize('create', Project::class);
 
         return Inertia::render('client/projects/create', [
-            'options' => $this->formOptions(),
             /*
              * The form tells the client what happens when they hit publish, so
              * it has to know whether review is switched on. Hardcoded copy
@@ -178,7 +174,6 @@ class ProjectController extends Controller
 
         return Inertia::render('client/projects/edit', [
             'project' => $this->toDetail($project),
-            'options' => $this->formOptions(),
         ]);
     }
 
@@ -300,20 +295,6 @@ class ProjectController extends Controller
                 'size' => $attachment->humanSize(),
             ]),
             'publishedAt' => $project->published_at?->toDateTimeString(),
-        ];
-    }
-
-    /**
-     * Get the lookup data the posting form's selects need.
-     *
-     * @return array<string, mixed>
-     */
-    protected function formOptions(): array
-    {
-        return [
-            'schools' => School::query()->orderBy('name')->get(['id', 'name']),
-            'courses' => Course::query()->orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'skills' => Skill::query()->orderBy('name')->get(['name', 'type']),
         ];
     }
 

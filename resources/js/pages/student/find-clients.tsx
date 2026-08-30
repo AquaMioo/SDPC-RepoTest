@@ -6,14 +6,12 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 
-import CapstoneDialog from '@/components/student/capstone-dialog';
-
+import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { index as boardIndex, show as boardShow } from '@/routes/student/board';
-import { index as clientsIndex } from '@/routes/student/clients';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -28,7 +26,6 @@ type ProjectCard = {
     city: string | null;
     isBusinessVerified: boolean;
     postedAt: string | null;
-    skills: string[];
     applicants: number;
     isAcceptingApplications: boolean;
     hasApplied: boolean;
@@ -42,15 +39,10 @@ type Props = {
         links: { url: string | null; label: string; active: boolean }[];
         total: number;
     };
-    filters: { search: string; skills: string[]; sort: string };
+    filters: { search: string; sort: string };
     /** What the board is ranking against, when a capstone was described. */
     capstone: { title: string; description: string };
     sorts: { value: string; label: string }[];
-    skillGroups: {
-        type: string;
-        label: string;
-        skills: { slug: string; name: string }[];
-    }[];
     canApply: boolean;
     /** One student, one build — true while they already have work. */
     holdsProjectInHand: boolean;
@@ -77,7 +69,6 @@ export default function FindClients({
     filters,
     capstone,
     sorts,
-    skillGroups,
     canApply,
     holdsProjectInHand,
     matchingEnabled,
@@ -114,13 +105,6 @@ export default function FindClients({
     const rankingByCapstone =
         capstone.title !== '' || capstone.description !== '';
 
-    const toggleSkill = (slug: string) =>
-        go({
-            skills: filters.skills.includes(slug)
-                ? filters.skills.filter((s) => s !== slug)
-                : [...filters.skills, slug],
-        });
-
     return (
         <>
             <Head title="Get Client" />
@@ -147,14 +131,6 @@ export default function FindClients({
                             Del Monte
                         </div>
                     </div>
-
-                    {/* The board lists briefs; the directory lists the
-                        businesses behind them. */}
-                    <Btn asChild>
-                        <Link href={clientsIndex.url(team.slug)}>
-                            Browse the client list
-                        </Link>
-                    </Btn>
                 </div>
 
                 {!canApply && (
@@ -178,11 +154,16 @@ export default function FindClients({
                     </Panel>
                 )}
 
-                <CapstoneDialog
+                <BriefDialog
                     open={capstoneOpen}
                     onOpenChange={setCapstoneOpen}
-                    title={capstone.title}
-                    description={capstone.description}
+                    heading="Your capstone project"
+                    description="We match open briefs against what you are building this term."
+                    titleLabel="Capstone title"
+                    titlePlaceholder="Ex: Inventory System with Predictive Analytics"
+                    bodyLabel="Brief description"
+                    bodyPlaceholder="What does the system do, who uses it, and what stage is it in?"
+                    value={capstone}
                     onConfirm={(next) =>
                         go({
                             capstone_title: next.title,
@@ -315,41 +296,6 @@ export default function FindClients({
                     </form>
                 </div>
 
-                {skillGroups.length > 0 && (
-                    <div
-                        style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: 5,
-                            marginBottom: 16,
-                        }}
-                    >
-                        {skillGroups
-                            .flatMap((group) => group.skills)
-                            .slice(0, 18)
-                            .map((skill) => (
-                                <button
-                                    key={skill.slug}
-                                    type="button"
-                                    onClick={() => toggleSkill(skill.slug)}
-                                    className={
-                                        filters.skills.includes(skill.slug)
-                                            ? 'tag tag-accent'
-                                            : 'tag tag-outline'
-                                    }
-                                    style={{
-                                        border: 0,
-                                        cursor: 'pointer',
-                                        font: 'inherit',
-                                        fontSize: 11,
-                                    }}
-                                >
-                                    {skill.name}
-                                </button>
-                            ))}
-                    </div>
-                )}
-
                 {projects.data.length === 0 ? (
                     <Panel padding="lg" gap="sm">
                         <span style={{ fontSize: 13 }}>
@@ -394,6 +340,18 @@ export default function FindClients({
                                 <Link
                                     key={index}
                                     href={link.url}
+                                    /*
+                                     * Only the list changes when the page
+                                     * does. Without `only` every prop on the
+                                     * screen is rebuilt and sent back — which
+                                     * on this page means re-scoring the whole
+                                     * board through the model for a change
+                                     * that is purely which twelve rows to
+                                     * show.
+                                     */
+                                    only={['projects']}
+                                    preserveScroll
+                                    preserveState
                                     className={
                                         link.active
                                             ? 'btn btn-primary'
@@ -657,16 +615,6 @@ function BriefRow({
             >
                 {project.summary}
             </p>
-
-            {project.skills.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                    {project.skills.map((skill) => (
-                        <Tag key={skill} variant="outline">
-                            {skill}
-                        </Tag>
-                    ))}
-                </div>
-            )}
 
             {project.insight && (
                 <div

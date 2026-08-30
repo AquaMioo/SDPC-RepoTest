@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
 import { Input, Textarea } from '@/components/sdpc/input';
@@ -11,46 +11,71 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
+export type Brief = { title: string; description: string };
+
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** What the board is currently ranking against, so reopening is not a blank slate. */
-    title: string;
+    /** Heading, sub-line and the two field labels — the only things that differ. */
+    heading: string;
     description: string;
-    onConfirm: (capstone: { title: string; description: string }) => void;
+    titleLabel: string;
+    titlePlaceholder: string;
+    bodyLabel: string;
+    bodyPlaceholder: string;
+    /** What is currently being ranked against, so reopening is not a blank slate. */
+    value: Brief;
+    onConfirm: (brief: Brief) => void;
 };
 
 /**
- * "Your capstone project" — the advanced search behind the briefs box.
+ * The advanced search behind both boards, asked from whichever side you are on.
  *
- * A skill list says what a student already knows; it does not say what they
- * are building this term, and that is what a client's brief has to line up
- * with. So the board can rank against two sentences the student writes here
- * instead of against their saved profile.
+ * A student describes the capstone they are building; a client describes the
+ * system they want built. It is the same question — what is this work? — and
+ * the same two fields, so it is one component with the wording passed in
+ * rather than two that drift apart.
+ *
+ * This exists because the skill-tag filters were removed. Clients come from
+ * every trade and mostly cannot name a stack, and asking them to produced tag
+ * lists that were guesses. Their own sentences are the better input, and they
+ * are what the matcher reads.
  *
  * Not a Form: there is nothing to post. Confirming re-visits the board with
- * the capstone in the query string, which keeps the search shareable, back-
- * navigable and reloadable — a POST would lose all three.
+ * the brief in the query string, so the ranked result stays shareable,
+ * reloadable and reachable with the back button.
  */
-export default function CapstoneDialog({
+export default function BriefDialog({
     open,
     onOpenChange,
-    title,
+    heading,
     description,
+    titleLabel,
+    titlePlaceholder,
+    bodyLabel,
+    bodyPlaceholder,
+    value,
     onConfirm,
 }: Props) {
-    const [draft, setDraft] = useState({ title, description });
+    const [draft, setDraft] = useState<Brief>(value);
+    const [wasOpen, setWasOpen] = useState(open);
 
     /*
-     * The board owns the capstone; this is a draft of it. Re-seeding on open
-     * means cancelling genuinely discards, rather than leaving half an edit
-     * behind for the next time the box is clicked.
+     * The board owns the brief; this is a draft of it. Re-seeding as it opens
+     * means Cancel genuinely discards, rather than leaving half an edit behind
+     * for the next time the box is clicked.
+     *
+     * Adjusted during render rather than in an effect. React's own guidance
+     * for "reset state when a prop changes": an effect would paint the stale
+     * draft for one frame first, and re-render immediately afterwards.
      */
-    useEffect(() => {
+    if (open !== wasOpen) {
+        setWasOpen(open);
+
         if (open) {
-            setDraft({ title, description });
+            setDraft(value);
         }
-    }, [open, title, description]);
+    }
 
     const submit = () => {
         onConfirm({
@@ -64,22 +89,19 @@ export default function CapstoneDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[520px]">
                 <DialogHeader>
-                    <DialogTitle>Your capstone project</DialogTitle>
-                    <DialogDescription>
-                        We match open briefs against what you are building this
-                        term.
-                    </DialogDescription>
+                    <DialogTitle>{heading}</DialogTitle>
+                    <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-1.5">
-                        <label htmlFor="capstone-title" className="text-[13px]">
-                            Capstone title
+                        <label htmlFor="brief-title" className="text-[13px]">
+                            {titleLabel}
                         </label>
                         <Input
-                            id="capstone-title"
+                            id="brief-title"
                             value={draft.title}
-                            placeholder="Ex: Inventory System with Predictive Analytics"
+                            placeholder={titlePlaceholder}
                             onChange={(event) =>
                                 setDraft((current) => ({
                                     ...current,
@@ -103,16 +125,16 @@ export default function CapstoneDialog({
 
                     <div className="flex flex-col gap-1.5">
                         <label
-                            htmlFor="capstone-description"
+                            htmlFor="brief-description"
                             className="text-[13px]"
                         >
-                            Brief description
+                            {bodyLabel}
                         </label>
                         <Textarea
-                            id="capstone-description"
+                            id="brief-description"
                             rows={5}
                             value={draft.description}
-                            placeholder="What does the system do, who uses it, and what stage is it in?"
+                            placeholder={bodyPlaceholder}
                             onChange={(event) =>
                                 setDraft((current) => ({
                                     ...current,

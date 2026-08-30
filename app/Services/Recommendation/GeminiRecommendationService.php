@@ -456,6 +456,15 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                         'Be strict: 90+ means they could start tomorrow, 50 means a plausible stretch, under 30 means the wrong person.',
                         'Recognise that a plain-English description and a technical term can mean the same work.',
                         'The insight must be one sentence, specific to this candidate and this brief, and must never invent experience the profile does not claim.',
+                        /*
+                         * The reader sees this sentence. They do not see the
+                         * ids — those exist only so the reply can be matched
+                         * back to a row — so "Candidate 23 has experience in"
+                         * reads as a leak of something meaningless. Names are
+                         * deliberately withheld, which leaves the model with
+                         * nothing to call anybody: tell it not to try.
+                         */
+                        'Never name or number the candidate. Do not write "Candidate 12" or refer to an id. Write about the work: "Has shipped two stock systems in Laravel."',
                         'Give two to four factors: the named dimensions you actually judged on, each scored 0 to 100.',
                         'A factor label names a capability the brief calls for, such as "Laravel and MySQL" or "Multi-tenant data" — never a generic word like "Skills".',
                         'The recommendation is one sentence of advice to the reader on how to act on this match.',

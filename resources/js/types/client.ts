@@ -99,6 +99,12 @@ type CompletionInput = {
  *
  * Deliberately client-side and advisory: it reflects brief quality, not
  * validity, so it must not be confused with the server's validation rules.
+ *
+ * There is no "add the required skills" line any more. Clients come from every
+ * trade and mostly cannot name the stack their system needs — asking them to
+ * produced tag lists that were guesses, and the matcher was reading those
+ * guesses. It reads the title, description and objectives instead, which is
+ * what the client actually knows.
  */
 export function projectFormCompletion(data: CompletionInput): {
     percentage: number;
@@ -114,7 +120,6 @@ export function projectFormCompletion(data: CompletionInput): {
             done: data.description.length >= 160,
         },
         { label: 'List the objectives', done: Boolean(data.objectives.trim()) },
-        { label: 'Add the required skills', done: data.skills.length > 0 },
     ];
 
     const done = checklist.filter((item) => item.done).length;

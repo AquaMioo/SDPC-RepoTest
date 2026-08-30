@@ -1,7 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
     CheckCircleIcon,
-    FunnelSimpleIcon,
     MagnifyingGlassIcon,
     SealCheckIcon,
     SparkleIcon,
@@ -9,16 +8,16 @@ import {
     UserIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
+import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelAccent, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
-import ToggleField from '@/components/sdpc/toggle-field';
 import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { store as messagesStore } from '@/routes/messages';
 import { index as recruitIndex } from '@/routes/recruit';
 import { show as studentsShow } from '@/routes/students';
-import type { Paginated, SelectOption, StudentCard } from '@/types/client';
+import type { Paginated, StudentCard } from '@/types/client';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -33,16 +32,8 @@ type Props = {
         availableOnly: boolean;
         sort: string;
     };
-    options: {
-        sorts: SelectOption[];
-        schools: { slug: string; name: string }[];
-        courses: { slug: string; name: string; abbreviation: string | null }[];
-        skillGroups: {
-            type: string;
-            label: string;
-            skills: { slug: string; name: string }[];
-        }[];
-    };
+    /** What the screen is ranking against, when a brief was described. */
+    idea: { title: string; description: string };
     context: { slug: string; title: string } | null;
     matchingEnabled: boolean;
     /** What building the searched-for system actually takes. */
@@ -60,7 +51,7 @@ type Props = {
 export default function Recruit({
     students,
     filters,
-    options,
+    idea,
     context,
     matchingEnabled,
     scopeSkills,
@@ -68,19 +59,9 @@ export default function Recruit({
 }: Props) {
     const team = useCurrentTeam();
     const [search, setSearch] = useState(filters.search ?? '');
+    const [ideaOpen, setIdeaOpen] = useState(false);
 
-    /*
-     * Filtering is a deliberate act, so the panel starts closed — unless a
-     * filter is already on, in which case hiding the controls would leave the
-     * page narrowed with no visible reason why.
-     */
-    const hasActiveFilter =
-        filters.skills.length > 0 ||
-        filters.school !== null ||
-        filters.course !== null ||
-        filters.availableOnly;
-
-    const [filtersOpen, setFiltersOpen] = useState(hasActiveFilter);
+    const rankingByIdea = idea.title !== '' || idea.description !== '';
 
     const apply = (patch: Record<string, unknown>) => {
         router.get(
@@ -93,6 +74,10 @@ export default function Recruit({
                 available_only: filters.availableOnly || undefined,
                 sort: filters.sort,
                 project: context?.slug,
+                /* Carried on every visit, or picking a sort would silently
+                   drop the brief the page is ranked against. */
+                idea_title: idea.title || undefined,
+                idea_description: idea.description || undefined,
                 ...patch,
             },
             { preserveState: true, preserveScroll: true, replace: true },
@@ -123,14 +108,6 @@ export default function Recruit({
         });
     };
 
-    const toggleSkill = (slug: string) => {
-        const next = filters.skills.includes(slug)
-            ? filters.skills.filter((s) => s !== slug)
-            : [...filters.skills, slug];
-
-        apply({ skills: next });
-    };
-
     return (
         <>
             <Head title="Recruit" />
@@ -147,7 +124,9 @@ export default function Recruit({
                             <div className="text-[13px] text-muted-foreground">
                                 {context
                                     ? `Ranked for "${context.title}"`
-                                    : `${students.total} student${students.total === 1 ? '' : 's'} on the platform`}
+                                    : rankingByIdea && idea.title !== ''
+                                      ? `Ranked for "${idea.title}"`
+                                      : `${students.total} student${students.total === 1 ? '' : 's'} on the platform`}
                             </div>
                         </div>
 
@@ -165,28 +144,24 @@ export default function Recruit({
                                 placeholder="Search skills or school"
                                 aria-label="Search students"
                                 className="pl-8"
+                                /*
+                                 * Clicking the box asks what you want built
+                                 * rather than what you want to type. onClick
+                                 * and not onFocus: Radix returns focus here
+                                 * when the dialog closes, and on focus it
+                                 * would reopen itself immediately.
+                                 */
+                                onClick={() => setIdeaOpen(true)}
                             />
                         </form>
-
-                        <Btn
-                            variant="secondary"
-                            aria-expanded={filtersOpen}
-                            onClick={() => setFiltersOpen((open) => !open)}
-                            data-test="toggle-filters"
-                        >
-                            <FunnelSimpleIcon />
-                            Filter
-                        </Btn>
                     </div>
 
                     {students.data.length === 0 ? (
                         <Panel padding="lg" gap="lg" className="items-start">
-                            <h6 className="m-0">
-                                No students match those filters
-                            </h6>
+                            <h6 className="m-0">No students to show</h6>
                             <p className="m-0 max-w-[52ch] text-[13px] leading-relaxed text-muted-foreground">
-                                Try removing a skill filter, or widen the school
-                                and availability options.
+                                Try describing the system you want built, or
+                                search by a name or school.
                             </p>
                         </Panel>
                     ) : (
@@ -205,6 +180,62 @@ export default function Recruit({
                             ))}
                         </Panel>
                     )}
+
+                    {/*
+                     * Page numbers, not a reload. `only` keeps the visit to
+                     * the list — without it every prop is rebuilt and the
+                     * whole set is re-scored through the model just to show
+                     * five different people.
+                     */}
+                    {students.links.length > 3 && (
+                        <div className="mt-5 flex flex-wrap gap-1.5">
+                            {students.links.map((link, index) =>
+                                link.url === null ? (
+                                    <span
+                                        key={index}
+                                        className="btn btn-ghost opacity-40"
+                                        dangerouslySetInnerHTML={{
+                                            __html: link.label,
+                                        }}
+                                    />
+                                ) : (
+                                    <Link
+                                        key={index}
+                                        href={link.url}
+                                        only={['students']}
+                                        preserveScroll
+                                        preserveState
+                                        className={
+                                            link.active
+                                                ? 'btn btn-primary'
+                                                : 'btn btn-ghost'
+                                        }
+                                        dangerouslySetInnerHTML={{
+                                            __html: link.label,
+                                        }}
+                                    />
+                                ),
+                            )}
+                        </div>
+                    )}
+
+                    <BriefDialog
+                        open={ideaOpen}
+                        onOpenChange={setIdeaOpen}
+                        heading="Your business idea"
+                        description="Tell us about your business idea."
+                        titleLabel="Project title"
+                        titlePlaceholder="Ex: Inventory System with Predictive Analytics"
+                        bodyLabel="Project description"
+                        bodyPlaceholder="What should the system do, who will use it, and what stage are you at?"
+                        value={idea}
+                        onConfirm={(next) =>
+                            apply({
+                                idea_title: next.title || undefined,
+                                idea_description: next.description || undefined,
+                            })
+                        }
+                    />
                 </div>
 
                 <aside className="sticky top-[88px] flex max-h-[calc(100vh-108px)] flex-col gap-4 overflow-y-auto">
@@ -224,118 +255,6 @@ export default function Recruit({
                                 postings does the same.
                             </p>
                         </Panel>
-                    )}
-
-                    {filtersOpen && (
-                        <>
-                            <Panel padding="lg" gap="lg" data-test="filters">
-                                <PanelKicker>Filters</PanelKicker>
-
-                                <select
-                                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                    value={filters.sort}
-                                    aria-label="Sort students"
-                                    onChange={(e) =>
-                                        apply({ sort: e.target.value })
-                                    }
-                                >
-                                    {options.sorts.map((sort) => (
-                                        <option
-                                            key={sort.value}
-                                            value={sort.value}
-                                        >
-                                            {sort.label}
-                                        </option>
-                                    ))}
-                                </select>
-
-                                <ToggleField
-                                    label="Available only"
-                                    checked={filters.availableOnly}
-                                    onChange={(e) =>
-                                        apply({
-                                            available_only:
-                                                e.target.checked || undefined,
-                                        })
-                                    }
-                                />
-
-                                <select
-                                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                    value={filters.school ?? ''}
-                                    aria-label="Filter by school"
-                                    onChange={(e) =>
-                                        apply({
-                                            school: e.target.value || undefined,
-                                        })
-                                    }
-                                >
-                                    <option value="">All schools</option>
-                                    {options.schools.map((school) => (
-                                        <option
-                                            key={school.slug}
-                                            value={school.slug}
-                                        >
-                                            {school.name}
-                                        </option>
-                                    ))}
-                                </select>
-
-                                <select
-                                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                    value={filters.course ?? ''}
-                                    aria-label="Filter by course"
-                                    onChange={(e) =>
-                                        apply({
-                                            course: e.target.value || undefined,
-                                        })
-                                    }
-                                >
-                                    <option value="">All courses</option>
-                                    {options.courses.map((course) => (
-                                        <option
-                                            key={course.slug}
-                                            value={course.slug}
-                                        >
-                                            {course.abbreviation ?? course.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </Panel>
-
-                            {options.skillGroups.map((group) => (
-                                <Panel key={group.type} padding="lg" gap="sm">
-                                    <PanelKicker>{group.label}</PanelKicker>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {group.skills.map((skill) => (
-                                            <button
-                                                key={skill.slug}
-                                                type="button"
-                                                onClick={() =>
-                                                    toggleSkill(skill.slug)
-                                                }
-                                                aria-pressed={filters.skills.includes(
-                                                    skill.slug,
-                                                )}
-                                                className="cursor-pointer"
-                                            >
-                                                <Tag
-                                                    variant={
-                                                        filters.skills.includes(
-                                                            skill.slug,
-                                                        )
-                                                            ? 'accent'
-                                                            : 'outline'
-                                                    }
-                                                >
-                                                    {skill.name}
-                                                </Tag>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </Panel>
-                            ))}
-                        </>
                     )}
                 </aside>
             </div>

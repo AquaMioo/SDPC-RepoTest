@@ -29,3 +29,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/routes/** | .ai/rules/routes.md |
 | app/Services/Matching/SkillInference.php | .ai/rules/services-matching.md |
 | app/Http/Controllers/Student/**, app/Http/Controllers/Student/StudentEducationController.php | .ai/rules/student.md |
+| app/Services/Verification/** | .ai/rules/verification.md |

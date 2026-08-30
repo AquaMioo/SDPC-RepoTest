@@ -6,9 +6,7 @@ use App\Data\StudentFilters;
 use App\Enums\SkillType;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
-use App\Models\Course;
 use App\Models\Project;
-use App\Models\School;
 use App\Models\Skill;
 use App\Models\StudentProfile;
 use App\Models\Team;
@@ -28,13 +26,42 @@ use Inertia\Response;
 class RecruitController extends Controller
 {
     /**
+     * Students to a page.
+     *
+     * Five, with a footer for the rest. Ranking happens across the whole set
+     * before paging (see rankedByScope), so this only decides how many a
+     * reader meets at once.
+     */
+    private const PER_PAGE = 5;
+
+    /**
      * Discover student developers, optionally ranked against a posting.
      */
     public function __invoke(Request $request, RecommendationService $recommendations): Response
     {
         $filters = StudentFilters::fromRequest($request);
         $project = $this->contextProject($request);
-        $scope = $this->scope($project, $filters->search);
+
+        /*
+         * The advanced search: a client describes the system they want built
+         * rather than picking tags for a stack they have no reason to know.
+         * The mirror of the student board's capstone dialog, and the reason
+         * the skill filters could go — this is the question those chips were
+         * a clumsy way of asking.
+         *
+         * It outranks the one-line search box when both are set: two written
+         * sentences say far more about a brief than a word typed into a
+         * filter, and the box still filters by name and school on its own.
+         */
+        $idea = [
+            'title' => trim((string) $request->query('idea_title', '')),
+            'description' => trim((string) $request->query('idea_description', '')),
+        ];
+        $ideaText = trim($idea['title'].'
+'.$idea['description']);
+
+        $scopeText = $ideaText !== '' ? $ideaText : $filters->search;
+        $scope = $this->scope($project, $scopeText);
 
         /*
          * A search box that does two jobs. "Reyes" is a name to filter on, but
@@ -49,11 +76,11 @@ class RecruitController extends Controller
 
         $students = $isScopeSearch
             ? $this->rankedByScope($filters, $scope, $recommendations, $request)
-            : $this->query($filters)->paginate(24)->withQueryString();
+            : $this->query($filters)->paginate(self::PER_PAGE)->withQueryString();
 
         $scores = match (true) {
             $project !== null => $recommendations->scoresFor($project),
-            $isScopeSearch => $recommendations->scoresForSearch($filters->search, $students->getCollection()),
+            $isScopeSearch => $recommendations->scoresForSearch($scopeText, $students->getCollection()),
             default => collect(),
         };
 
@@ -68,19 +95,18 @@ class RecruitController extends Controller
         return Inertia::render('client/recruit', [
             'students' => $students,
             'filters' => $filters->toArray(),
-            'options' => [
-                'sorts' => StudentFilters::sortOptions(),
-                'schools' => School::query()->orderBy('name')->get(['slug', 'name']),
-                'courses' => Course::query()->orderBy('name')->get(['slug', 'name', 'abbreviation']),
-                'skillGroups' => $this->skillGroups(),
-            ],
+            /*
+             * Echoed back so the dialog reopens with what was written, and the
+             * screen can say what it is ranking against.
+             */
+            'idea' => $idea,
             'context' => $project === null ? null : [
                 'slug' => $project->slug,
                 'title' => $project->title,
             ],
             /* True only when something was actually scored on this request. */
             'matchingEnabled' => $scores->isNotEmpty(),
-            'scopeSkills' => $this->scopeSkills($project, $filters->search),
+            'scopeSkills' => $this->scopeSkills($project, $scopeText),
             'highlight' => $this->highlight($students->getCollection(), $scores),
         ]);
     }
@@ -248,7 +274,7 @@ class RecruitController extends Controller
             ->sortByDesc(fn (StudentProfile $profile) => $scores->get($profile->user_id)['compatibility'] ?? 0)
             ->values();
 
-        $perPage = 24;
+        $perPage = self::PER_PAGE;
         $page = max(1, (int) $request->query('page', 1));
 
         return new LengthAwarePaginator(

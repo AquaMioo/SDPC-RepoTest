@@ -14,7 +14,11 @@ Everything that would write a ledger row goes through RecordTransaction. That is
 Tests that need the screen force config(['billing.enabled' => true]). The shipped default stays false until the payment arrangements are actually settled. Do not add a payment gateway package to turn this on.
 
 ## SheerID is optional and nothing may gate on it
-The third-party enrolment check is presentation only. User::isVerifiedStudent() decides whether a badge is drawn; User::isVerifiedForOperating() — the real gate behind applying, messaging and signing — still answers to the administrator-reviewed credential document alone. Never wire a permission, a middleware or a policy to a StudentVerification row.
+STALE AS WRITTEN — corrected below, and left visible because it misled a reader once already.
+
+This said the credential document an administrator reviews was the real gate behind applying, messaging and signing. It is not, and has not been since hasPassedStudentVerification() was written: that method returns TRUE for everybody while the bound StudentVerifier reports itself unavailable, which is the shipped state. The credential now only decides whether a badge is drawn.
+
+So a StudentVerification row IS what gates, whenever a verifier is available — see .ai/rules/verification.md. What remains true of SheerID specifically is that it is off, unconfigured, and that SheerIdStudentVerifier swallows every provider failure rather than blocking anybody.
 
 NullStudentVerifier is the shipped binding, because the project has no credentials. AppServiceProvider swaps in SheerIdStudentVerifier only when config('sheerid.enabled') is true, and that class refuses to act unless program_id and access_token are both set. While it is off the settings button is hidden and both routes 404.
 
