@@ -5,14 +5,12 @@ namespace App\Providers;
 use App\Actions\Fortify\AuthenticateUser;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
-use App\Enums\ProjectStatus;
 use App\Http\Responses\LoginResponse;
 use App\Http\Responses\LogoutResponse;
 use App\Http\Responses\PasskeyLoginResponse;
 use App\Http\Responses\RegisterResponse;
 use App\Http\Responses\TwoFactorLoginResponse;
 use App\Http\Responses\VerifyEmailResponse;
-use App\Models\Project;
 use App\Models\TeamInvitation;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\UserProvider;
@@ -98,15 +96,6 @@ class FortifyServiceProvider extends ServiceProvider
             'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
             'status' => $request->session()->get('status'),
             'teamInvitation' => $this->teamInvitation($request),
-            /*
-             * The one figure on the sign in pitch, counted the same way the
-             * landing page counts it rather than written into the design. The
-             * screen hides the line entirely at zero — a platform claiming "0
-             * projects delivered" is worse than one claiming nothing.
-             */
-            'projectsDelivered' => Project::query()
-                ->where('status', ProjectStatus::Completed)
-                ->count(),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [

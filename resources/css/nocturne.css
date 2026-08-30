@@ -477,6 +477,37 @@ textarea.input { min-height: 90px; resize: vertical; }
 .seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
+/*
+ * The pill variant, used by the register role picker.
+ *
+ * A track with a raised pill riding in it rather than two boxed halves: the
+ * choice reads as a switch between two audiences instead of a pair of
+ * buttons, which is what that control actually is. The active half carries
+ * the surface colour so it sits above the track rather than being outlined
+ * on it.
+ *
+ * Its own class rather than a change to .seg, so a plain segmented control
+ * is still available to anything that wants one.
+ */
+.seg-pill {
+  border: none; border-radius: 999px; padding: 3px; gap: 2px;
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
+}
+.seg-pill .seg-opt {
+  border-radius: 999px; padding: 6px 20px; min-width: 92px;
+  justify-content: center; transition: background 140ms ease, color 140ms ease;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+/* No divider between the halves — the track already separates them. */
+.seg-pill .seg-opt + .seg-opt { border-left: none; }
+.seg-pill .seg-opt:has(input:checked) {
+  background: var(--color-surface); color: var(--color-text);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 14%, transparent);
+}
+.seg-pill .seg-opt:not(:has(input:checked)):hover {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+
 /* — cards — */
 .card {
   display: flex; flex-direction: column; gap: var(--space-2);
@@ -837,4 +868,40 @@ button[data-day][aria-pressed="true"] { border-color: var(--color-accent); }
 .hero-stars > span {
   position: absolute; inset: 0; overflow: hidden; white-space: nowrap;
   color: var(--color-accent);
+}
+
+/* — the register role sweep — */
+/*
+ * Keyframes, not transitions.
+ *
+ * The first version set a start transform on the element, forced a reflow and
+ * flipped it — from a ref callback. React re-attaches an inline ref on every
+ * render, so that ran repeatedly mid-flight: every column was yanked back to
+ * its start and restarted together, which read as one solid block stuttering
+ * across the screen rather than five staggered columns.
+ *
+ * An animation has its own from-state, so there is nothing to set and nothing
+ * to restart. `both` holds the start before the delay elapses and the end
+ * after, which is what keeps the screen covered while the content swaps.
+ */
+@keyframes sweep-in-from-right { from { transform: translateX(100%); }  to { transform: translateX(0); } }
+@keyframes sweep-out-to-left   { from { transform: translateX(0); }     to { transform: translateX(-100%); } }
+@keyframes sweep-in-from-left  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes sweep-out-to-right  { from { transform: translateX(0); }     to { transform: translateX(100%); } }
+
+.sweep {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+}
+.sweep-col {
+  position: absolute; top: 0; bottom: 0;
+  background: var(--color-accent);
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  animation-fill-mode: both;
+  will-change: transform;
+}
+
+/* A full-screen shutter is exactly what this setting exists to refuse. */
+@media (prefers-reduced-motion: reduce) {
+  .sweep { display: none; }
 }

@@ -1,5 +1,5 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { CheckCircleIcon, EyeIcon, EyeSlashIcon } from '@phosphor-icons/react';
+import { EyeIcon, EyeSlashIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
@@ -24,7 +24,6 @@ type Props = {
     googleSetupHint?: boolean;
     teamInvitation?: TeamInvitationContext | null;
     /** Counted, not claimed — see FortifyServiceProvider::configureViews(). */
-    projectsDelivered?: number;
 };
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
@@ -47,7 +46,6 @@ export default function Login({
     canLoginWithGoogle = false,
     googleSetupHint = false,
     teamInvitation,
-    projectsDelivered = 0,
 }: Props) {
     const [revealed, setRevealed] = useState(false);
 
@@ -126,27 +124,6 @@ export default function Login({
                         </p>
                     </div>
 
-                    <div
-                        style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '10px 26px',
-                        }}
-                    >
-                        <Proof>Verified students and businesses</Proof>
-                        {/*
-                         * Only shown once there is something to show. "0
-                         * projects delivered" is a worse first impression than
-                         * no claim at all, and the number is counted rather
-                         * than written down.
-                         */}
-                        {projectsDelivered > 0 && (
-                            <Proof>
-                                {projectsDelivered.toLocaleString()} project
-                                {projectsDelivered === 1 ? '' : 's'} delivered
-                            </Proof>
-                        )}
-                    </div>
                 </aside>
 
                 <main className="relative flex min-h-screen flex-col items-center justify-center gap-5 px-6 py-12">
@@ -396,24 +373,3 @@ const wordmark: React.CSSProperties = {
     textDecoration: 'none',
 };
 
-/** One ticked line of social proof along the foot of the pitch panel. */
-function Proof({ children }: { children: React.ReactNode }) {
-    return (
-        <span
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                fontSize: 11.5,
-                color: MUTED,
-            }}
-        >
-            <CheckCircleIcon
-                size={14}
-                weight="fill"
-                style={{ color: 'var(--color-accent)', flex: 'none' }}
-            />
-            {children}
-        </span>
-    );
-}

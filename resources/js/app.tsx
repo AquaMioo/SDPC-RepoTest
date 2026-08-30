@@ -31,6 +31,10 @@ createInertiaApp({
             // split shell rather than the centred auth column. Every other
             // auth screen keeps AuthLayout.
             case name === 'auth/login':
+            // Register brings the same split shell, and its pitch swaps sides
+            // with the role picker — AuthLayout's centred column cannot hold
+            // either half of that.
+            case name === 'auth/register':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

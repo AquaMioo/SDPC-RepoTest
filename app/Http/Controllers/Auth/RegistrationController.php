@@ -7,6 +7,7 @@ use App\Enums\OneTimePasswordPurpose;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Models\School;
 use App\Models\TeamInvitation;
 use App\Services\Verification\OneTimePasswordService;
 use App\Support\PendingGoogleRegistration;
@@ -60,6 +61,21 @@ class RegistrationController extends Controller
             // Set once someone has come back from Google without an account
             // yet: the form prefills from it and drops the password fields.
             'googleProfile' => PendingGoogleRegistration::get(),
+            /*
+             * The domains a school actually issues addresses on, so the field
+             * can tick the moment a real one is typed instead of waiting for a
+             * round trip per keystroke.
+             *
+             * Safe to publish: an email domain is on every business card the
+             * school prints. And it is only an indicator — SchoolEmailVerifier
+             * checks the same list server-side before a code is ever sent, so
+             * editing this array in the browser buys nothing.
+             */
+            'schoolDomains' => School::query()
+                ->whereNotNull('domain')
+                ->pluck('domain')
+                ->map(fn (string $domain): string => mb_strtolower($domain))
+                ->values(),
         ]);
     }
 
