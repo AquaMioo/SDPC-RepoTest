@@ -135,9 +135,31 @@ export default function Notifications({ notifications, unreadCount }: Props) {
                                         }}
                                     >
                                         {notification.url ? (
+                                            /*
+                                             * Posts rather than links: opening
+                                             * a row is what marks it read, and
+                                             * the controller carries it on to
+                                             * the subject. Inertia renders a
+                                             * POST link as a <button>, so it is
+                                             * reset back to reading as text.
+                                             */
                                             <Link
-                                                href={notification.url}
-                                                style={{ color: 'inherit' }}
+                                                href={read.url({
+                                                    current_team: team.slug,
+                                                    notification:
+                                                        notification.id,
+                                                })}
+                                                method="post"
+                                                data={{ follow: true }}
+                                                style={{
+                                                    font: 'inherit',
+                                                    color: 'inherit',
+                                                    textAlign: 'left',
+                                                    background: 'none',
+                                                    border: 0,
+                                                    padding: 0,
+                                                    cursor: 'pointer',
+                                                }}
                                             >
                                                 {notification.title}
                                             </Link>

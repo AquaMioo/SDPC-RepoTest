@@ -50,18 +50,33 @@ class NotificationController extends Controller
     }
 
     /**
-     * Mark one notification read.
+     * Mark one notification read, and optionally follow it to its subject.
      *
      * Scoped through the user's own relation rather than found globally, so a
      * guessed id belonging to somebody else is a 404 and not a silent write.
      */
-    public function read(Request $request, Team $currentTeam, string $notification): RedirectResponse
+    public function read(Request $request, Team $currentTeam, string $notification, PresentNotification $presenter): RedirectResponse
     {
         $row = $request->user()->notifications()->find($notification);
 
         abort_if($row === null, HttpResponse::HTTP_NOT_FOUND);
 
         $row->markAsRead();
+
+        /*
+         * Opening a notification and marking it read were two separate acts,
+         * so following a row left it bold and dotted as though it had never
+         * been looked at. The row now posts here with `follow` and is carried
+         * onward, which makes reading it and acting on it the same gesture.
+         * The explicit "Mark read" button sends no `follow` and stays put.
+         */
+        if ($request->boolean('follow')) {
+            $url = $presenter->handle($row, $currentTeam)['url'];
+
+            if ($url !== null) {
+                return redirect()->to($url);
+            }
+        }
 
         return back();
     }

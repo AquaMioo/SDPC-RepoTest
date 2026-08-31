@@ -69,6 +69,54 @@ class NotificationCentreTest extends TestCase
         $this->assertNotNull($notification->fresh()->read_at);
     }
 
+    public function test_opening_a_notification_marks_it_read_and_carries_you_to_it(): void
+    {
+        $student = User::factory()->student()->create();
+        $conversation = Conversation::create([
+            'project_id' => Project::factory()->create()->id,
+            'user_id' => $student->id,
+        ]);
+
+        $student->notify(new NewMessage($conversation->messages()->create([
+            'user_id' => User::factory()->client()->create()->id,
+            'body' => 'Thursday works for us',
+        ])));
+
+        $notification = $student->notifications()->sole();
+
+        $this->actingAs($student)
+            ->from(route('notifications.index', ['current_team' => $student->currentTeam]))
+            ->post(route('notifications.read', [
+                'current_team' => $student->currentTeam,
+                'notification' => $notification->id,
+            ]), ['follow' => true])
+            ->assertRedirect(route('messages.show', [
+                'current_team' => $student->currentTeam->slug,
+                'conversation' => $conversation->id,
+            ]));
+
+        $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    public function test_marking_a_notification_read_without_following_stays_on_the_list(): void
+    {
+        $client = User::factory()->client()->create();
+        $client->notify(new ApplicationReceived($this->application()));
+
+        $notification = $client->notifications()->sole();
+        $list = route('notifications.index', ['current_team' => $client->currentTeam]);
+
+        $this->actingAs($client)
+            ->from($list)
+            ->post(route('notifications.read', [
+                'current_team' => $client->currentTeam,
+                'notification' => $notification->id,
+            ]))
+            ->assertRedirect($list);
+
+        $this->assertNotNull($notification->fresh()->read_at);
+    }
+
     public function test_marking_read_a_row_belonging_to_somebody_else_is_a_404(): void
     {
         $mine = User::factory()->client()->create();
