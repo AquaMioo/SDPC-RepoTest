@@ -17,7 +17,7 @@ import type {
     BusinessProfile,
 } from '@/components/client/profile-dialogs';
 import Field from '@/components/sdpc/field';
-import { Input } from '@/components/sdpc/input';
+import { Input, Textarea } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
@@ -262,9 +262,13 @@ export default function ClientProfilePage({
                                 error={quote.errors.body}
                             >
                                 {(props) => (
-                                    <textarea
+                                    <Textarea
                                         {...props}
-                                        className="min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        /* The design gives a textarea 90px; this one
+                                           is a paragraph, so it asks for more. An
+                                           inline value, because `textarea.input`
+                                           outranks a min-h utility. */
+                                        style={{ minHeight: 110 }}
                                         maxLength={400}
                                         disabled={!canPublishTestimonial}
                                         placeholder="We had a spec sitting in a folder for two years…"
@@ -475,7 +479,16 @@ function Detail({
     return (
         <div>
             <div style={{ fontSize: 11, color: MUTED(50) }}>{label}</div>
-            <div style={{ fontSize: 13, color: 'var(--color-accent)' }}>
+            {/* anywhere, not the default normal: a website or Facebook URL is
+                one unbroken run with nowhere to wrap, and in a 160px grid
+                column it painted straight through the card's right edge. */}
+            <div
+                style={{
+                    fontSize: 13,
+                    color: 'var(--color-accent)',
+                    overflowWrap: 'anywhere',
+                }}
+            >
                 {children}
             </div>
         </div>

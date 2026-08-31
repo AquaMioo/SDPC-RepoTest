@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { archive, edit as projectsEdit } from '@/routes/projects';
 import { index as applicantsIndex } from '@/routes/projects/applicants';
-import { show as studentsShow } from '@/routes/students';
 import { toggle as intakeToggle } from '@/routes/projects/intake';
+import { show as studentsShow } from '@/routes/students';
 
 type Props = {
     project: {
@@ -185,7 +185,14 @@ export default function ShowProject({
                                                 key={student.id}
                                                 className="flex items-start gap-3"
                                             >
-                                                <div className="min-w-0 flex-1">
+                                                {/* break-words as well as min-w-0: the flex rule only lets
+                                                    the column shrink, and an unbroken run —
+                                                    a long headline word, a course code, a
+                                                    pasted URL — still spilled past the card
+                                                    border. overflow-wrap is inherited, so the
+                                                    name, the headline and the insight are all
+                                                    covered from here. */}
+                                                <div className="min-w-0 flex-1 break-words">
                                                     <Link
                                                         href={studentsShow.url({
                                                             current_team:
