@@ -126,15 +126,28 @@ export default function RoleTransition({
                          * flickers through between the columns.
                          */
                         width: `calc(${100 / PANELS}% + 1px)`,
-                        animationName: animation,
-                        /*
-                         * The column nearest the entering edge moves first, so
-                         * the sweep reads as one gesture crossing the screen
-                         * rather than five things starting at once.
-                         */
-                        animationDelay: `${(forward ? PANELS - 1 - index : index) * STAGGER_MS}ms`,
                     }}
-                />
+                >
+                    {/*
+                     * The paint moves; the slot around it only clips. See the
+                     * note on .sweep-col — a percentage translate resolves
+                     * against the moving element's own width, so this has to
+                     * be the element that is exactly one column wide.
+                     */}
+                    <div
+                        className="sweep-fill"
+                        style={{
+                            animationName: animation,
+                            /*
+                             * The column nearest the entering edge moves
+                             * first, so the sweep reads as one gesture
+                             * crossing the screen rather than five things
+                             * starting at once.
+                             */
+                            animationDelay: `${(forward ? PANELS - 1 - index : index) * STAGGER_MS}ms`,
+                        }}
+                    />
+                </div>
             ))}
         </div>
     );

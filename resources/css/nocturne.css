@@ -892,8 +892,27 @@ button[data-day][aria-pressed="true"] { border-color: var(--color-accent); }
 .sweep {
   position: fixed; inset: 0; z-index: 60; pointer-events: none;
 }
+
+/*
+ * The slot, and the paint inside it, are two elements on purpose.
+ *
+ * A translateX percentage resolves against the element's OWN width, and a
+ * column is a fifth of the screen — so animating the coloured element itself
+ * moved it one slot, not one screen. Sweeping out left the far 80% of the
+ * shutter still on top of the page, and it disappeared in a single frame when
+ * the overlay unmounted; sweeping in began with the screen already 80%
+ * covered. Neither read as a sweep.
+ *
+ * The slot clips, so ±100% carries the paint exactly out of its own column
+ * and no further. The stagger then reads as a staircase crossing the screen,
+ * and the last frame of a reveal is genuinely clear — nothing left to pop.
+ */
 .sweep-col {
   position: absolute; top: 0; bottom: 0;
+  overflow: hidden;
+}
+.sweep-fill {
+  position: absolute; inset: 0;
   background: var(--color-accent);
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
