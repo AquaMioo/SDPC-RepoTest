@@ -11,7 +11,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Student\ApplyToProjectRequest;
 use App\Models\Application;
 use App\Models\Project;
-use App\Models\Skill;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Recommendation\RecommendationService;
@@ -227,7 +226,7 @@ class ProjectBoardController extends Controller
 
         abort_unless($this->isVisibleTo($project, $student), HttpResponse::HTTP_NOT_FOUND);
 
-        $project->load(['team.clientProfile', 'skills']);
+        $project->load(['team.clientProfile']);
 
         $application = Application::query()
             ->where('project_id', $project->id)

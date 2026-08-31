@@ -447,6 +447,54 @@ class ProjectBoardTest extends TestCase
     }
 
     /**
+     * The detail page destructures every one of these off `project`, and a
+     * missing one throws inside the render rather than on the server — React
+     * unmounts and the student is left looking at a blank screen with the
+     * posting's URL in the bar. The shape is pinned here because that is
+     * exactly how `skills` was lost: it was dropped from toCard() when briefs
+     * stopped carrying tags, the board index was updated to match, and this
+     * page went on reading it.
+     */
+    public function test_a_posting_opens_with_every_field_the_page_reads(): void
+    {
+        $student = $this->student();
+        $project = $this->posting(['title' => 'Inventory System']);
+
+        $this->actingAs($student)
+            ->get(route('student.board.show', [
+                'current_team' => $student->currentTeam,
+                'project' => $project,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('student/project')
+                ->has('project', fn (AssertableInertia $card) => $card
+                    ->where('title', 'Inventory System')
+                    ->hasAll([
+                        'slug',
+                        'title',
+                        'category',
+                        'industry',
+                        'client',
+                        'applicants',
+                        'isAcceptingApplications',
+                        'hasApplied',
+                        'description',
+                        'objectives',
+                        'businessDescription',
+                        'city',
+                    ])
+                    ->etc())
+                ->hasAll([
+                    'application',
+                    'canApply',
+                    'holdsProjectInHand',
+                    'projectId',
+                    'reportCategories',
+                ]));
+    }
+
+    /**
      * An approved student with no credential on file.
      */
     private function student(): User

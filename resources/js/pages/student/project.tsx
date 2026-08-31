@@ -23,7 +23,6 @@ type Props = {
         category: string;
         industry: string | null;
         client: string;
-        skills: string[];
         applicants: number;
         isAcceptingApplications: boolean;
         hasApplied: boolean;
@@ -143,22 +142,6 @@ export default function StudentProject({
                                     {project.objectives}
                                 </p>
                             </>
-                        )}
-
-                        {project.skills.length > 0 && (
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: 5,
-                                }}
-                            >
-                                {project.skills.map((skill) => (
-                                    <Tag key={skill} variant="outline">
-                                        {skill}
-                                    </Tag>
-                                ))}
-                            </div>
                         )}
                     </Panel>
 
