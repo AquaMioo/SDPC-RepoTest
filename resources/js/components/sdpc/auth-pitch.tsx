@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { Reveal } from '@/components/sdpc/role-transition';
 import type { Phase } from '@/components/sdpc/role-transition';
+import { cn } from '@/lib/utils';
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
 
@@ -20,7 +21,16 @@ type Props = {
     /** The claim. Wrap the closing phrase in <Accent> to pick up the green. */
     headline: ReactNode;
     body: string;
-    /** Which half of the split this sits in; decides the divider's edge. */
+    /**
+     * Which half of the split this sits in.
+     *
+     * It decides the divider's edge, and with it the whole treatment: the
+     * copy hangs off the panel's OUTER border, so a panel on the left reads
+     * from the left as usual, and one on the right is set flush right — the
+     * wordmark included — with a wider measure to fill the larger half. The
+     * two sides of the screen then read outward from the divider instead of
+     * both marching left.
+     */
     side?: 'left' | 'right';
     /**
      * Drives the masked reveal. Omit on screens with no sweep — log in has
@@ -65,17 +75,25 @@ export default function AuthPitch({
     className = '',
     phase = 'idle',
 }: Props) {
+    const end = side === 'right';
+
     return (
         <aside
-            className={
-                'relative hidden flex-col p-12 lg:flex xl:p-16 ' + className
-            }
+            className={cn(
+                'relative hidden flex-col p-12 lg:flex xl:p-16',
+                end && 'items-end text-right',
+                className,
+            )}
             style={
                 side === 'left'
                     ? { borderRight: '1px solid var(--color-divider)' }
                     : { borderLeft: '1px solid var(--color-divider)' }
             }
         >
+            {/*
+             * items-end carries the wordmark out to the panel's outer border
+             * with the copy, rather than leaving it stranded on the divider.
+             */}
             <Link href="/" style={wordmark}>
                 SDPC
             </Link>
@@ -90,13 +108,15 @@ export default function AuthPitch({
              * headline dropped to the foot of the panel.
              */}
             <div className="flex flex-1 items-center">
-                <div style={{ maxWidth: 460 }}>
+                <div style={{ maxWidth: end ? 580 : 460 }}>
                     <h1
                         style={{
                             margin: 0,
                             fontFamily: 'var(--font-heading)',
                             fontWeight: 'var(--font-heading-weight)',
-                            fontSize: 'clamp(32px, 3.2vw, 44px)',
+                            fontSize: end
+                                ? 'clamp(32px, 3.6vw, 48px)'
+                                : 'clamp(32px, 3.2vw, 44px)',
                             lineHeight: 1.14,
                             letterSpacing: '-0.025em',
                         }}
@@ -106,7 +126,9 @@ export default function AuthPitch({
 
                     <p
                         style={{
-                            margin: '18px 0 0',
+                            /* Auto on the left keeps the shorter measure
+                               hanging off the same edge as the headline. */
+                            margin: end ? '18px 0 0 auto' : '18px 0 0',
                             maxWidth: 330,
                             fontSize: 13,
                             lineHeight: 1.65,
