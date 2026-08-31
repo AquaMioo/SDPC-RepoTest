@@ -3,6 +3,7 @@ import { EyeIcon, EyeSlashIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
+import AuthPitch, { Accent, wordmark } from '@/components/sdpc/auth-pitch';
 import { Btn } from '@/components/sdpc/btn';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
 import GoogleAuthError from '@/components/sdpc/google-auth-error';
@@ -79,52 +80,15 @@ export default function Login({
                     }}
                 />
 
-                {/*
-                 * The pitch. Hidden below `lg` rather than stacked above the
-                 * form: on a phone the first thing wanted is the password
-                 * field, not the tagline.
-                 */}
-                <aside
-                    className="relative hidden flex-col justify-between p-12 lg:flex xl:p-16"
-                    style={{ borderRight: '1px solid var(--color-divider)' }}
-                >
-                    <Link href="/" style={wordmark}>
-                        SDPC
-                    </Link>
-
-                    <div style={{ maxWidth: 460 }}>
-                        <h1
-                            style={{
-                                margin: 0,
-                                fontFamily: 'var(--font-heading)',
-                                fontWeight: 'var(--font-heading-weight)',
-                                fontSize: 'clamp(32px, 3.2vw, 44px)',
-                                lineHeight: 1.14,
-                                letterSpacing: '-0.025em',
-                            }}
-                        >
+                <AuthPitch
+                    headline={
+                        <>
                             Connecting tomorrow&apos;s developers with{' '}
-                            <span style={{ color: 'var(--color-accent)' }}>
-                                today&apos;s opportunities.
-                            </span>
-                        </h1>
-
-                        <p
-                            style={{
-                                margin: '18px 0 0',
-                                maxWidth: 330,
-                                fontSize: 13,
-                                lineHeight: 1.65,
-                                color: MUTED,
-                            }}
-                        >
-                            A collaborative platform for tertiary students and
-                            local clients in San Jose Del Monte — matched by
-                            skill, tracked to delivery.
-                        </p>
-                    </div>
-
-                </aside>
+                            <Accent>today&apos;s opportunities.</Accent>
+                        </>
+                    }
+                    body="A collaborative platform for tertiary students and local clients in San Jose Del Monte — matched by skill, tracked to delivery."
+                />
 
                 <main className="relative flex min-h-screen flex-col items-center justify-center gap-5 px-6 py-12">
                     {/* Stands in for the one in the pitch panel, which is not
@@ -362,14 +326,3 @@ export default function Login({
         </>
     );
 }
-
-/** The wordmark, in both the pitch panel and its small-screen stand-in. */
-const wordmark: React.CSSProperties = {
-    fontFamily: 'var(--font-heading)',
-    fontWeight: 600,
-    fontSize: 22,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-accent)',
-    textDecoration: 'none',
-};
-
