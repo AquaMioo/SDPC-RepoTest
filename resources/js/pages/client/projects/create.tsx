@@ -49,7 +49,7 @@ export default function CreateProject({ reviewedBeforeGoingLive }: Props) {
                     event.preventDefault();
                     submit('pending_review');
                 }}
-                className="mx-auto grid max-w-[1100px] items-start gap-6 px-4 pt-[30px] pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8"
+                className="mx-auto grid max-w-[clamp(1100px,100vw_-_320px,1600px)] items-start gap-6 px-4 pt-[30px] pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8"
             >
                 <div className="flex min-w-0 flex-col gap-4">
                     <div className="flex items-end gap-4">

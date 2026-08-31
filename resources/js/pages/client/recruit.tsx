@@ -112,7 +112,7 @@ export default function Recruit({
         <>
             <Head title="Recruit" />
 
-            <div className="mx-auto grid max-w-[1320px] items-start gap-6 px-4 pt-[30px] pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
+            <div className="mx-auto grid max-w-[clamp(1320px,100vw_-_320px,1600px)] items-start gap-6 px-4 pt-[30px] pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
                 <div className="min-w-0">
                     <div className="mb-5 flex flex-wrap items-end gap-3">
                         <div className="mr-auto">

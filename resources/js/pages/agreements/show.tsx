@@ -168,7 +168,7 @@ export default function AgreementShow({ agreement }: Props) {
 
             <div
                 style={{
-                    maxWidth: 1240,
+                    maxWidth: 'clamp(1240px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
                     padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}

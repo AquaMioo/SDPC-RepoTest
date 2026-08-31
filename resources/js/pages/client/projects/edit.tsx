@@ -71,7 +71,7 @@ export default function EditProject({ project }: Props) {
                     event.preventDefault();
                     save(isDraft ? 'draft' : 'pending_review');
                 }}
-                className="mx-auto flex max-w-[1100px] flex-col gap-4 px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8"
+                className="mx-auto flex max-w-[clamp(1100px,100vw_-_320px,1600px)] flex-col gap-4 px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8"
             >
                 <div className="flex items-end gap-4">
                     <div className="mr-auto">

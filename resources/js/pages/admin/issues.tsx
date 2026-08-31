@@ -75,7 +75,7 @@ export default function AdminIssues({ issues }: Props) {
     return (
         <div
             style={{
-                maxWidth: 1180,
+                maxWidth: 'clamp(1180px, 100vw - 320px, 1600px)',
                 margin: '0 auto',
                 padding: '30px clamp(16px, 4vw, 32px) 72px',
             }}

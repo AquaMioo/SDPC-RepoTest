@@ -21,7 +21,7 @@ import type { NavItem } from '@/types';
  * `.page-shell` gives back the desktop gutter at narrow widths.
  */
 const SHELL: React.CSSProperties = {
-    maxWidth: 1120,
+    maxWidth: 'clamp(1120px, 100vw - 320px, 1600px)',
     paddingTop: 28,
     paddingBottom: 72,
     ['--rail' as string]: '216px',

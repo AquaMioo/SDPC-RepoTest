@@ -68,7 +68,7 @@ export default function StudentProject({
             <div
                 className="page-shell split split-end"
                 style={{
-                    maxWidth: 1060,
+                    maxWidth: 'clamp(1060px, 100vw - 320px, 1600px)',
                     paddingTop: 24,
                     paddingBottom: 72,
                     ['--rail' as string]: '320px',

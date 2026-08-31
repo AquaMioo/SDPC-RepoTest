@@ -101,7 +101,7 @@ export default function ClientProfilePage({
         <>
             <Head title="Business profile" />
 
-            <div className="mx-auto max-w-[1060px] px-4 pt-6 pb-[72px] sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[clamp(1060px,100vw_-_320px,1600px)] px-4 pt-6 pb-[72px] sm:px-6 lg:px-8">
                 <div className="mb-5 flex items-end gap-3">
                     <div className="mr-auto">
                         <h4 className="m-0">Business profile</h4>

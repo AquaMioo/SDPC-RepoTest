@@ -24,6 +24,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Models/Conversation.php, app/Models/Agreement.php | .ai/rules/models.md |
 | app/Actions/Notifications/** | .ai/rules/notifications.md |
 | resources/js/pages/agreements/** | .ai/rules/pages-agreements.md |
+| resources/js/pages/** | .ai/rules/pages.md |
 | app/Policies/ProjectPolicy.php | .ai/rules/policies.md |
 | app/Services/Recommendation/** | .ai/rules/recommendation.md |
 | app/Http/Responses/** | .ai/rules/responses.md |

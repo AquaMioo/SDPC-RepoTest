@@ -22,7 +22,7 @@ import { login, register } from '@/routes';
 import { login as adminLogin } from '@/routes/admin';
 
 const SHELL: React.CSSProperties = {
-    maxWidth: 1240,
+    maxWidth: 'clamp(1240px, 100vw - 320px, 1600px)',
     margin: '0 auto',
     padding: '0 clamp(16px, 4vw, 32px)',
 };
@@ -365,7 +365,7 @@ export default function Welcome({
             <div style={{ margin: '36px 0 0', ...STAT_BAND }}>
                 <div
                     style={{
-                        maxWidth: 1240,
+                        maxWidth: 'clamp(1240px, 100vw - 320px, 1600px)',
                         margin: '0 auto',
                         padding: '34px clamp(16px, 4vw, 32px)',
                         display: 'grid',
@@ -415,7 +415,7 @@ export default function Welcome({
             {testimonials.length > 0 && (
                 <div
                     style={{
-                        maxWidth: 1240,
+                        maxWidth: 'clamp(1240px, 100vw - 320px, 1600px)',
                         margin: '0 auto',
                         padding: '64px clamp(16px, 4vw, 32px) 72px',
                     }}
@@ -451,7 +451,7 @@ export default function Welcome({
             <div style={FOOTER_BAND}>
                 <div
                     style={{
-                        maxWidth: 1240,
+                        maxWidth: 'clamp(1240px, 100vw - 320px, 1600px)',
                         margin: '0 auto',
                         padding: '26px clamp(16px, 4vw, 32px)',
                         display: 'flex',

@@ -82,7 +82,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             >
                 <div
                     className="page-shell app-bar"
-                    style={{ maxWidth: 1180, paddingBlock: 14 }}
+                    style={{
+                        maxWidth: 'clamp(1180px, 100vw - 320px, 1600px)',
+                        paddingBlock: 14,
+                    }}
                 >
                     <div
                         style={{

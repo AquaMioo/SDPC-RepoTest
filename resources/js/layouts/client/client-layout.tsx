@@ -154,7 +154,10 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             >
                 <div
                     className="page-shell app-bar"
-                    style={{ maxWidth: 1320, paddingBlock: 14 }}
+                    style={{
+                        maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
+                        paddingBlock: 14,
+                    }}
                 >
                     <Link href={home} style={BRAND}>
                         SDPC

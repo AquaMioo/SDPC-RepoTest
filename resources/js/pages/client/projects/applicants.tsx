@@ -60,7 +60,7 @@ export default function Applicants({ project, applications }: Props) {
         <>
             <Head title={`Applicants — ${project.title}`} />
 
-            <div className="mx-auto max-w-[1160px] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[clamp(1160px,100vw_-_320px,1600px)] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8">
                 <div className="mb-5">
                     <h3 className="m-0">Applicants</h3>
                     <div className="text-[13px] text-muted-foreground">

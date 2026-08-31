@@ -61,7 +61,7 @@ export default function AgreementContract({ agreement }: Props) {
 
             <div
                 style={{
-                    maxWidth: 1000,
+                    maxWidth: 'clamp(1000px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
                     padding: '28px clamp(16px, 4vw, 32px) 72px',
                 }}

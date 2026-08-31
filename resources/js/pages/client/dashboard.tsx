@@ -68,7 +68,7 @@ export default function ClientDashboard({
                 onOpenChange={setShowInvitations}
             />
 
-            <div className="mx-auto max-w-[1320px] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[clamp(1320px,100vw_-_320px,1600px)] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8">
                 <div className="mb-6 flex items-start gap-5">
                     <div className="mr-auto">
                         <h3 className="m-0 text-[22px]">Welcome, {userName}</h3>

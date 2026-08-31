@@ -104,7 +104,7 @@ export default function StudentProfile({
         <>
             <Head title={student.name} />
 
-            <div className="mx-auto grid max-w-[1060px] items-start gap-6 px-4 pt-6 pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8">
+            <div className="mx-auto grid max-w-[clamp(1060px,100vw_-_320px,1600px)] items-start gap-6 px-4 pt-6 pb-[72px] sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8">
                 <div className="flex min-w-0 flex-col gap-4">
                     <Panel padding="lg" gap="lg">
                         <div className="flex items-center gap-4">

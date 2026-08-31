@@ -41,7 +41,7 @@ export default function Notifications({ notifications, unreadCount }: Props) {
 
             <div
                 style={{
-                    maxWidth: 1060,
+                    maxWidth: 'clamp(1060px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
                     padding: '30px clamp(16px, 4vw, 32px) 72px',
                     display: 'flex',

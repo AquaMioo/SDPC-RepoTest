@@ -111,7 +111,7 @@ export default function FindClients({
 
             <div
                 style={{
-                    maxWidth: 1320,
+                    maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
                     padding: '30px clamp(16px, 4vw, 32px) 72px',
                 }}
