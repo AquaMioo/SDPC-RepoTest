@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
     ClockIcon,
-    CurrencyCircleDollarIcon,
+    FlagIcon,
     ListChecksIcon,
     UserIcon,
 } from '@phosphor-icons/react';
@@ -37,13 +37,6 @@ const PHASE_COLOURS = [
     'var(--color-accent-700)',
     'var(--color-accent-800)',
 ];
-
-const peso = new Intl.NumberFormat('en-PH');
-
-/** "₱ 8,000", the way the design writes money. */
-function money(amount: number): string {
-    return `₱ ${peso.format(amount)}`;
-}
 
 /** "9–27 Mar", collapsing the month when both ends share one. */
 function dateRange(startsOn: string | null, endsOn: string | null): string {
@@ -168,14 +161,6 @@ export default function AgreementShow({ agreement }: Props) {
             },
         );
     };
-
-    /** The running total while editing; the saved figure otherwise. */
-    const total = isEditing
-        ? form.data.milestones.reduce(
-              (sum, milestone) => sum + Number(milestone.amount || 0),
-              0,
-          )
-        : agreement.totalAmount;
 
     return (
         <>
@@ -304,10 +289,15 @@ export default function AgreementShow({ agreement }: Props) {
                     </Panel>
 
                     <Panel style={{ padding: 18, gap: 8 }}>
-                        <CardHeading
-                            icon={<CurrencyCircleDollarIcon />}
-                            label="Pricing"
-                        />
+                        {/*
+                         * Phase names only — no amounts, and no Total row. Money
+                         * is not part of the platform yet; the Extension is what
+                         * will carry it. The column, the request rule and the
+                         * derived total_amount all stay put (the form still posts
+                         * `amount: 0` for every row), so pricing comes back by
+                         * restoring this card rather than by a migration.
+                         */}
+                        <CardHeading icon={<FlagIcon />} label="Milestones" />
 
                         <table
                             style={{
@@ -343,29 +333,6 @@ export default function AgreementShow({ agreement }: Props) {
                                                           }
                                                       />
                                                   </td>
-                                                  <td
-                                                      style={{
-                                                          width: 110,
-                                                          paddingLeft: 8,
-                                                      }}
-                                                  >
-                                                      <Input
-                                                          aria-label={`Milestone ${index + 1} amount`}
-                                                          type="number"
-                                                          min={0}
-                                                          value={
-                                                              milestone.amount
-                                                          }
-                                                          onChange={(event) =>
-                                                              setMilestone(
-                                                                  index,
-                                                                  'amount',
-                                                                  event.target
-                                                                      .value,
-                                                              )
-                                                          }
-                                                      />
-                                                  </td>
                                               </tr>
                                           ),
                                       )
@@ -380,36 +347,9 @@ export default function AgreementShow({ agreement }: Props) {
                                                       Milestone {index + 1} ·{' '}
                                                       {milestone.title}
                                                   </td>
-                                                  <td
-                                                      style={{
-                                                          textAlign: 'right',
-                                                      }}
-                                                  >
-                                                      {money(milestone.amount)}
-                                                  </td>
                                               </tr>
                                           ),
                                       )}
-
-                                <tr>
-                                    <td
-                                        style={{
-                                            padding: '7px 0 0',
-                                            color: 'var(--color-text)',
-                                        }}
-                                    >
-                                        Total
-                                    </td>
-                                    <td
-                                        style={{
-                                            textAlign: 'right',
-                                            paddingTop: 7,
-                                            color: 'var(--color-accent)',
-                                        }}
-                                    >
-                                        {money(total)}
-                                    </td>
-                                </tr>
                             </tbody>
                         </table>
 

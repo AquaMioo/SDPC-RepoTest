@@ -15,8 +15,6 @@ const TAG_VARIANT: Record<string, 'accent' | 'neutral' | 'outline'> = {
     outline: 'outline',
 };
 
-const peso = new Intl.NumberFormat('en-PH');
-
 type Props = {
     agreements: AgreementListItem[];
 };
@@ -104,16 +102,6 @@ export default function AgreementIndex({ agreements }: Props) {
                                         {agreement.version}
                                     </div>
                                 </div>
-
-                                <span
-                                    style={{
-                                        fontSize: 12.5,
-                                        fontVariantNumeric: 'tabular-nums',
-                                        color: MUTED(70),
-                                    }}
-                                >
-                                    ₱ {peso.format(agreement.totalAmount)}
-                                </span>
 
                                 <Tag
                                     variant={
