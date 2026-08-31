@@ -111,7 +111,10 @@ export default function Register({
      * Direction comes from the order of `roles`, so Client to Student reads as
      * forward and Student to Client as back.
      */
-    const { phase, direction, go, busy } = useRoleTransition(setRole);
+    const { phase, direction, go, busy } = useRoleTransition(setRole, {
+        /* The page arrives from behind the same sweep the role picker uses. */
+        entrance: true,
+    });
 
     const changeRole = (next: string) => {
         if (next === role || busy) {

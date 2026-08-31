@@ -18,6 +18,14 @@ const HALF_MS = SLIDE_MS + (PANELS - 1) * STAGGER_MS;
 export type Phase = 'idle' | 'covering' | 'revealing';
 export type Direction = 'forward' | 'backward';
 
+/** Whether the viewer has asked for less motion. */
+function prefersReducedMotion(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+}
+
 /**
  * Drive a directional panel sweep between two views.
  *
@@ -30,8 +38,23 @@ export type Direction = 'forward' | 'backward';
  * overlay: a full-screen shutter is exactly the kind of motion that setting
  * exists to refuse.
  */
-export function useRoleTransition(onCovered: (next: string) => void) {
-    const [phase, setPhase] = useState<Phase>('idle');
+export function useRoleTransition(
+    onCovered: (next: string) => void,
+    { entrance = false }: { entrance?: boolean } = {},
+) {
+    /*
+     * An entrance is the second half of a sweep with nothing swapped behind
+     * it: the panels start over the page and clear off it. Decided in the
+     * initialiser rather than in an effect, because setting it a frame later
+     * would show the page once before the panels arrived to cover it.
+     *
+     * The overlay is pointer-events: none, so the form underneath is usable
+     * for the whole 640ms — the sweep is something you watch leave, never
+     * something you wait out.
+     */
+    const [phase, setPhase] = useState<Phase>(() =>
+        entrance && !prefersReducedMotion() ? 'revealing' : 'idle',
+    );
     const [direction, setDirection] = useState<Direction>('forward');
     const timers = useRef<number[]>([]);
 
@@ -43,8 +66,28 @@ export function useRoleTransition(onCovered: (next: string) => void) {
         [],
     );
 
+    /* Put the entrance away once its half of the sweep has crossed. */
+    useEffect(() => {
+        if (!entrance || prefersReducedMotion()) {
+            return;
+        }
+
+        const id = window.setTimeout(() => setPhase('idle'), HALF_MS);
+        timers.current.push(id);
+
+        return () => clearTimeout(id);
+    }, [entrance]);
+
     const go = useCallback(
         (next: string, isForward: boolean) => {
+            /*
+             * An entrance still clearing, or a toggle pressed twice, would
+             * otherwise leave a timer from the old sweep to set a phase the
+             * new one has moved past.
+             */
+            timers.current.forEach(clearTimeout);
+            timers.current = [];
+
             const reduced = window.matchMedia(
                 '(prefers-reduced-motion: reduce)',
             ).matches;
@@ -169,7 +212,47 @@ export function Reveal({
     delay?: number;
     children: React.ReactNode;
 }) {
-    const hidden = phase === 'covering';
+    /*
+     * A role sweep travels covering -> revealing, and the line rises as the
+     * transform changes. An entrance has no covering half to travel from: it
+     * mounts already revealing, so the line would simply be there.
+     *
+     * So mount it held down and let it go once the held position has been
+     * painted, which gives an arrival the same rise the role switch does.
+     * Two frames rather than one: the browser has to paint the held position
+     * before it will treat the release as a transition rather than a jump.
+     *
+     * With a timer behind the frames, for the same reason the sweep itself
+     * uses timers — a hidden tab runs no animation frames at all, and a line
+     * waiting on one would stay held down for as long as the tab stayed in
+     * the background, then appear already in place. The timer always comes
+     * back, so the worst case is that the rise is skipped, never that the
+     * copy is missing.
+     */
+    const [held, setHeld] = useState(phase === 'revealing');
+
+    useEffect(() => {
+        if (!held) {
+            return;
+        }
+
+        let second = 0;
+        const release = () => setHeld(false);
+        const first = requestAnimationFrame(() => {
+            second = requestAnimationFrame(release);
+        });
+        const backstop = window.setTimeout(release, 120);
+
+        return () => {
+            cancelAnimationFrame(first);
+            cancelAnimationFrame(second);
+            clearTimeout(backstop);
+        };
+        /* Mount only: a later phase change must not re-hold the line. */
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const hidden = phase === 'covering' || held;
 
     return (
         <span style={{ display: 'block', overflow: 'hidden' }}>
