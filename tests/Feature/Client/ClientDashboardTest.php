@@ -263,6 +263,53 @@ class ClientDashboardTest extends TestCase
             ->assertJsonCount(2, 'props.projectTeam');
     }
 
+    public function test_the_team_panel_says_who_is_here_not_who_is_on_it(): void
+    {
+        [$client, $team, $project] = $this->teamWithProject();
+
+        $here = User::factory()->student()->approved()->create();
+        $gone = User::factory()->student()->approved()->create();
+
+        $here->forceFill(['last_seen_at' => now()])->saveQuietly();
+        /* Signed out: the listener nulls the stamp rather than ageing it. */
+        $gone->forceFill(['last_seen_at' => null])->saveQuietly();
+
+        foreach ([$here, $gone] as $student) {
+            Application::factory()->create([
+                'project_id' => $project->id,
+                'user_id' => $student->id,
+                'status' => ApplicationStatus::Accepted,
+            ]);
+        }
+
+        $response = $this->partialDashboard($client, $team, 'projectTeam');
+
+        $members = collect($response->json('props.projectTeam'))
+            ->keyBy('id');
+
+        $this->assertTrue($members[$here->id]['isOnline']);
+        $this->assertFalse($members[$gone->id]['isOnline']);
+    }
+
+    public function test_a_student_who_wandered_off_stops_reading_as_here(): void
+    {
+        [$client, $team, $project] = $this->teamWithProject();
+
+        $student = User::factory()->student()->approved()->create();
+        $student->forceFill([
+            'last_seen_at' => now()->subMinutes(User::PRESENCE_WINDOW_MINUTES + 1),
+        ])->saveQuietly();
+
+        Application::factory()->create([
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+            'status' => ApplicationStatus::Accepted,
+        ]);
+
+        $this->partialDashboard($client, $team, 'projectTeam')
+            ->assertJsonPath('props.projectTeam.0.isOnline', false);
+    }
+
     public function test_the_calendar_carries_only_dated_milestones(): void
     {
         [$client, $team, $project] = $this->teamWithProject();

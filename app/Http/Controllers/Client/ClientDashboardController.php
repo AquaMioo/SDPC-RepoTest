@@ -143,6 +143,8 @@ class ClientDashboardController extends Controller
                 'avatarUrl' => $application->student->avatarUrl(),
                 'role' => $application->student->studentProfile?->headline
                     ?? $application->project->title,
+                /* Presence, not membership: see User::isOnline(). */
+                'isOnline' => $application->student->isOnline(),
             ])
             ->values()
             ->all();

@@ -14,6 +14,7 @@ import {
 import { useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 export type CurrentProject = {
     title: string;
@@ -39,6 +40,8 @@ export type TeamMemberCard = {
     name: string;
     avatarUrl: string | null;
     role: string;
+    /** Here now, as opposed to merely on the team. */
+    isOnline: boolean;
 };
 
 export type CalendarEvent = {
@@ -454,6 +457,8 @@ export function ProjectTeamPanel({
     members?: TeamMemberCard[];
     workspaceHref: string | null;
 }) {
+    const online = (members ?? []).filter((member) => member.isOnline).length;
+
     if (members === undefined) {
         return (
             <Card>
@@ -468,9 +473,9 @@ export function ProjectTeamPanel({
         <Card className="flex flex-col">
             <div className="mb-4 flex items-center">
                 <CardTitle>Project team</CardTitle>
-                {members.length > 0 && (
+                {online > 0 && (
                     <span className="ml-auto rounded-full bg-[color-mix(in_srgb,var(--color-primary,#4a7c4e)_12%,transparent)] px-2.5 py-1 text-[11.5px] text-[var(--color-primary,#4a7c4e)]">
-                        {members.length} active
+                        {online} active
                     </span>
                 )}
             </div>
@@ -502,9 +507,22 @@ export function ProjectTeamPanel({
                             <div className="truncate text-[12px] text-muted-foreground">
                                 {member.role}
                             </div>
+                            {/*
+                             * This said "Active" for everyone, always — a
+                             * hardcoded word, not a reading of anything. A
+                             * student who had signed out still showed a green
+                             * dot on their client's dashboard.
+                             */}
                             <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                                <span className="size-1.5 rounded-full bg-[var(--color-primary,#4a7c4e)]" />
-                                Active
+                                <span
+                                    className={cn(
+                                        'size-1.5 rounded-full',
+                                        member.isOnline
+                                            ? 'bg-[var(--color-primary,#4a7c4e)]'
+                                            : 'bg-[color-mix(in_srgb,var(--color-text)_28%,transparent)]',
+                                    )}
+                                />
+                                {member.isOnline ? 'Active' : 'Away'}
                             </div>
                         </div>
                     </div>

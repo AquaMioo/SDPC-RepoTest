@@ -34,6 +34,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property UserRole $role
  * @property UserStatus $status
+ * @property Carbon|null $last_seen_at
  * @property Carbon|null $email_verified_at
  * @property string|null $password
  * @property string|null $google_id
@@ -66,6 +67,14 @@ class User extends Authenticatable implements PasskeyUser
     use HasFactory, HasTeams, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
+     * How long after its last request an account still counts as here.
+     *
+     * Long enough to cover reading a page without clicking anything, short
+     * enough that somebody who walked away stops showing as present.
+     */
+    public const PRESENCE_WINDOW_MINUTES = 5;
+
+    /**
      * The model's default attribute values.
      *
      * Role and status are deliberately kept out of the fillable attributes so
@@ -94,6 +103,7 @@ class User extends Authenticatable implements PasskeyUser
             'role' => UserRole::class,
             'status' => UserStatus::class,
             'two_factor_confirmed_at' => 'datetime',
+            'last_seen_at' => 'datetime',
         ];
     }
 
@@ -135,6 +145,27 @@ class User extends Authenticatable implements PasskeyUser
     public function isDeactivated(): bool
     {
         return ! $this->status->canAuthenticate();
+    }
+
+    /**
+     * Whether this account is here right now.
+     *
+     * Presence is a heartbeat, not a socket: TouchLastSeen stamps the column
+     * as the account moves around, and the logout listener nulls it. Null is
+     * therefore "signed out" and reads as away immediately, while a stale
+     * stamp is somebody who shut the laptop without signing out and falls off
+     * once the window passes.
+     *
+     * A window rather than an exact value because the stamp is only written
+     * once a minute — writing on every request would put an UPDATE behind
+     * every page view for a figure nobody reads that precisely.
+     */
+    public function isOnline(): bool
+    {
+        return $this->last_seen_at !== null
+            && $this->last_seen_at->greaterThan(
+                now()->subMinutes(self::PRESENCE_WINDOW_MINUTES),
+            );
     }
 
     /**

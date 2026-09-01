@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\StudentVerifier;
 use App\Contracts\VerifiesStudentCredentials;
+use App\Listeners\ClearLastSeen;
 use App\Mail\Transport\BrevoTransport;
 use App\Services\Credentials\AutomatedCredentialVerifier;
 use App\Services\Recommendation\ComputedRecommendationService;
@@ -14,9 +15,11 @@ use App\Services\Verification\NullStudentVerifier;
 use App\Services\Verification\SchoolEmailVerifier;
 use App\Services\Verification\SheerIdStudentVerifier;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -78,6 +81,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->registerBrevoTransport();
+        $this->registerPresenceListeners();
     }
 
     /**
@@ -88,6 +92,19 @@ class AppServiceProvider extends ServiceProvider
      * App\Mail\Transport\BrevoTransport is a hundred lines against
      * Laravel's own Http client.
      */
+
+    /**
+     * Signing out clears the presence stamp.
+     *
+     * Registered explicitly rather than left to event discovery, so the one
+     * thing standing between a signed-out account and a green dot is visible
+     * from the provider rather than implied by a file's location.
+     */
+    protected function registerPresenceListeners(): void
+    {
+        Event::listen(Logout::class, ClearLastSeen::class);
+    }
+
     protected function registerBrevoTransport(): void
     {
         Mail::extend('brevo', function (array $config): BrevoTransport {

@@ -4,6 +4,7 @@ use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTeamUrlDefaults;
+use App\Http\Middleware\TouchLastSeen;
 use App\Support\AuthHome;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
             SetTeamUrlDefaults::class,
             AddSecurityHeaders::class,
+            TouchLastSeen::class,
         ]);
 
         $middleware->alias([
