@@ -271,6 +271,106 @@ class MessagingTest extends TestCase
         $this->assertSame(0, Message::count());
     }
 
+    public function test_a_stranger_can_not_edit_remove_or_react_to_a_message(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        $message = $conversation->messages()->create([
+            'user_id' => $student->id,
+            'body' => 'Thursday works for us',
+        ]);
+
+        $stranger = User::factory()->student()->approved()->create();
+
+        /*
+         * Nothing here is reachable from the stranger's own screen — these are
+         * the requests you can still make by hand once you have read some ids
+         * off somebody else's page. The buttons hiding themselves is a
+         * courtesy; the check is the rule.
+         */
+        $this->actingAs($stranger)
+            ->patch(route('messages.edit', [
+                'current_team' => $stranger->currentTeam,
+                'conversation' => $conversation,
+                'message' => $message,
+            ]), ['body' => 'I was never here'])
+            ->assertForbidden();
+
+        $this->actingAs($stranger)
+            ->delete(route('messages.remove', [
+                'current_team' => $stranger->currentTeam,
+                'conversation' => $conversation,
+                'message' => $message,
+            ]))
+            ->assertForbidden();
+
+        $this->actingAs($stranger)
+            ->post(route('messages.react', [
+                'current_team' => $stranger->currentTeam,
+                'conversation' => $conversation,
+                'message' => $message,
+            ]), ['emoji' => '👍'])
+            ->assertForbidden();
+
+        $message->refresh();
+        $this->assertSame('Thursday works for us', $message->body);
+        $this->assertNull($message->edited_at);
+        $this->assertSame(0, $message->reactions()->count());
+    }
+
+    public function test_a_participant_can_not_edit_the_other_sides_message(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        $theirs = $conversation->messages()->create([
+            'user_id' => $student->id,
+            'body' => 'We can start Monday',
+        ]);
+
+        /* Being in the room is not the same as owning what was said in it. */
+        $this->actingAs($client)
+            ->patch(route('messages.edit', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $conversation,
+                'message' => $theirs,
+            ]), ['body' => 'We can start today'])
+            ->assertForbidden();
+
+        $this->assertSame('We can start Monday', $theirs->fresh()->body);
+    }
+
+    public function test_a_message_id_from_another_thread_does_not_resolve(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $mine = $this->thread($project, $student);
+
+        [, $otherStudent, $otherProject] = $this->pair(applied: true);
+        $theirs = $this->thread($otherProject, $otherStudent);
+
+        $elsewhere = $theirs->messages()->create([
+            'user_id' => $otherStudent->id,
+            'body' => 'Not for you',
+        ]);
+
+        /*
+         * Pairing a thread you belong to with a message id from one you do
+         * not: without the conversation_id check the route model binding
+         * resolves both happily and the ownership test is the only thing left
+         * standing between them.
+         */
+        $this->actingAs($student)
+            ->patch(route('messages.edit', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $mine,
+                'message' => $elsewhere,
+            ]), ['body' => 'Rewritten'])
+            ->assertNotFound();
+
+        $this->assertSame('Not for you', $elsewhere->fresh()->body);
+    }
+
     public function test_a_thread_only_appears_in_its_participants_inboxes(): void
     {
         [$client, $student, $project] = $this->pair(applied: true);

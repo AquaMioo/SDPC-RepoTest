@@ -631,7 +631,27 @@ textarea.input { min-height: 90px; resize: vertical; }
 body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
 a:not([data-slot='button']) { color: var(--color-accent); }
 a:not([data-slot='button']):hover { color: var(--color-accent-300); }
-[data-nav][aria-current="page"] { color: var(--color-accent); }
+/* The header links carry their colour here rather than inline.
+   An inline colour outranks every selector, so while it sat in the component
+   the current-page rule below could never fire and hover could not exist at
+   all — there is no inline form of :hover to write. a[data-nav] outranks the
+   generic anchor colour above, which is what the inline value was doing. */
+a[data-nav] {
+  color: var(--color-text);
+  transition: color 140ms ease;
+}
+a[data-nav]:hover { color: var(--color-accent); }
+a[data-nav][aria-current="page"] { color: var(--color-accent); }
+
+/* The icons beside them answer with a tint rather than a colour: their colour
+   IS set inline, and this way matches .btn-secondary:hover exactly. */
+.app-bar-actions .btn {
+  border-radius: var(--radius-md);
+  transition: background 140ms ease;
+}
+.app-bar-actions .btn:hover {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
 /* A day is a button so it can be selected by tap and by keyboard. The reset
    lives here rather than inline because an inline background would outrank the
    [data-today] pill below and paint over it. */

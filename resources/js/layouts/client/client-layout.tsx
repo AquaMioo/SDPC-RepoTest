@@ -57,13 +57,16 @@ const BRAND: CSSProperties = {
     textDecoration: 'none',
 };
 
+/*
+ * Colour is deliberately absent: it lives on a[data-nav] in nocturne.css,
+ * with the hover and current-page states an inline value made unreachable.
+ */
 const NAV_LINK: CSSProperties = {
     background: 'none',
     border: 0,
     padding: '4px 0',
     font: 'inherit',
     fontSize: 14,
-    color: 'var(--color-text)',
     cursor: 'pointer',
     textDecoration: 'none',
 };
