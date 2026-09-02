@@ -79,4 +79,20 @@ return [
     */
     'cache_minutes' => (int) env('GEMINI_CACHE_MINUTES', 60),
 
+    /*
+    |------------------------------------------------------------------
+    | Cooldown after a fault
+    |------------------------------------------------------------------
+    |
+    | How long to stop asking after any fault. The fallback makes an outage
+    | survivable; this makes it cheap. Without it every reader paid the full
+    | timeout to rediscover the same outage, which put twenty seconds in
+    | front of a page otherwise served in about two hundred milliseconds.
+    |
+    | Zero disables the cooldown and asks every time.
+    |
+    */
+
+    'cooldown_minutes' => (int) env('GEMINI_COOLDOWN_MINUTES', 5),
+
 ];

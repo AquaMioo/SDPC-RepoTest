@@ -37,6 +37,9 @@ use Throwable;
  */
 class GeminiRecommendationService implements RecommendationService, ScoresFreeText, ScoresProjectsForText
 {
+    /** Set while the model is known to be unwell; see isCoolingDown(). */
+    protected const COOLDOWN_KEY = 'gemini.cooldown';
+
     public function __construct(
         protected ComputedRecommendationService $fallback,
         protected SkillInference $inference,
@@ -179,6 +182,37 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     }
 
     /**
+     * Whether a recent failure means we should not ask again yet.
+     *
+     * The fallback made every fault survivable, but not cheap: a failure was
+     * forgotten the moment it was handled, so the next reader paid the whole
+     * timeout to discover the same outage. With the API answering 503 that put
+     * twenty seconds in front of the board on EVERY load, for every student,
+     * for as long as the outage lasted — a page that is otherwise served in
+     * about two hundred milliseconds.
+     *
+     * One reader now pays for the discovery and everybody else is served by
+     * the computed scorer until the cooldown lapses.
+     */
+    protected function isCoolingDown(): bool
+    {
+        return Cache::has(self::COOLDOWN_KEY);
+    }
+
+    /**
+     * Stop asking for a while. Any fault counts — a refusal is as good a
+     * reason to leave it alone as a timeout is.
+     */
+    protected function beginCooldown(): void
+    {
+        $minutes = (int) config('gemini.cooldown_minutes');
+
+        if ($minutes > 0) {
+            Cache::put(self::COOLDOWN_KEY, true, now()->addMinutes($minutes));
+        }
+    }
+
+    /**
      * Render a payload fragment as readable JSON for the prompt.
      *
      * Pretty-printed and with slashes left alone: the model reads this, and
@@ -282,7 +316,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      */
     protected function rankBriefs(string $reader, Collection $briefs, string $cacheKey, callable $fallback): Collection
     {
-        if (! $this->isConfigured() || $briefs->isEmpty()) {
+        if (! $this->isConfigured() || $briefs->isEmpty() || $this->isCoolingDown()) {
             return $fallback();
         }
 
@@ -296,6 +330,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
 
         if ($judgements === null) {
             Cache::forget($cacheKey);
+            $this->beginCooldown();
 
             return $fallback();
         }
@@ -362,7 +397,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      */
     protected function rank(string $brief, Collection $candidates, string $cacheKey, callable $fallback): Collection
     {
-        if (! $this->isConfigured() || $candidates->isEmpty()) {
+        if (! $this->isConfigured() || $candidates->isEmpty() || $this->isCoolingDown()) {
             return $fallback();
         }
 
@@ -378,6 +413,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         if ($judgements === null) {
             /* Never cache a failure as an answer. */
             Cache::forget($cacheKey);
+            $this->beginCooldown();
 
             return $fallback();
         }

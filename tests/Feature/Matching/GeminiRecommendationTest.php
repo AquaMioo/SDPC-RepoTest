@@ -125,6 +125,59 @@ class GeminiRecommendationTest extends TestCase
         $this->assertEquals($this->computedScoresFor($project), $scores->all());
     }
 
+    public function test_an_outage_is_discovered_once_not_by_every_reader(): void
+    {
+        [$project, $student] = $this->briefAndStudent();
+
+        Http::fake(['*' => Http::response('upstream is down', 503)]);
+
+        $service = $this->app->make(RecommendationService::class);
+
+        /*
+         * The fallback made a fault survivable but not cheap: it was forgotten
+         * as soon as it was handled, so the next reader paid the whole timeout
+         * to rediscover the same outage. With the API answering 503 that put
+         * the timeout in front of the board on every single load.
+         */
+        $service->scoresFor($project);
+        $service->scoresFor($project);
+        $service->scoresFor($project);
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_the_model_is_asked_again_once_the_cooldown_lapses(): void
+    {
+        [$project, $student] = $this->briefAndStudent();
+
+        Http::fake(['*' => Http::response('upstream is down', 503)]);
+
+        $service = $this->app->make(RecommendationService::class);
+        $service->scoresFor($project);
+
+        $this->travel((int) config('gemini.cooldown_minutes') + 1)->minutes();
+
+        $service->scoresFor($project);
+
+        /* An outage is a pause, never a switch somebody has to come and flip. */
+        Http::assertSentCount(2);
+    }
+
+    public function test_a_cooldown_of_zero_asks_every_time(): void
+    {
+        config()->set('gemini.cooldown_minutes', 0);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        Http::fake(['*' => Http::response('upstream is down', 503)]);
+
+        $service = $this->app->make(RecommendationService::class);
+        $service->scoresFor($project);
+        $service->scoresFor($project);
+
+        Http::assertSentCount(2);
+    }
+
     public function test_a_reply_in_the_wrong_shape_falls_back(): void
     {
         [$project, $student] = $this->briefAndStudent();
