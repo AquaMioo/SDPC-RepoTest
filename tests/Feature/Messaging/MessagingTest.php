@@ -11,6 +11,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\Project;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Contracts\Broadcasting\Broadcaster;
@@ -387,6 +388,108 @@ class MessagingTest extends TestCase
         $this->actingAs($stranger)
             ->get(route('messages.index', ['current_team' => $stranger->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page->has('threads', 0));
+    }
+
+    public function test_a_teammate_the_leader_invited_shares_the_thread(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+
+        $team = Team::factory()->create();
+        $team->members()->attach($student, ['role' => TeamRole::Owner->value]);
+        $student->switchTeam($team);
+
+        $conversation = $this->thread($project, $student->fresh());
+        $conversation->adoptStudentTeam();
+
+        /* The leader invites: the existing team invitation, nothing new. */
+        $teammate = User::factory()->student()->approved()->create();
+        $team->members()->attach($teammate, ['role' => TeamRole::Member->value]);
+        $teammate->switchTeam($team);
+
+        $conversation->messages()->create([
+            'user_id' => $student->id,
+            'body' => 'Kicking off tomorrow',
+        ]);
+
+        $this->actingAs($teammate)
+            ->get(route('messages.show', [
+                'current_team' => $team,
+                'conversation' => $conversation,
+            ]))
+            ->assertOk();
+
+        $this->actingAs($teammate)
+            ->post(route('messages.send', [
+                'current_team' => $team,
+                'conversation' => $conversation,
+            ]), ['body' => 'On it.'])
+            ->assertRedirect();
+
+        $this->assertSame(2, $conversation->messages()->count());
+    }
+
+    public function test_the_thread_reaches_a_teammates_inbox(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+
+        $team = Team::factory()->create();
+        $team->members()->attach($student, ['role' => TeamRole::Owner->value]);
+        $student->switchTeam($team);
+
+        $conversation = $this->thread($project, $student->fresh());
+        $conversation->adoptStudentTeam();
+
+        $teammate = User::factory()->student()->approved()->create();
+        $team->members()->attach($teammate, ['role' => TeamRole::Member->value]);
+        $teammate->switchTeam($team);
+
+        $this->actingAs($teammate)
+            ->get(route('messages.index', ['current_team' => $team]))
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('threads', 1));
+    }
+
+    public function test_a_student_on_another_team_is_still_a_stranger(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+
+        $team = Team::factory()->create();
+        $team->members()->attach($student, ['role' => TeamRole::Owner->value]);
+        $student->switchTeam($team);
+
+        $conversation = $this->thread($project, $student->fresh());
+        $conversation->adoptStudentTeam();
+
+        /* Somebody with a team of their own, not this one. */
+        $outsider = User::factory()->student()->approved()->create();
+        $theirs = Team::factory()->create();
+        $theirs->members()->attach($outsider, ['role' => TeamRole::Owner->value]);
+        $outsider->switchTeam($theirs);
+
+        $this->actingAs($outsider)
+            ->get(route('messages.show', [
+                'current_team' => $theirs,
+                'conversation' => $conversation,
+            ]))
+            ->assertForbidden();
+
+        $this->actingAs($outsider)
+            ->get(route('messages.index', ['current_team' => $theirs]))
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('threads', 0));
+    }
+
+    public function test_a_student_working_alone_keeps_the_thread_to_themselves(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        /*
+         * A personal team is one person. Recording it would say nothing the
+         * user_id does not already say, while making the thread look like a
+         * group it is not.
+         */
+        $conversation->adoptStudentTeam();
+
+        $this->assertNull($conversation->fresh()->student_team_id);
     }
 
     public function test_a_colleague_on_the_business_team_shares_the_thread(): void

@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $project_id
  * @property int $user_id
+ * @property int|null $student_team_id
  * @property Carbon|null $last_message_at
  * @property int|null $client_read_message_id
  * @property int|null $student_read_message_id
@@ -58,6 +59,18 @@ class Conversation extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * The student team this thread belongs to, when there is one.
+     *
+     * Null means the student is working alone: only they see it from that
+     * side. Set, it means the leader brought their team in, and every member
+     * reads and writes here exactly as the business team already does.
+     */
+    public function studentTeam(): BelongsTo
+    {
+        return $this->belongsTo(Team::class, 'student_team_id');
     }
 
     /**
@@ -103,7 +116,47 @@ class Conversation extends Model
             return true;
         }
 
+        /*
+         * The student's team, if the thread has one. Membership is read live
+         * rather than copied in, so somebody the leader invites tomorrow can
+         * read the thread tomorrow — the invitation is the existing team
+         * invitation, and this is all that has to notice it.
+         */
+        $studentTeam = $this->studentTeam;
+
+        if ($studentTeam !== null && $user->belongsToTeam($studentTeam)) {
+            return true;
+        }
+
         return $user->belongsToTeam($this->project->team);
+    }
+
+    /**
+     * Attach the student's team to this thread, if they have one and it has
+     * none yet.
+     *
+     * Threads opened before the student formed a team would otherwise never
+     * gain one, and the leader would invite people into a group that could
+     * not see the conversation it was for. Adopting once, on open, fixes
+     * those without a backfill nobody would remember to run.
+     *
+     * Only a real team: a personal team is one person, and recording it would
+     * say nothing user_id does not already say — while making the thread look
+     * like a group that it is not.
+     */
+    public function adoptStudentTeam(): void
+    {
+        if ($this->student_team_id !== null) {
+            return;
+        }
+
+        $team = $this->student?->currentTeam;
+
+        if ($team === null || $team->is_personal) {
+            return;
+        }
+
+        $this->forceFill(['student_team_id' => $team->id])->save();
     }
 
     /**
@@ -181,6 +234,8 @@ class Conversation extends Model
     {
         $query->where(fn (Builder $inner) => $inner
             ->where('user_id', $user->id)
+            ->orWhereHas('studentTeam.members', fn (Builder $member) => $member
+                ->where('users.id', $user->id))
             ->orWhereHas('project.team.members', fn (Builder $member) => $member
                 ->where('users.id', $user->id)));
     }

@@ -99,6 +99,13 @@ class ConversationController extends Controller
         if ($active !== null) {
             abort_unless($active->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
+            /*
+             * A thread opened before the student had a team would never gain
+             * one, and the leader would be inviting people into a group that
+             * could not see the conversation it was for.
+             */
+            $active->adoptStudentTeam();
+
             // Reactions come with the messages: without this the summary runs
             // a query per bubble.
             $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student']);
@@ -207,6 +214,9 @@ class ConversationController extends Controller
             'project_id' => $project->id,
             'user_id' => $student->id,
         ]);
+
+        /* Whoever the student is working with comes in with them. */
+        $conversation->adoptStudentTeam();
 
         return redirect()->route('messages.show', [
             'current_team' => $currentTeam,
