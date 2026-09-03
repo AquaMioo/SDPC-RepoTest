@@ -1,4 +1,6 @@
 import { createInertiaApp } from '@inertiajs/react';
+import { configureEcho } from '@laravel/echo-react';
+import NavigationSkeleton from '@/components/sdpc/navigation-skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import AdminLayout from '@/layouts/admin-layout';
@@ -7,7 +9,6 @@ import AuthLayout from '@/layouts/auth-layout';
 import ClientLayout from '@/layouts/client/client-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import SettingsShell from '@/layouts/settings/shell';
-import { configureEcho } from '@laravel/echo-react';
 
 configureEcho({
     broadcaster: 'reverb',
@@ -62,6 +63,7 @@ createInertiaApp({
         return (
             <TooltipProvider delayDuration={0}>
                 {app}
+                <NavigationSkeleton />
                 <Toaster />
             </TooltipProvider>
         );
