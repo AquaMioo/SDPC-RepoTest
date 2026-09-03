@@ -1,0 +1,5 @@
+# The links themselves are made at boot by `php artisan storage:link`; this
+# file only keeps the directory in the repository so they have somewhere to go.
+# See config/filesystems.php for why they are per directory.
+*
+!.gitignore

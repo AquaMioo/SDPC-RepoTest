@@ -272,6 +272,132 @@ class MessagingTest extends TestCase
         $this->assertSame(0, Message::count());
     }
 
+    public function test_an_attachment_is_read_through_the_thread_not_off_the_disk(): void
+    {
+        Storage::fake('public');
+
+        [$client, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        $path = UploadedFile::fake()
+            ->image('erd.jpg')
+            ->store('message-images/'.$conversation->id, 'public');
+
+        $message = $conversation->messages()->create([
+            'user_id' => $student->id,
+            'body' => null,
+            'attachment_path' => $path,
+        ]);
+
+        /* Both sides of the thread can see it. */
+        foreach ([$student, $client] as $participant) {
+            $this->actingAs($participant)
+                ->get(route('messages.image', [
+                    'current_team' => $participant->currentTeam,
+                    'conversation' => $conversation,
+                    'message' => $message,
+                ]))
+                ->assertOk();
+        }
+
+        /*
+         * Nobody else. The file used to be a plain static path on a published
+         * disk, so this was a 200 for anyone holding the URL, signed out.
+         */
+        $stranger = User::factory()->student()->approved()->create();
+
+        $this->actingAs($stranger)
+            ->get(route('messages.image', [
+                'current_team' => $stranger->currentTeam,
+                'conversation' => $conversation,
+                'message' => $message,
+            ]))
+            ->assertForbidden();
+
+    }
+
+    public function test_a_guest_can_not_read_an_attachment(): void
+    {
+        Storage::fake('public');
+
+        [, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        $message = $conversation->messages()->create([
+            'user_id' => $student->id,
+            'body' => null,
+            'attachment_path' => UploadedFile::fake()
+                ->image('erd.jpg')
+                ->store('message-images/'.$conversation->id, 'public'),
+        ]);
+
+        /* Its own test: actingAs sticks for the rest of a method. */
+        $this->get(route('messages.image', [
+            'current_team' => $student->currentTeam,
+            'conversation' => $conversation,
+            'message' => $message,
+        ]))->assertRedirect(route('login'));
+    }
+
+    public function test_an_attachment_id_from_another_thread_does_not_resolve(): void
+    {
+        Storage::fake('public');
+
+        [$client, $student, $project] = $this->pair(applied: true);
+        $mine = $this->thread($project, $student);
+
+        [, $otherStudent, $otherProject] = $this->pair(applied: true);
+        $theirs = $this->thread($otherProject, $otherStudent);
+
+        $elsewhere = $theirs->messages()->create([
+            'user_id' => $otherStudent->id,
+            'body' => null,
+            'attachment_path' => UploadedFile::fake()
+                ->image('private.jpg')
+                ->store('message-images/'.$theirs->id, 'public'),
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('messages.image', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $mine,
+                'message' => $elsewhere,
+            ]))
+            ->assertNotFound();
+    }
+
+    public function test_a_removed_message_stops_serving_its_picture(): void
+    {
+        Storage::fake('public');
+
+        [$client, $student, $project] = $this->pair(applied: true);
+        $conversation = $this->thread($project, $student);
+
+        $message = $conversation->messages()->create([
+            'user_id' => $student->id,
+            'body' => null,
+            'attachment_path' => UploadedFile::fake()
+                ->image('draft.jpg')
+                ->store('message-images/'.$conversation->id, 'public'),
+        ]);
+
+        $this->actingAs($student)
+            ->delete(route('messages.remove', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $conversation,
+                'message' => $message,
+            ]));
+
+        /* Taking a message back has to take the picture with it. */
+        $this->actingAs($client)
+            ->get(route('messages.image', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $conversation,
+                'message' => $message,
+            ]))
+            ->assertNotFound();
+    }
+
     public function test_a_stranger_can_not_edit_remove_or_react_to_a_message(): void
     {
         [$client, $student, $project] = $this->pair(applied: true);

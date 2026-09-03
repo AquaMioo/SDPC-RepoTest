@@ -74,7 +74,26 @@ return [
     */
 
     'links' => [
-        public_path('storage') => storage_path('app/public'),
+        /*
+         * Linked per directory, not wholesale.
+         *
+         * public_path('storage') => storage_path('app/public') published
+         * EVERYTHING on the disk, and message attachments live on it — so a
+         * picture sent inside a private conversation was fetchable by anyone
+         * holding the URL, signed out, with no participant check anywhere in
+         * the path. Confirmed by fetching one with no cookies: 200, 132KB.
+         *
+         * The files cannot simply move: the Railway volume is mounted at
+         * storage/app/public, and anything written outside it is on the
+         * container's own disk and disappears on the next deploy. So the
+         * publishing narrows instead. Avatars and business logos are meant to
+         * be public — a logo is drawn on the landing page — and message
+         * images are served by a route that checks the thread.
+         *
+         * Adding a directory here publishes it. Do not add message-images.
+         */
+        public_path('storage/avatars') => storage_path('app/public/avatars'),
+        public_path('storage/business-logos') => storage_path('app/public/business-logos'),
     ],
 
 ];

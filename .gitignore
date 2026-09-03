@@ -4,7 +4,8 @@
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
-/public/storage
+/public/storage/*
+!/public/storage/.gitignore
 /storage/*.key
 /storage/pail
 /resources/js/actions

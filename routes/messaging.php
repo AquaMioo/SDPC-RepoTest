@@ -31,6 +31,16 @@ Route::prefix('{current_team}')
         Route::post('messages/{conversation}/{message}/reactions', [ConversationController::class, 'react'])->name('messages.react');
 
         /*
+         * An attachment is read through the thread, never off the disk.
+         *
+         * The file lives on the public disk because that is where the volume
+         * is mounted, but the disk is no longer published wholesale — see
+         * config/filesystems.php. This is the only way to it, and it runs the
+         * same participant check as the thread it belongs to.
+         */
+        Route::get('messages/{conversation}/{message}/image', [ConversationController::class, 'image'])->name('messages.image');
+
+        /*
          * Video meetings, on the same thread and behind the same participant
          * check. They 404 while config('agora.enabled') is false, so the
          * module is absent rather than offering a call that cannot be placed.

@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Messaging, shared by both modules.
@@ -41,6 +42,44 @@ class ConversationController extends Controller
         private readonly AnnounceMessage $announce,
         private readonly NotifyOfMessage $notify,
     ) {}
+
+    /**
+     * Serve one message's picture, to somebody entitled to read the thread.
+     *
+     * Storage::disk('public')->url() handed out a plain static path, and the
+     * web server answered it with no session and no check — a picture sent
+     * inside a private conversation was readable by anybody holding the URL,
+     * signed out. This is the same file behind the same gate as the words
+     * around it.
+     */
+    public function image(
+        Request $request,
+        Team $currentTeam,
+        Conversation $conversation,
+        Message $message,
+    ): StreamedResponse {
+        $user = $request->user();
+
+        abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+
+        // A message id from another thread must not resolve here.
+        abort_unless($message->conversation_id === $conversation->id, HttpResponse::HTTP_NOT_FOUND);
+
+        abort_if($message->attachment_path === null, HttpResponse::HTTP_NOT_FOUND);
+        abort_if($message->isRemoved(), HttpResponse::HTTP_NOT_FOUND);
+
+        $disk = Storage::disk('public');
+
+        abort_unless($disk->exists($message->attachment_path), HttpResponse::HTTP_NOT_FOUND);
+
+        /*
+         * private, and no store: this is somebody's conversation, and a shared
+         * cache holding it would undo the check above for the next reader.
+         */
+        return $disk->response($message->attachment_path, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
+    }
 
     /**
      * The state of the work this thread is about.
@@ -156,7 +195,11 @@ class ConversationController extends Controller
                     'editableUntil' => $message->editableUntilMs(),
                     'imageUrl' => $message->attachment_path === null
                         ? null
-                        : Storage::disk('public')->url($message->attachment_path),
+                        : route('messages.image', [
+                            'current_team' => $currentTeam,
+                            'conversation' => $active,
+                            'message' => $message,
+                        ]),
                     'reactions' => $message->reactionSummary($user),
                 ])->values()->all(),
                 /*
