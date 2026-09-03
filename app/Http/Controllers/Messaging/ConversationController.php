@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMessage;
 use App\Actions\Messaging\NotifyOfMessage;
+use App\Enums\MilestoneStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Messaging\EditMessageRequest;
 use App\Http\Requests\Messaging\ReactToMessageRequest;
 use App\Http\Requests\Messaging\SendMessageRequest;
+use App\Models\AgreementMilestone;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Meeting;
@@ -39,6 +41,44 @@ class ConversationController extends Controller
         private readonly AnnounceMessage $announce,
         private readonly NotifyOfMessage $notify,
     ) {}
+
+    /**
+     * The state of the work this thread is about.
+     *
+     * Null when there is no agreement yet: two people can be talking well
+     * before anything is signed, and an empty progress ring beside that
+     * conversation would be reporting on something that does not exist.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function intel(Conversation $conversation): ?array
+    {
+        $agreement = $conversation->project->agreements()
+            ->with('milestones')
+            ->latest('id')
+            ->first();
+
+        if ($agreement === null || $agreement->milestones->isEmpty()) {
+            return null;
+        }
+
+        /* The one being worked on: the first the client has not accepted. */
+        $current = $agreement->milestones
+            ->sortBy('position')
+            ->firstWhere(fn (AgreementMilestone $milestone): bool => $milestone->status !== MilestoneStatus::Approved);
+
+        $open = $agreement->milestones
+            ->filter(fn (AgreementMilestone $milestone): bool => $milestone->status !== MilestoneStatus::Approved)
+            ->count();
+
+        return [
+            'title' => $current?->title,
+            'progress' => $agreement->progress(),
+            'due' => $current?->ends_on?->format('j M'),
+            'open' => $open,
+            'reference' => $agreement->reference,
+        ];
+    }
 
     /**
      * Show the inbox, with one thread open.
@@ -112,6 +152,14 @@ class ConversationController extends Controller
                         : Storage::disk('public')->url($message->attachment_path),
                     'reactions' => $message->reactionSummary($user),
                 ])->values()->all(),
+                /*
+                 * What the thread is actually about, beside it. Every figure
+                 * here is read off the agreement — there is no panel of
+                 * "recent files" or "shared links" because the platform
+                 * stores neither, and a panel of invented rows is worse than
+                 * no panel at all.
+                 */
+                'intel' => $this->intel($active),
                 // The picker's buttons, so the set lives in one place.
                 'reactionChoices' => MessageReaction::ALLOWED,
             ],

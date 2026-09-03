@@ -991,3 +991,17 @@ button[data-day][aria-pressed="true"] { border-color: var(--color-accent); }
 @media (prefers-reduced-motion: reduce) {
   .sweep { display: none; }
 }
+
+/* The inbox: list, thread, and what the thread is about. Stacked until there
+   is room for all three, because two of them are context rather than content
+   and a phone should spend its width on the conversation itself. */
+.msg-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .msg-grid { grid-template-columns: 300px minmax(0, 1fr); }
+}
+@media (min-width: 1360px) {
+  .msg-grid { grid-template-columns: 300px minmax(0, 1fr) 300px; }
+}

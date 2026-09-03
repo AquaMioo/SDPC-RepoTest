@@ -154,9 +154,15 @@ function chime(direction: 'on' | 'off'): void {
 export default function VideoCall({
     credentials,
     onLeave,
+    title,
+    participant,
 }: {
     credentials: MeetingCredentials;
     onLeave: () => void;
+    /** What the call is about — the posting both sides are here for. */
+    title: string;
+    /** Who is on the other end, named while you wait for them. */
+    participant: string;
 }) {
     const [stage, setStage] = useState<Stage>('connecting');
     const [failure, setFailure] = useState<{
@@ -175,6 +181,9 @@ export default function VideoCall({
     const [sharing, setSharing] = useState(false);
     const [peers, setPeers] = useState(0);
 
+    /* Seconds since the call went live, for the clock in the corner. */
+    const [elapsed, setElapsed] = useState(0);
+
     /* Says what is missing, without turning it into a failed call. */
     const [deviceNote, setDeviceNote] = useState<string | null>(null);
 
@@ -185,6 +194,21 @@ export default function VideoCall({
     const micTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const cameraTrack = useRef<ICameraVideoTrack | null>(null);
     const screenTrack = useRef<ILocalVideoTrack | null>(null);
+
+    /*
+     * The clock only runs once there is a call to time. Started off `stage`
+     * rather than mount, so the seconds spent asking for a camera are not
+     * counted as time in the meeting.
+     */
+    useEffect(() => {
+        if (stage !== 'live') {
+            return;
+        }
+
+        const id = window.setInterval(() => setElapsed((s) => s + 1), 1000);
+
+        return () => clearInterval(id);
+    }, [stage]);
 
     /**
      * Tear everything down. Safe to call twice — leaving and unmounting both
@@ -532,6 +556,13 @@ export default function VideoCall({
         onLeave();
     };
 
+    const clock =
+        String(Math.floor(elapsed / 60)).padStart(2, '0') +
+        ':' +
+        String(elapsed % 60).padStart(2, '0');
+
+    const initial = participant.trim().charAt(0).toUpperCase() || '?';
+
     return (
         <div
             role="dialog"
@@ -541,37 +572,56 @@ export default function VideoCall({
                 position: 'fixed',
                 inset: 0,
                 zIndex: 60,
-                background: '#0d120f',
+                background: 'var(--color-bg)',
+                color: 'var(--color-text)',
                 display: 'flex',
                 flexDirection: 'column',
             }}
         >
             <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                {/* What the call is about, and how long it has been running. */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        inset: '18px 20px auto 20px',
+                        zIndex: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        pointerEvents: 'none',
+                    }}
+                >
+                    <span style={PILL}>{title}</span>
+
+                    <span
+                        style={{
+                            ...PILL,
+                            marginLeft: 'auto',
+                            fontVariantNumeric: 'tabular-nums',
+                            color: MUTED,
+                        }}
+                        aria-label={`In the call for ${clock}`}
+                    >
+                        {clock}
+                    </span>
+                </div>
+
                 <div
                     ref={remoteRef}
                     aria-label="The other participant"
                     style={{
                         width: '100%',
                         height: '100%',
-                        background: '#0d120f',
+                        background: 'var(--color-bg)',
                     }}
                 />
 
                 {stage !== 'live' && (
-                    <div
-                        style={{
-                            position: 'absolute',
-                            inset: 0,
-                            display: 'grid',
-                            placeItems: 'center',
-                            color: '#e6efea',
-                            fontSize: 14,
-                            textAlign: 'center',
-                            padding: 24,
-                        }}
-                    >
+                    <div style={COVER}>
                         {stage === 'connecting' ? (
-                            'Connecting…'
+                            <span style={{ fontSize: 14, color: MUTED }}>
+                                Connecting…
+                            </span>
                         ) : (
                             <div
                                 style={{
@@ -580,6 +630,7 @@ export default function VideoCall({
                                     alignItems: 'center',
                                     gap: 10,
                                     maxWidth: 420,
+                                    textAlign: 'center',
                                 }}
                             >
                                 <span style={{ fontSize: 15 }}>
@@ -593,7 +644,7 @@ export default function VideoCall({
                                             style={{
                                                 fontSize: 13,
                                                 lineHeight: 1.5,
-                                                color: 'rgba(230,239,234,0.7)',
+                                                color: MUTED,
                                             }}
                                         >
                                             {failure.hint}
@@ -626,46 +677,119 @@ export default function VideoCall({
                     </div>
                 )}
 
+                {/*
+                 * Waiting names the person you are waiting for. "Waiting for
+                 * the other side" alone reads as though nobody is expected.
+                 */}
                 {stage === 'live' && peers === 0 && (
-                    <div
-                        style={{
-                            position: 'absolute',
-                            inset: 0,
-                            display: 'grid',
-                            placeItems: 'center',
-                            color: 'rgba(230,239,234,0.65)',
-                            fontSize: 14,
-                        }}
-                    >
-                        Waiting for the other side to join…
+                    <div style={COVER}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 14,
+                            }}
+                        >
+                            <span style={AVATAR}>{initial}</span>
+
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                }}
+                            >
+                                <span style={{ fontSize: 17 }}>
+                                    {participant}
+                                </span>
+                                <span style={{ fontSize: 13, color: MUTED }}>
+                                    Waiting for the other side to join…
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {/* Your own camera, small, over the corner. */}
                 <div
-                    ref={localRef}
-                    aria-label="Your camera"
                     style={{
                         position: 'absolute',
-                        right: 16,
-                        bottom: 16,
-                        width: 'clamp(120px, 22vw, 220px)',
+                        right: 18,
+                        bottom: 18,
+                        width: 'clamp(120px, 20vw, 200px)',
                         aspectRatio: '4 / 3',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         overflow: 'hidden',
-                        background: '#1b2f28',
-                        boxShadow: '0 6px 22px rgba(0,0,0,0.45)',
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-divider)',
+                        boxShadow: '0 6px 22px rgba(0,0,0,0.10)',
                     }}
-                />
+                >
+                    <div
+                        ref={localRef}
+                        aria-label="Your camera"
+                        style={{ width: '100%', height: '100%' }}
+                    />
+
+                    {/*
+                     * Sits over the frame rather than replacing it: the div
+                     * above is where Agora attaches the track, and swapping it
+                     * out on camera state would drop the element it plays into.
+                     */}
+                    {!cameraOn && (
+                        <span
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'grid',
+                                placeItems: 'center',
+                                color: MUTED,
+                                fontSize: 20,
+                            }}
+                        >
+                            <VideoCameraSlashIcon />
+                        </span>
+                    )}
+
+                    <span
+                        style={{
+                            position: 'absolute',
+                            left: 8,
+                            bottom: 6,
+                            fontSize: 11.5,
+                            color: MUTED,
+                        }}
+                    >
+                        You
+                    </span>
+
+                    {!micOn && (
+                        <span
+                            style={{
+                                position: 'absolute',
+                                right: 8,
+                                bottom: 6,
+                                fontSize: 13,
+                                color: MUTED,
+                            }}
+                            aria-label="Your microphone is muted"
+                        >
+                            <MicrophoneSlashIcon />
+                        </span>
+                    )}
+                </div>
             </div>
 
             {stage === 'live' && deviceNote !== null && (
                 <div
                     style={{
                         padding: '9px clamp(12px, 4vw, 24px)',
-                        background: '#1b2419',
-                        borderTop: '1px solid rgba(230,239,234,0.12)',
-                        color: 'rgba(230,239,234,0.8)',
+                        background:
+                            'color-mix(in srgb, var(--color-text) 6%, transparent)',
+                        borderTop: '1px solid var(--color-divider)',
+                        color: MUTED,
                         fontSize: 12.5,
                         textAlign: 'center',
                     }}
@@ -680,13 +804,14 @@ export default function VideoCall({
                     flexWrap: 'wrap',
                     gap: 10,
                     justifyContent: 'center',
-                    padding: '14px clamp(12px, 4vw, 24px)',
-                    background: '#111713',
-                    borderTop: '1px solid rgba(230,239,234,0.12)',
+                    padding: '16px clamp(12px, 4vw, 24px)',
+                    background: 'var(--color-surface)',
+                    borderTop: '1px solid var(--color-divider)',
                 }}
             >
                 <Btn
                     variant="secondary"
+                    style={CONTROL}
                     onClick={toggleMic}
                     disabled={stage !== 'live'}
                     aria-pressed={!micOn}
@@ -698,6 +823,7 @@ export default function VideoCall({
 
                 <Btn
                     variant="secondary"
+                    style={CONTROL}
                     onClick={toggleCamera}
                     disabled={stage !== 'live'}
                     aria-pressed={!cameraOn}
@@ -709,6 +835,7 @@ export default function VideoCall({
 
                 <Btn
                     variant="secondary"
+                    style={CONTROL}
                     onClick={toggleShare}
                     disabled={stage !== 'live'}
                     aria-pressed={sharing}
@@ -718,7 +845,16 @@ export default function VideoCall({
                     {sharing ? 'Stop sharing' : 'Share screen'}
                 </Btn>
 
-                <Btn variant="primary" onClick={leave} title="Leave the call">
+                <Btn
+                    variant="secondary"
+                    style={{
+                        ...CONTROL,
+                        background:
+                            'color-mix(in srgb, var(--color-text) 9%, transparent)',
+                    }}
+                    onClick={leave}
+                    title="Leave the call"
+                >
                     <PhoneDisconnectIcon />
                     Leave
                 </Btn>
@@ -726,3 +862,41 @@ export default function VideoCall({
         </div>
     );
 }
+
+const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
+
+/** The two labels floating over the call. */
+const PILL: React.CSSProperties = {
+    padding: '6px 14px',
+    borderRadius: 999,
+    fontSize: 12.5,
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)',
+};
+
+/** Anything drawn instead of a remote picture. */
+const COVER: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    display: 'grid',
+    placeItems: 'center',
+    padding: 24,
+};
+
+/** The stand-in for somebody who has not arrived yet. */
+const AVATAR: React.CSSProperties = {
+    width: 84,
+    height: 84,
+    borderRadius: '50%',
+    display: 'grid',
+    placeItems: 'center',
+    fontSize: 26,
+    color: 'var(--color-accent)',
+    background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)',
+};
+
+/** The call controls read as one row of pills. */
+const CONTROL: React.CSSProperties = {
+    borderRadius: 999,
+    paddingInline: 18,
+};

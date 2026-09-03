@@ -12,7 +12,8 @@ import { useEffect, useRef, useState } from 'react';
 import VideoCall from '@/components/messaging/video-call';
 import type { MeetingCredentials } from '@/components/messaging/video-call';
 import { Btn } from '@/components/sdpc/btn';
-import { Panel } from '@/components/sdpc/panel';
+import { Input } from '@/components/sdpc/input';
+import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
     store as startMeeting,
@@ -66,6 +67,14 @@ type Props = {
             reactions: { emoji: string; count: number; reacted: boolean }[];
         }[];
         reactionChoices: string[];
+        /** Null until there is a signed agreement to report on. */
+        intel: {
+            title: string | null;
+            progress: number;
+            due: string | null;
+            open: number;
+            reference: string;
+        } | null;
     } | null;
 };
 
@@ -125,6 +134,8 @@ function isEmojiOnly(message: {
  * honest about that rather than pretending to be live.
  */
 export default function Messages({ videoEnabled, threads, active }: Props) {
+    /* Filters what is already on screen; it never asks the server. */
+    const [find, setFind] = useState('');
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -483,12 +494,27 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
         );
     };
 
+    const needle = find.trim().toLowerCase();
+    const visible =
+        needle === ''
+            ? threads
+            : threads.filter(
+                  (thread) =>
+                      thread.title.toLowerCase().includes(needle) ||
+                      thread.subtitle.toLowerCase().includes(needle),
+              );
+
     return (
         <>
             <Head title="Messages" />
 
             {call !== null && (
-                <VideoCall credentials={call} onLeave={() => setCall(null)} />
+                <VideoCall
+                    credentials={call}
+                    onLeave={() => setCall(null)}
+                    title={active?.project ?? 'Call'}
+                    participant={active?.title ?? 'The other side'}
+                />
             )}
 
             <div
@@ -530,9 +556,8 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                     </Panel>
                 ) : (
                     <div
-                        className="split"
+                        className="msg-grid"
                         style={{
-                            ['--rail' as string]: '300px',
                             gap: 16,
                             /*
                              * Fills the space the header leaves. minHeight: 0
@@ -551,7 +576,55 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                             gap="none"
                             style={{ overflowY: 'auto', minHeight: 0 }}
                         >
-                            {threads.map((thread) => (
+                            <div
+                                style={{
+                                    padding: '13px 14px 11px',
+                                    borderBottom:
+                                        '1px solid var(--color-divider)',
+                                    position: 'sticky',
+                                    top: 0,
+                                    zIndex: 1,
+                                    background: 'var(--color-surface)',
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        display: 'block',
+                                        fontSize: 10,
+                                        letterSpacing: '.12em',
+                                        textTransform: 'uppercase',
+                                        color: MUTED(50),
+                                        marginBottom: 8,
+                                    }}
+                                >
+                                    Conversations
+                                </span>
+
+                                <Input
+                                    type="search"
+                                    value={find}
+                                    onChange={(event) =>
+                                        setFind(event.target.value)
+                                    }
+                                    placeholder="Find a chat…"
+                                    aria-label="Find a chat"
+                                    style={{ fontSize: 13 }}
+                                />
+                            </div>
+
+                            {visible.length === 0 && (
+                                <div
+                                    style={{
+                                        padding: '18px 16px',
+                                        fontSize: 12.5,
+                                        color: MUTED(60),
+                                    }}
+                                >
+                                    Nothing matches “{find}”.
+                                </div>
+                            )}
+
+                            {visible.map((thread) => (
                                 <button
                                     key={thread.id}
                                     type="button"
@@ -1404,6 +1477,123 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                                             </span>
                                         )}
                                     </div>
+                                )}
+                            </Panel>
+                        )}
+
+                        {active !== null && (
+                            <Panel
+                                padding="lg"
+                                gap="lg"
+                                style={{ overflowY: 'auto', minHeight: 0 }}
+                            >
+                                <PanelKicker>Project</PanelKicker>
+
+                                <div>
+                                    <div style={{ fontSize: 13.5 }}>
+                                        {active.project}
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: 12,
+                                            color: MUTED(60),
+                                        }}
+                                    >
+                                        with {active.title}
+                                    </div>
+                                </div>
+
+                                {active.intel === null ? (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: 12.5,
+                                            lineHeight: 1.6,
+                                            color: MUTED(62),
+                                        }}
+                                    >
+                                        Milestones appear here once an agreement
+                                        has been drafted for this project.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'baseline',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            <span style={{ fontSize: 12.5 }}>
+                                                {active.intel.title ??
+                                                    'All milestones approved'}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    marginLeft: 'auto',
+                                                    fontSize: 12.5,
+                                                    color: 'var(--color-accent)',
+                                                    fontVariantNumeric:
+                                                        'tabular-nums',
+                                                }}
+                                            >
+                                                {active.intel.progress}%
+                                            </span>
+                                        </div>
+
+                                        {/* The figure counts approvals only —
+                                            see Agreement::progress(). */}
+                                        <div
+                                            role="progressbar"
+                                            aria-valuenow={
+                                                active.intel.progress
+                                            }
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                            aria-label="Milestones approved"
+                                            style={{
+                                                height: 4,
+                                                borderRadius: 999,
+                                                background: MUTED(12),
+                                                overflow: 'hidden',
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    display: 'block',
+                                                    height: '100%',
+                                                    width: `${active.intel.progress}%`,
+                                                    background:
+                                                        'var(--color-accent)',
+                                                }}
+                                            />
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: MUTED(58),
+                                            }}
+                                        >
+                                            {active.intel.due !== null && (
+                                                <>Due {active.intel.due} · </>
+                                            )}
+                                            {active.intel.open}{' '}
+                                            {active.intel.open === 1
+                                                ? 'milestone'
+                                                : 'milestones'}{' '}
+                                            open
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: MUTED(50),
+                                            }}
+                                        >
+                                            Contract {active.intel.reference}
+                                        </div>
+                                    </>
                                 )}
                             </Panel>
                         )}
