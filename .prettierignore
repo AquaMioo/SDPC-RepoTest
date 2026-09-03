@@ -1,2 +1,8 @@
 resources/js/components/ui/*
 resources/views/mail/*
+
+# Nocturne is lifted verbatim from the design file and is the source of truth
+# for the platform's look — see its header. Prettier rewrites all 1,600 lines
+# of it (quotes, indentation, how unicode-range wraps), which destroys the
+# correspondence to the original and buries any real change in the diff.
+resources/css/nocturne.css
