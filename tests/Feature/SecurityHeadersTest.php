@@ -87,13 +87,38 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringContainsString('private', $cacheControl);
     }
 
-    public function test_a_guests_page_may_still_be_cached(): void
+    public function test_a_guest_only_page_is_never_kept_by_the_browser(): void
     {
         /*
-         * The login screen is the same for everybody, and there is nothing on
-         * it worth forbidding a browser to keep.
+         * The mirror of the case above, and the reason Back was broken. A
+         * login screen kept in history came back on the Back button while the
+         * session behind it was still live: the request never reached the app,
+         * so the guest middleware never got to redirect anybody, and the form
+         * invited the user to sign in as who they already were.
          */
         $cacheControl = $this->get(route('login'))->headers->get('Cache-Control');
+
+        $this->assertStringContainsString('no-store', $cacheControl);
+    }
+
+    public function test_the_admin_login_screen_is_not_kept_either(): void
+    {
+        // Every portal, not just the public one — the guard is read off the
+        // route's own middleware, so this holds for any login screen added later.
+        $cacheControl = $this->get(route('admin.login'))->headers->get('Cache-Control');
+
+        $this->assertStringContainsString('no-store', $cacheControl);
+    }
+
+    public function test_a_public_page_may_still_be_cached(): void
+    {
+        /*
+         * The landing page is the platform's shop window: the same for
+         * everybody signed in or out, and holding nothing worth forbidding a
+         * browser to keep. Previously this asserted the same of the login
+         * screen, which is what let the Back button replay it.
+         */
+        $cacheControl = $this->get(route('home'))->headers->get('Cache-Control');
 
         $this->assertStringNotContainsString('no-store', (string) $cacheControl);
     }

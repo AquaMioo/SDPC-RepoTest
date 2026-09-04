@@ -59,7 +59,7 @@ class AddSecurityHeaders
         );
 
         /*
-         * A signed-in page is never kept by the browser.
+         * Neither a signed-in page nor a guest-only one is kept by the browser.
          *
          * Without this the document sits in the back/forward cache and is
          * replayed without asking the server anything: sign out of the admin
@@ -68,14 +68,24 @@ class AddSecurityHeaders
          * had gone — but the numbers, the account list and the review queue
          * were all still legible.
          *
+         * The same cache broke the other direction. Sign IN, press Back, and
+         * the login form came back from history while the session was still
+         * live — the request never reached the app, so the guest middleware
+         * never got its chance to send an authenticated visitor home, and the
+         * screen sat there inviting somebody to log in as who they already
+         * were. Marking a guest-only route no-store turns that Back into a
+         * real request, which the middleware answers with a redirect to
+         * whichever portal the user belongs to. See the redirectTo closure in
+         * bootstrap/app.php, which is the single place that decides where.
+         *
          * no-store is what disables the back/forward cache; the other two are
          * for proxies and for browsers old enough to want Pragma. Inertia's
          * own history state is handled separately, by ClearInertiaHistory.
          *
-         * Only for a signed-in response: a guest's login screen and the public
-         * pages are the same for everybody and may be cached normally.
+         * The public pages are left cacheable: the landing page is the same
+         * for everybody, signed in or out, and holds nothing worth protecting.
          */
-        if ($request->user() !== null) {
+        if ($request->user() !== null || $this->isGuestOnly($request)) {
             $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
             $response->headers->set('Pragma', 'no-cache');
         }
@@ -91,5 +101,25 @@ class AddSecurityHeaders
         }
 
         return $response;
+    }
+
+    /**
+     * Whether the matched route is one only a signed-out visitor may see.
+     *
+     * Read off the route's own middleware rather than from a list of route
+     * names kept here, so every portal is covered at once and a login or
+     * registration screen added later is covered the day it is written. The
+     * guard is part of the string — `guest:web` — so this matches on the
+     * prefix rather than on equality.
+     */
+    private function isGuestOnly(Request $request): bool
+    {
+        foreach ($request->route()?->gatherMiddleware() ?? [] as $middleware) {
+            if (is_string($middleware) && str_starts_with($middleware, 'guest')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

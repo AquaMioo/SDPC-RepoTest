@@ -14,6 +14,8 @@ class PasskeyLoginResponse implements PasskeyLoginResponseContract
 
     public function toResponse($request): Response
     {
+        $this->forgetHistoryFromBeforeSignIn();
+
         $redirect = $this->redirectPathForCurrentTeam($request, Fortify::redirects('login'));
 
         return $request->wantsJson()
