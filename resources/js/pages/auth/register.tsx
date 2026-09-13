@@ -14,7 +14,7 @@ import RoleTransition, {
 } from '@/components/sdpc/role-transition';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
 import { Spinner } from '@/components/ui/spinner';
-import { login } from '@/routes';
+import { legal, login } from '@/routes';
 import { redirect as googleRedirect } from '@/routes/google';
 import { store } from '@/routes/register';
 import type { TeamInvitationContext } from '@/types';
@@ -535,9 +535,49 @@ export default function Register({
                                                 marginTop: 1,
                                             }}
                                         />
-                                        Yes, I understand and agree to the SDPC
-                                        Terms of Service, including the User
-                                        Agreement and Privacy Policy.
+                                        <span>
+                                            Yes, I understand and agree to the
+                                            SDPC{' '}
+                                            <a
+                                                href={legal.url(
+                                                    'terms-of-service',
+                                                )}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    color: 'var(--color-accent)',
+                                                }}
+                                            >
+                                                Terms of Service
+                                            </a>
+                                            , including the{' '}
+                                            <a
+                                                href={legal.url(
+                                                    'user-agreement',
+                                                )}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    color: 'var(--color-accent)',
+                                                }}
+                                            >
+                                                User Agreement
+                                            </a>{' '}
+                                            and{' '}
+                                            <a
+                                                href={legal.url(
+                                                    'privacy-policy',
+                                                )}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    color: 'var(--color-accent)',
+                                                }}
+                                            >
+                                                Privacy Policy
+                                            </a>
+                                            .
+                                        </span>
                                     </label>
                                     <InputError
                                         message={errors.terms}

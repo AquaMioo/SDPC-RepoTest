@@ -8,7 +8,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Controllers/Admin/AdminPostingController.php | .ai/rules/admin.md |
 | app/Actions/Agreements/** | .ai/rules/agreements.md |
 | app/Notifications/** | .ai/rules/app-notifications.md |
-| app/Http/Controllers/Auth/RegistrationController.php, app/Http/Controllers/Auth/AccountAppealController.php, app/Http/Middleware/EnsureAccountIsNotMonitored.php | .ai/rules/auth.md |
+| app/Http/Controllers/Auth/RegistrationController.php, app/Http/Controllers/Auth/AccountAppealController.php, app/Http/Middleware/EnsureAccountIsNotMonitored.php, app/Http/Middleware/** | .ai/rules/auth.md |
 | app/Http/Controllers/Client/StudentProfileController.php | .ai/rules/client.md |
 | resources/js/components/** | .ai/rules/components.md |
 | config/billing.php, config/sheerid.php | .ai/rules/config.md |

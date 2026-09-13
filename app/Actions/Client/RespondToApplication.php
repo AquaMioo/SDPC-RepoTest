@@ -5,6 +5,7 @@ namespace App\Actions\Client;
 use App\Actions\Agreements\DraftAgreement;
 use App\Enums\ApplicationStatus;
 use App\Models\Application;
+use App\Models\Conversation;
 use App\Models\User;
 use App\Notifications\Client\StudentAccepted;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,16 @@ class RespondToApplication
          */
         if ($status === ApplicationStatus::Accepted && $application->student->holdsProjectInHand()) {
             throw ValidationException::withMessages([
-                'status' => $application->student->name.' is already building another project and cannot take this one on yet.',
+                /*
+                 * Says what happened, what it means for them, and when it
+                 * changes — a refusal that only says no leaves the client
+                 * wondering whether to keep waiting on this student.
+                 *
+                 * "Committed to" rather than "signed for": the cap binds at
+                 * acceptance, so this fires for a student whose agreement is
+                 * still being drawn up and not yet signed by anybody.
+                 */
+                'status' => $application->student->name.' has already been taken on for another project, so they cannot be hired for this one yet. You can keep them shortlisted — they become available again once that build is finished.',
             ]);
         }
 
@@ -46,6 +56,26 @@ class RespondToApplication
 
             if ($status === ApplicationStatus::Accepted) {
                 $application->student->notify(new StudentAccepted($application));
+
+                /*
+                 * Open the thread on acceptance, the way inviting already does
+                 * in ProjectApplicationController.
+                 *
+                 * Only the invited path opened one before, so a student who
+                 * applied and was hired had an empty inbox: the client who had
+                 * just taken them on did not appear anywhere in Messages until
+                 * one of the two thought to press Message on the posting. The
+                 * introduction has happened by this point either way, so the
+                 * thread should exist either way.
+                 *
+                 * firstOrCreate because the pair may already have one — a
+                 * client who invited, was turned down, and later accepted an
+                 * application from the same student on the same posting.
+                 */
+                Conversation::firstOrCreate([
+                    'project_id' => $application->project_id,
+                    'user_id' => $application->user_id,
+                ]);
 
                 /*
                  * Acceptance no longer starts the project. It produces the

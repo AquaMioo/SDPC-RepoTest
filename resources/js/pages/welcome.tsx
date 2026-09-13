@@ -18,7 +18,7 @@ import type { ReactNode } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
 import PublicLayout from '@/layouts/public-layout';
-import { login, register } from '@/routes';
+import { legal, login, register } from '@/routes';
 import { login as adminLogin } from '@/routes/admin';
 
 const SHELL: React.CSSProperties = {
@@ -489,12 +489,28 @@ export default function Welcome({
 
                     <div
                         style={{
+                            display: 'flex',
+                            gap: 10,
                             fontSize: 12,
                             color: 'var(--color-accent-200)',
                             opacity: 0.75,
                         }}
                     >
-                        Terms of Service · Privacy
+                        <a
+                            href={legal.url('terms-of-service')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Terms of Service
+                        </a>
+                        <span aria-hidden="true">·</span>
+                        <a
+                            href={legal.url('privacy-policy')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Privacy
+                        </a>
                     </div>
                 </div>
             </div>

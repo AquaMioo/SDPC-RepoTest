@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -30,6 +31,14 @@ Route::pattern('current_team', '(?!(?:'.implode('|', array_map(
  * must render for signed-out visitors.
  */
 Route::get('/', HomeController::class)->name('home');
+
+/*
+ * The legal documents, equally public. Registered up here with the landing
+ * page rather than beside a module: the registration form asks people to agree
+ * to these before they have an account, so they cannot sit behind auth. The
+ * slug is resolved to a LegalDocument enum, so an unknown one 404s.
+ */
+Route::get('legal/{document}', LegalController::class)->name('legal');
 
 require __DIR__.'/auth.php';
 require __DIR__.'/admin.php';

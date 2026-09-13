@@ -94,11 +94,6 @@ type Props = {
  * the page unreadable as a profile, because everything was an input whether or
  * not you were changing it. Now it reads as the thing a client sees, and each
  * card opens its own dialog.
- *
- * "Public view" hides the edit affordances rather than fetching anything: the
- * client-facing screen lives behind EnsureUserIsClient, so a student cannot
- * actually open it, and showing them the same content without the pencils is
- * the honest version of the preview.
  */
 export default function StudentProfilePage({
     profile,
@@ -109,7 +104,6 @@ export default function StudentProfilePage({
     photoLimits,
     isVerifiedStudent,
 }: Props) {
-    const [publicView, setPublicView] = useState(false);
     const [photoOpen, setPhotoOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
     const [aboutOpen, setAboutOpen] = useState(false);
@@ -120,7 +114,14 @@ export default function StudentProfilePage({
     const [language, setLanguage] = useState<Language | null>(null);
     const [languageOpen, setLanguageOpen] = useState(false);
 
-    const editable = !publicView;
+    /*
+     * Always on. The "Public view" preview toggle was removed on the panel's
+     * instruction — this screen is the owner's own profile and every card
+     * carries its pencil. The shared cards below still accept an `editable`
+     * prop because they are reused, so the page hands them a constant rather
+     * than the prop being threaded away.
+     */
+    const editable = true;
 
     const openEducation = (entry: Education | null) => {
         setEducation(entry);
@@ -264,26 +265,6 @@ export default function StudentProfilePage({
                                 {studyLine}
                             </div>
                         )}
-                    </div>
-
-                    {/*
-                     * A preview rather than a link. The client-facing profile
-                     * is behind EnsureUserIsClient, so a student opening it
-                     * would be turned away by their own role.
-                     */}
-                    <div style={{ display: 'flex', flex: 'none', gap: 0 }}>
-                        <ViewTab
-                            active={!publicView}
-                            onClick={() => setPublicView(false)}
-                        >
-                            My view
-                        </ViewTab>
-                        <ViewTab
-                            active={publicView}
-                            onClick={() => setPublicView(true)}
-                        >
-                            Public view
-                        </ViewTab>
                     </div>
                 </Panel>
 
@@ -541,38 +522,6 @@ export default function StudentProfilePage({
 /** "1st", "2nd", "3rd", "4th" — the list only ever runs to four. */
 function ordinal(year: number): string {
     return { 1: 'st', 2: 'nd', 3: 'rd' }[year] ?? 'th';
-}
-
-/** One of the two segmented tabs above the profile. */
-function ViewTab({
-    active,
-    onClick,
-    children,
-}: {
-    active: boolean;
-    onClick: () => void;
-    children: ReactNode;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
-            style={{
-                padding: '6px 14px',
-                fontSize: 12.5,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-heading)',
-                border: '1px solid var(--color-divider)',
-                background: active
-                    ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
-                    : 'transparent',
-                color: active ? 'var(--color-accent)' : MUTED(60),
-            }}
-        >
-            {children}
-        </button>
-    );
 }
 
 /** The small round pencil the design hangs off every editable section. */

@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class TeamInvitationController extends Controller
@@ -24,6 +25,16 @@ class TeamInvitationController extends Controller
     public function store(CreateTeamInvitationRequest $request, Team $team): RedirectResponse
     {
         Gate::authorize('inviteMember', $team);
+
+        /*
+         * Seats, not members: an invitation already sent is a seat promised.
+         * See Team::remainingSeats().
+         */
+        if ($team->remainingSeats() < 1) {
+            throw ValidationException::withMessages([
+                'email' => 'This team is full. A team holds '.Team::MAX_MEMBERS.' people including you — remove somebody, or cancel an invitation you have already sent, to make room.',
+            ]);
+        }
 
         $invitation = $team->invitations()->create([
             'email' => $request->validated('email'),
@@ -72,6 +83,18 @@ class TeamInvitationController extends Controller
     public function accept(RespondToTeamInvitationRequest $request, TeamInvitation $invitation): RedirectResponse
     {
         $user = $request->user();
+
+        /*
+         * Checked again here, not only when the invitation was sent. An
+         * invitation can outlive the room it was sent for — somebody else
+         * accepts first, or the leader adds people directly — and the cap has
+         * to hold at the moment the seat is actually taken.
+         */
+        if ($invitation->team->isFull()) {
+            throw ValidationException::withMessages([
+                'invitation' => 'That team is already full, so this invitation can no longer be accepted. Ask whoever invited you to make room and send it again.',
+            ]);
+        }
 
         DB::transaction(function () use ($user, $invitation) {
             $team = $invitation->team;

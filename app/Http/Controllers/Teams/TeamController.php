@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Teams;
 
+use App\Actions\Teams\CollaboratingTeams;
 use App\Actions\Teams\CreateTeam;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
@@ -14,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,25 +24,57 @@ class TeamController extends Controller
     /**
      * Display a listing of the user's teams.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, CollaboratingTeams $collaborating): Response
     {
         $user = $request->user();
 
         return Inertia::render('teams/index', [
             'teams' => $user->toUserTeams(includeCurrent: true),
+            /*
+             * Nobody creates a team here any more.
+             *
+             * Every account is handed one at sign up, and nothing ever stopped
+             * that team being renamed or invited into — so it was already the
+             * student's team in everything but name, and a "New team" button
+             * beside it offered a second one nobody needed. Capping creation
+             * at one meant nothing while everyone began with one they had not
+             * created.
+             *
+             * So the team you have is the team you build with: rename it,
+             * invite up to three others, and it becomes a group the moment one
+             * of them accepts. One team per student is now true by
+             * construction rather than by a rule that had to be enforced.
+             */
+            'canCreateTeam' => false,
+            'createBlockedBecause' => $user->isClient()
+                ? null
+                : 'This is your team. Rename it and invite up to '.(Team::MAX_MEMBERS - 1).' others into it.',
+            'collaboratingTeams' => $user->isClient()
+                ? $collaborating->handle($user)
+                : [],
         ]);
     }
 
     /**
-     * Store a newly created team.
+     * Refuse to raise a second team.
+     *
+     * Nobody creates one on this platform. Every account is given a team at
+     * registration, and that team was always renameable and invitable — so it
+     * was already the team its owner builds with, and a second one served no
+     * purpose. A client's is their business, which owns the postings;
+     * a student's is the group they take a project on with.
+     *
+     * The endpoint is kept rather than deleted so an old bookmark, a stale
+     * bundle or a hand-made request gets an explanation instead of a 404 that
+     * looks like a fault.
      */
     public function store(SaveTeamRequest $request, CreateTeam $createTeam): RedirectResponse
     {
-        $team = $createTeam->handle($request->user(), $request->validated('name'));
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Team created.')]);
-
-        return to_route('teams.edit', ['team' => $team->slug]);
+        throw ValidationException::withMessages([
+            'name' => $request->user()->isClient()
+                ? 'A business has one team — the business itself, created when you registered.'
+                : 'You already have a team: the one you were given when you signed up. Open it to rename it and invite people in.',
+        ]);
     }
 
     /**

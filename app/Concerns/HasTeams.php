@@ -157,24 +157,32 @@ trait HasTeams
             role: $role?->value,
             roleLabel: $role?->label(),
             isCurrent: $this->isCurrentTeam($team),
+            memberCount: $team->members()->count(),
         );
     }
 
     /**
      * Get the standard permissions for a team as a TeamPermissions object.
      */
+    /**
+     * Get the standard permissions for a team as a TeamPermissions object.
+     *
+     * Routed through hasTeamPermission() rather than asking the role directly.
+     * The role alone does not know that a client administers no team, so
+     * reading it here would have drawn a Save button, an Invite member button
+     * and a Delete team panel that the policy then refused — the screen
+     * offering three things the server would not do.
+     */
     public function toTeamPermissions(Team $team): TeamPermissions
     {
-        $role = $this->teamRole($team);
-
         return new TeamPermissions(
-            canUpdateTeam: $role?->hasPermission(TeamPermission::UpdateTeam) ?? false,
-            canDeleteTeam: $role?->hasPermission(TeamPermission::DeleteTeam) ?? false,
-            canAddMember: $role?->hasPermission(TeamPermission::AddMember) ?? false,
-            canUpdateMember: $role?->hasPermission(TeamPermission::UpdateMember) ?? false,
-            canRemoveMember: $role?->hasPermission(TeamPermission::RemoveMember) ?? false,
-            canCreateInvitation: $role?->hasPermission(TeamPermission::CreateInvitation) ?? false,
-            canCancelInvitation: $role?->hasPermission(TeamPermission::CancelInvitation) ?? false,
+            canUpdateTeam: $this->hasTeamPermission($team, TeamPermission::UpdateTeam),
+            canDeleteTeam: $this->hasTeamPermission($team, TeamPermission::DeleteTeam),
+            canAddMember: $this->hasTeamPermission($team, TeamPermission::AddMember),
+            canUpdateMember: $this->hasTeamPermission($team, TeamPermission::UpdateMember),
+            canRemoveMember: $this->hasTeamPermission($team, TeamPermission::RemoveMember),
+            canCreateInvitation: $this->hasTeamPermission($team, TeamPermission::CreateInvitation),
+            canCancelInvitation: $this->hasTeamPermission($team, TeamPermission::CancelInvitation),
         );
     }
 
@@ -188,9 +196,24 @@ trait HasTeams
 
     /**
      * Determine if the user has the given permission on the team.
+     *
+     * A client administers no team. Theirs is the business they registered as
+     * — created once at sign up, holding only them, and owning the postings —
+     * so renaming it, inviting into it and deleting it are all closed to them.
+     * Everything the client module actually does (projects, applications, the
+     * business profile) is outside that group and untouched; see
+     * TeamPermission::isTeamAdministration().
+     *
+     * Enforced here rather than in TeamPolicy so that one rule covers the
+     * policy, the Gate calls in the controllers and the permissions the edit
+     * screen draws itself from.
      */
     public function hasTeamPermission(Team $team, TeamPermission $permission): bool
     {
+        if ($permission->isTeamAdministration() && $this->isClient()) {
+            return false;
+        }
+
         return $this->teamRole($team)?->hasPermission($permission) ?? false;
     }
 }

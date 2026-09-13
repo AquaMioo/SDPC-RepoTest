@@ -5,6 +5,7 @@ import {
     ImageIcon,
     PaperPlaneRightIcon,
     SmileyIcon,
+    UsersThreeIcon,
     VideoCameraIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +22,7 @@ import {
 } from '@/routes/meetings';
 import {
     edit as editMessage,
+    formGroup,
     react as reactToMessage,
     remove as removeMessageRoute,
     send as sendMessage,
@@ -40,9 +42,21 @@ type Thread = {
     isActive: boolean;
 };
 
+/** The group-chat control at the foot of the thread list. */
+type GroupState = {
+    /** The signed-in student owns the open thread and it is not a group yet. */
+    canFormGroup: boolean;
+    /** They belong to a real team — a personal one is not a group. */
+    hasTeam: boolean;
+    teamName: string | null;
+    isGroup: boolean;
+    groupName: string | null;
+};
+
 type Props = {
     /** False when the platform holds no Agora credentials. */
     videoEnabled: boolean;
+    group: GroupState;
     threads: Thread[];
     active: {
         id: number;
@@ -133,9 +147,15 @@ function isEmojiOnly(message: {
  * there is no websocket server in this stack, and a five second poll is
  * honest about that rather than pretending to be live.
  */
-export default function Messages({ videoEnabled, threads, active }: Props) {
+export default function Messages({
+    videoEnabled,
+    group,
+    threads,
+    active,
+}: Props) {
     /* Filters what is already on screen; it never asks the server. */
     const [find, setFind] = useState('');
+    const [formingGroup, setFormingGroup] = useState(false);
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -719,6 +739,75 @@ export default function Messages({ videoEnabled, threads, active }: Props) {
                                     )}
                                 </button>
                             ))}
+
+                            {/*
+                             * The foot of the list, under the last thread.
+                             * Only the student a thread belongs to sees it —
+                             * see the `group` prop in ConversationController.
+                             */}
+                            {group.canFormGroup && active !== null && (
+                                <div style={{ padding: '12px 14px' }}>
+                                    <Btn
+                                        variant="secondary"
+                                        style={{ width: '100%' }}
+                                        disabled={
+                                            !group.hasTeam || formingGroup
+                                        }
+                                        onClick={() =>
+                                            router.post(
+                                                formGroup.url({
+                                                    current_team: team.slug,
+                                                    conversation: active.id,
+                                                }),
+                                                {},
+                                                {
+                                                    preserveScroll: true,
+                                                    onStart: () =>
+                                                        setFormingGroup(true),
+                                                    onFinish: () =>
+                                                        setFormingGroup(false),
+                                                },
+                                            )
+                                        }
+                                    >
+                                        <UsersThreeIcon size={15} />
+                                        Create A Group Chat With Team And Client
+                                    </Btn>
+
+                                    {/*
+                                     * Says why rather than hiding: somebody
+                                     * without a team needs to be told that is
+                                     * the missing piece, and where to fix it.
+                                     */}
+                                    <div
+                                        style={{
+                                            fontSize: 11.5,
+                                            color: MUTED(60),
+                                            marginTop: 6,
+                                            lineHeight: 1.45,
+                                        }}
+                                    >
+                                        {group.hasTeam
+                                            ? `Brings ${group.teamName} into this thread. Everyone on the team reads and writes here, with the same client.`
+                                            : 'You need a team before you can start a group chat. Create one from Team in the header, then come back.'}
+                                    </div>
+                                </div>
+                            )}
+
+                            {group.isGroup && group.groupName && (
+                                <div
+                                    style={{
+                                        padding: '12px 14px',
+                                        fontSize: 11.5,
+                                        color: MUTED(60),
+                                        lineHeight: 1.45,
+                                    }}
+                                >
+                                    <UsersThreeIcon size={14} />{' '}
+                                    {group.groupName} is on this thread — every
+                                    member shares this client.
+                                </div>
+                            )}
                         </Panel>
 
                         {active !== null && (

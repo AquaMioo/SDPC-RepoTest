@@ -23,6 +23,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -122,12 +123,18 @@ class ConversationController extends Controller
     /**
      * Show the inbox, with one thread open.
      */
-    public function index(Request $request, Team $currentTeam, ?Conversation $conversation = null): Response
+    public function index(Request $request, Team $currentTeam, ?Conversation $conversation = null): Response|RedirectResponse
     {
         $user = $request->user();
 
+        /*
+         * visibleTo rather than forParticipant: a signed agreement closes the
+         * pairing off, and the threads either side opened while shopping
+         * around drop out of the inbox until it is finished. Nothing is
+         * deleted — see Conversation::visibleTo().
+         */
         $threads = Conversation::query()
-            ->forParticipant($user)
+            ->visibleTo($user)
             ->with(['project.team.clientProfile', 'student', 'latestMessage'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
@@ -139,6 +146,32 @@ class ConversationController extends Controller
             abort_unless($active->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
             /*
+             * A thread that has dropped out of the list is not opened by its
+             * own URL either — but this is a redirect and not a 404.
+             *
+             * 404 was wrong, and wrong in a way that cost an evening. The
+             * thread exists, the person asking is a participant of it, and the
+             * only reason it is not on screen is a rule the platform applied
+             * on their behalf. "Not found" tells them their messaging is
+             * broken. It fires on an ordinary bookmark, on the back button,
+             * and on any link written before the contract was signed — so it
+             * looked like the inbox failing at random rather than one thread
+             * being closed off on purpose.
+             */
+            if (! $threads->contains($active->getKey())) {
+                Inertia::flash('toast', [
+                    'type' => 'success',
+                    'message' => __('That conversation is closed while :name is under contract elsewhere. It comes back when that build is finished.', [
+                        'name' => $active->student->name,
+                    ]),
+                ]);
+
+                return redirect()->route('messages.index', [
+                    'current_team' => $currentTeam->slug,
+                ]);
+            }
+
+            /*
              * A thread opened before the student had a team would never gain
              * one, and the leader would be inviting people into a group that
              * could not see the conversation it was for.
@@ -147,7 +180,7 @@ class ConversationController extends Controller
 
             // Reactions come with the messages: without this the summary runs
             // a query per bubble.
-            $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student']);
+            $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student', 'studentTeam']);
             $active->markReadFor($user);
         }
 
@@ -160,6 +193,29 @@ class ConversationController extends Controller
             'videoEnabled' => (bool) config('agora.enabled')
                 && filled(config('agora.app_id'))
                 && filled(config('agora.app_certificate')),
+            /*
+             * The group-chat control at the foot of the thread list.
+             *
+             * Offered to the student a thread belongs to and to nobody else:
+             * the client cannot pull somebody else's team into it, and a team
+             * member reading a thread already brought in has none of their own
+             * to add. `hasTeam` is sent separately from `canFormGroup` so the
+             * button can say WHY it is unavailable rather than vanishing —
+             * "you have no team yet" is the answer somebody needs, and a
+             * missing button answers nothing.
+             */
+            'group' => [
+                'canFormGroup' => $active !== null
+                    && $active->user_id === $user->id
+                    && $active->student_team_id === null,
+                'hasTeam' => $user->currentTeam !== null
+                    && ! $user->currentTeam->isSolo(),
+                'teamName' => $user->currentTeam?->isSolo() === false
+                    ? $user->currentTeam->name
+                    : null,
+                'isGroup' => $active?->student_team_id !== null,
+                'groupName' => $active?->studentTeam?->name,
+            ],
             'threads' => $threads->map(fn (Conversation $thread) => [
                 'id' => $thread->id,
                 'title' => $this->counterpartName($thread, $user),
@@ -222,6 +278,49 @@ class ConversationController extends Controller
      * Called from the applicants screen on the client side and from a posting
      * on the student side, so neither has to know whether a thread exists yet.
      */
+    /**
+     * Bring the student's team into a thread.
+     *
+     * This is the whole of "group chat" on this platform: a thread carrying a
+     * student_team_id is read and written by every member of that team exactly
+     * as the business's side already is — Conversation::isParticipant and the
+     * forParticipant scope both check it. So the client the leader was talking
+     * to becomes the team's client, in the thread that already holds the
+     * history, rather than a second thread being opened beside it.
+     *
+     * Only the student the thread belongs to may do it. A client cannot pull
+     * somebody else's team into their own conversation, and a team member who
+     * is not the thread's student has no team of their own to bring.
+     */
+    public function formGroup(Request $request, Team $currentTeam, Conversation $conversation): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($conversation->user_id === $user->id, HttpResponse::HTTP_FORBIDDEN);
+
+        $team = $user->currentTeam;
+
+        /*
+         * A team of one is not a group. Read off the membership rather than
+         * is_personal — the team a student is handed at sign up is the team
+         * they build with, and it counts the moment somebody joins it.
+         */
+        if ($team === null || $team->isSolo()) {
+            throw ValidationException::withMessages([
+                'team' => 'Invite somebody to your team first — a group chat needs more than one person. You can invite from Team in the header.',
+            ]);
+        }
+
+        $conversation->forceFill(['student_team_id' => $team->id])->save();
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __(':team can now read and write this thread.', ['team' => $team->name]),
+        ]);
+
+        return back();
+    }
+
     public function store(Request $request, Team $currentTeam): RedirectResponse
     {
         $user = $request->user();

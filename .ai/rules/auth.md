@@ -3,6 +3,7 @@ paths:
   - app/Http/Controllers/Auth/RegistrationController.php
   - app/Http/Controllers/Auth/AccountAppealController.php
   - app/Http/Middleware/EnsureAccountIsNotMonitored.php
+  - 'app/Http/Middleware/**'
 ---
 
 # Auth
@@ -32,3 +33,14 @@ A code is only really sent when there is something to appeal, so anything derive
 Three leaked before they were closed: the rejected-code message (Missing vs Mismatch), the resend toast (decided on whether send() succeeded), and secondsUntilResend (read off the row, so only held accounts got a countdown on the button).
 
 So: the resend clock lives in the session under `appeal.code_sent_at`, written whether or not an email went out; the resend toast is decided by that clock alone; and every rejected code gets the single CODE_REJECTED message rather than OneTimePasswordResult::message(). Do not "improve" that message back into the specific one — the specificity is safe on registration, where a code is always sent, and is an account oracle here. Three tests in tests/Feature/Admin/AppealTest.php pin all three.
+
+## Back out of a portal and the session ends — all three parts are required
+Pressing Back on a dashboard and then Forward used to redraw it with nobody re-authenticated. Fixing it takes three pieces, and any one alone does nothing:
+
+1. AddSecurityHeaders sends no-store on guest-only routes as well as signed-in ones, read off the route's own middleware rather than a name list, so every portal is covered.
+2. Sign-in rotates Inertia's history key — see app/Http/Responses. Without this the browser never issues the request, and items 1 and 3 never run.
+3. EndSessionOnLoginScreen treats arriving at a login screen while signed in as the end of the visit: logout, invalidate, regenerate token, clearHistory.
+
+GET only — a POST that ended the session before Fortify read the credentials would make logging in impossible. Screens are matched by exact route name, not by a *.login pattern, because the two-factor challenge is also a *.login route and must stay reachable mid-sign-in.
+
+Known trade-off: this fires on any arrival at a login screen while signed in, not only on Back. A bookmark or a mailed "Log in" link ends the session too.

@@ -40,7 +40,7 @@ class RespondToInvitation
          */
         if ($application->student->holdsProjectInHand()) {
             throw ValidationException::withMessages([
-                'application' => 'You are already building another project, so you cannot take this one on yet.',
+                'application' => 'You have already been taken on for another project, so you cannot accept this one yet. The offer stays open on your workflow — finish that build and you can come back to it.',
             ]);
         }
 

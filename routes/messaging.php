@@ -21,6 +21,13 @@ Route::prefix('{current_team}')
         Route::post('messages/{conversation}', [ConversationController::class, 'send'])->name('messages.send');
 
         /*
+         * Bring the student's team into a thread, turning a one-to-one into a
+         * group chat with the client. Declared before the {message} routes
+         * below so the literal is not read as a message id.
+         */
+        Route::post('messages/{conversation}/team', [ConversationController::class, 'formGroup'])->name('messages.form-group');
+
+        /*
          * Acting on one message. Editing and removing belong to its sender;
          * reacting is open to either side. All three check the message belongs
          * to the thread named in the URL, so an id borrowed from another

@@ -16,3 +16,10 @@ Nocturne was drawn for a desktop canvas and had no @media rules at all. Screens 
 Two traps: `gridTemplateColumns: 'repeat(N,1fr)'` does NOT shrink past its content — use `repeat(auto-fit, minmax(190px,1fr))`, or `minmax(0,1fr)` when the column count is fixed (a 7-day calendar). And a fixed `width: 460` on a card overflows a 375px phone — write `width: '100%', maxWidth: 460`.
 
 Inline page gutters use `clamp(16px, 4vw, 32px)` rather than a bare `32px`.
+
+## A new top-level page needs a case in app.tsx's layout switch
+The layout resolver in resources/js/app.tsx ends in `default: return AppLayout`. Any page name that matches none of the cases above it is wrapped in the signed-in chrome, which reads the authenticated user and throws "Cannot read properties of null (reading 'avatar')" for a guest. The result is a blank white page with the content rendered nowhere.
+
+Nothing server-side sees this. The Inertia response is a correct 200 with the right component and props, so feature tests pass while every visitor gets a white screen. The legal pages shipped this way until they were opened in a browser.
+
+A public page that brings its own PublicLayout must get an explicit `case name === '<page>': return null;`, the way welcome, admin/login, auth/login and auth/register already do.

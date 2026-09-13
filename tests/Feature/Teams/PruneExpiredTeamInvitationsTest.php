@@ -17,7 +17,7 @@ class PruneExpiredTeamInvitationsTest extends TestCase
     {
         $this->travelTo(now()->startOfDay());
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);

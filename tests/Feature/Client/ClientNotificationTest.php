@@ -3,10 +3,12 @@
 namespace Tests\Feature\Client;
 
 use App\Actions\Client\RespondToApplication;
+use App\Enums\ApplicationSource;
 use App\Enums\ApplicationStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\TeamRole;
 use App\Models\Application;
+use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\Client\ApplicationReceived;
@@ -114,6 +116,72 @@ class ClientNotificationTest extends TestCase
             ->handle($application, ApplicationStatus::Accepted, $owner);
 
         Notification::assertSentTo($student, StudentAccepted::class);
+    }
+
+    /**
+     * Being hired is an introduction, so the thread exists from that moment.
+     *
+     * Only the invited path opened one before. A student who applied and was
+     * accepted had an empty inbox until one of the two pressed Message on the
+     * posting, so the client who had just taken them on appeared nowhere.
+     */
+    public function test_accepting_an_application_opens_the_thread(): void
+    {
+        Notification::fake();
+
+        $owner = User::factory()->verifiedBusiness()->create();
+        $student = User::factory()->student()->create();
+        $project = Project::factory()->create(['team_id' => $owner->current_team_id]);
+
+        $application = Application::factory()->create([
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+            'source' => ApplicationSource::Applied,
+        ]);
+
+        $this->assertDatabaseMissing('conversations', [
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+        ]);
+
+        app(RespondToApplication::class)
+            ->handle($application, ApplicationStatus::Accepted, $owner);
+
+        $this->assertDatabaseHas('conversations', [
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+        ]);
+    }
+
+    /**
+     * A pair may already hold a thread — invited, turned down, then accepted
+     * from an application on the same posting.
+     */
+    public function test_accepting_does_not_open_a_second_thread(): void
+    {
+        Notification::fake();
+
+        $owner = User::factory()->verifiedBusiness()->create();
+        $student = User::factory()->student()->create();
+        $project = Project::factory()->create(['team_id' => $owner->current_team_id]);
+
+        Conversation::create([
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+        ]);
+
+        $application = Application::factory()->create([
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+        ]);
+
+        app(RespondToApplication::class)
+            ->handle($application, ApplicationStatus::Accepted, $owner);
+
+        $this->assertSame(1, Conversation::query()
+            ->where('project_id', $project->id)
+            ->where('user_id', $student->id)
+            ->count());
     }
 
     public function test_accepting_a_student_drafts_an_agreement_without_starting_the_project(): void

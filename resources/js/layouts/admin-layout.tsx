@@ -103,7 +103,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             style={{
                                 fontFamily: 'var(--font-heading)',
                                 fontWeight: 600,
-                                fontSize: 18,
+                                fontSize: 20,
                                 letterSpacing: '-0.02em',
                                 color: 'var(--color-accent)',
                                 textDecoration: 'none',
@@ -111,9 +111,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         >
                             SDPC
                         </Link>
+                        {/*
+                         * No letter-spacing on the dash: .14em is trailing
+                         * space, so on a single character it all lands to the
+                         * right and the separator reads off-centre.
+                         */}
+                        <span aria-hidden="true" style={{ fontSize: 20, color: MUTED }}>
+                            -
+                        </span>
                         <span
                             style={{
-                                fontSize: 10,
+                                fontSize: 20,
                                 letterSpacing: '.14em',
                                 textTransform: 'uppercase',
                                 color: MUTED,

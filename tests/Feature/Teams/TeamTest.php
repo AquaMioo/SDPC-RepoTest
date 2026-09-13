@@ -2,7 +2,11 @@
 
 namespace Tests\Feature\Teams;
 
+use App\Actions\Teams\CreateTeam;
+use App\Enums\AgreementStatus;
+use App\Enums\TeamPermission;
 use App\Enums\TeamRole;
+use App\Models\Agreement;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +19,7 @@ class TeamTest extends TestCase
 
     public function test_the_teams_index_page_can_be_rendered()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
 
         $response = $this
             ->actingAs($user)
@@ -24,37 +28,281 @@ class TeamTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_teams_can_be_created()
+    /**
+     * The client's own screen carries the other side of the work.
+     */
+    public function test_a_client_sees_the_team_of_a_student_under_contract(): void
     {
-        $user = User::factory()->create();
+        $client = User::factory()->client()->create();
+        $student = User::factory()->student()->create();
 
-        $response = $this
-            ->actingAs($user)
-            ->post(route('teams.store'), [
-                'name' => 'Test Team',
-            ]);
+        Agreement::factory()->create([
+            'team_id' => $client->current_team_id,
+            'student_id' => $student->id,
+            'status' => AgreementStatus::Active,
+        ]);
 
-        $response->assertRedirect();
+        $this->actingAs($client)
+            ->get(route('teams.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('canCreateTeam', false)
+                ->has('collaboratingTeams', 1)
+                ->where('collaboratingTeams.0.name', $student->currentTeam->name)
+                ->where('collaboratingTeams.0.student', $student->name)
+                ->etc());
+    }
 
-        $this->assertDatabaseHas('teams', [
-            'name' => 'Test Team',
-            'is_personal' => false,
+    /**
+     * An application or an invitation is not a working relationship. Team
+     * membership is somebody else's to disclose until both sides have signed.
+     */
+    public function test_an_unsigned_agreement_does_not_expose_a_student_team(): void
+    {
+        $client = User::factory()->client()->create();
+        $student = User::factory()->student()->create();
+
+        Agreement::factory()->create([
+            'team_id' => $client->current_team_id,
+            'student_id' => $student->id,
+            'status' => AgreementStatus::AwaitingSignatures,
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('teams.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('collaboratingTeams', 0)
+                ->etc());
+    }
+
+    /**
+     * Nobody is offered a second team, because everybody already has one.
+     */
+    public function test_the_screen_offers_no_way_to_create_a_team(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->actingAs($student)
+            ->get(route('teams.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('canCreateTeam', false)
+                ->has('collaboratingTeams', 0)
+                ->etc());
+    }
+
+    /**
+     * One team per account, true by construction rather than by a rule.
+     *
+     * Registration hands every account exactly one, and that is the team its
+     * owner builds with — renameable and invitable from the day it exists. A
+     * second was never anything but a duplicate.
+     */
+    public function test_a_student_is_given_exactly_one_team_at_registration(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->assertCount(1, $student->teams()->get());
+        $this->assertTrue($student->ownsTeam($student->currentTeam));
+    }
+
+    public function test_a_student_may_not_raise_a_second_team(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->actingAs($student)
+            ->post(route('teams.store'), ['name' => 'Second Group'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertDatabaseMissing('teams', ['name' => 'Second Group']);
+        $this->assertCount(1, $student->fresh()->teams()->get());
+    }
+
+    /**
+     * Four people including the leader, so three invitations.
+     */
+    public function test_a_team_cannot_be_invited_past_its_seat_limit(): void
+    {
+        $leader = User::factory()->student()->create();
+        $team = Team::factory()->create(['is_personal' => false]);
+        $team->members()->attach($leader, ['role' => TeamRole::Owner->value]);
+        $leader->switchTeam($team);
+
+        foreach (range(1, Team::MAX_MEMBERS - 1) as $seat) {
+            $this->actingAs($leader)
+                ->post(route('teams.invitations.store', $team), [
+                    'email' => "mate{$seat}@example.com",
+                    'role' => TeamRole::LeadProgrammer->value,
+                ])
+                ->assertSessionHasNoErrors();
+        }
+
+        /* The fourth invitation would seat a fifth person. */
+        $this->actingAs($leader)
+            ->post(route('teams.invitations.store', $team), [
+                'email' => 'onetoomany@example.com',
+                'role' => TeamRole::LeadProgrammer->value,
+            ])
+            ->assertSessionHasErrors('email');
+
+        $this->assertDatabaseMissing('team_invitations', [
+            'email' => 'onetoomany@example.com',
         ]);
     }
 
+    /**
+     * A pending invitation holds a seat, or three sent to a team of two would
+     * seat five if everybody said yes.
+     */
+    public function test_pending_invitations_count_against_the_seats(): void
+    {
+        $leader = User::factory()->student()->create();
+        $team = Team::factory()->create(['is_personal' => false]);
+        $team->members()->attach($leader, ['role' => TeamRole::Owner->value]);
+        $leader->switchTeam($team);
+
+        $this->assertSame(Team::MAX_MEMBERS - 1, $team->remainingSeats());
+
+        $this->actingAs($leader)
+            ->post(route('teams.invitations.store', $team), [
+                'email' => 'pending@example.com',
+                'role' => TeamRole::LeadProgrammer->value,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(Team::MAX_MEMBERS - 2, $team->fresh()->remainingSeats());
+    }
+
+    /**
+     * A client's team is the business itself: it owns the postings, and
+     * ProjectPolicy counts unfinished ones against it. They get exactly one at
+     * registration and raise no others.
+     */
+    public function test_a_client_may_not_raise_a_team(): void
+    {
+        $client = User::factory()->client()->create();
+
+        $this->actingAs($client)
+            ->post(route('teams.store'), ['name' => 'Second Business'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertDatabaseMissing('teams', ['name' => 'Second Business']);
+    }
+
+    /**
+     * A client administers no team: the business is named once at sign up.
+     */
+    public function test_a_client_may_not_rename_their_team(): void
+    {
+        $client = User::factory()->client()->create();
+        $team = $client->currentTeam;
+
+        $this->actingAs($client)
+            ->patch(route('teams.update', ['team' => $team->slug]), [
+                'name' => 'Renamed Business',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('teams', [
+            'id' => $team->id,
+            'name' => $team->name,
+        ]);
+    }
+
+    public function test_a_client_may_not_invite_anybody_into_their_team(): void
+    {
+        $client = User::factory()->client()->create();
+
+        $this->actingAs($client)
+            ->post(route('teams.invitations.store', $client->currentTeam), [
+                'email' => 'someone@example.com',
+                /* Assignable, so validation passes and the Gate is what refuses. */
+                'role' => TeamRole::LeadProgrammer->value,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_a_client_may_not_delete_their_team(): void
+    {
+        $client = User::factory()->client()->create();
+        $team = $client->currentTeam;
+
+        $this->actingAs($client)
+            ->delete(route('teams.destroy', ['team' => $team->slug]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('teams', ['id' => $team->id]);
+    }
+
+    /**
+     * The edit screen draws its buttons from these, so they have to agree with
+     * the policy — otherwise it offers three things the server refuses.
+     */
+    public function test_a_client_is_offered_no_team_administration_on_the_screen(): void
+    {
+        $client = User::factory()->client()->create();
+
+        $this->actingAs($client)
+            ->get(route('teams.edit', ['team' => $client->currentTeam->slug]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('permissions.canUpdateTeam', false)
+                ->where('permissions.canDeleteTeam', false)
+                ->where('permissions.canCreateInvitation', false)
+                ->where('permissions.canAddMember', false)
+                ->etc());
+    }
+
+    /**
+     * The client module's own work is not team administration and must survive
+     * the restriction above.
+     */
+    public function test_a_client_keeps_the_permissions_their_own_module_needs(): void
+    {
+        $client = User::factory()->client()->create();
+        $team = $client->currentTeam;
+
+        $this->assertTrue($client->hasTeamPermission($team, TeamPermission::ManageProjects));
+        $this->assertTrue($client->hasTeamPermission($team, TeamPermission::ManageApplications));
+        $this->assertTrue($client->hasTeamPermission($team, TeamPermission::UpdateClientProfile));
+    }
+
+    /**
+     * A student still runs their own group in full.
+     */
+    public function test_a_student_still_administers_their_own_team(): void
+    {
+        $student = User::factory()->student()->create();
+        $team = $student->currentTeam;
+
+        $this->assertTrue($student->hasTeamPermission($team, TeamPermission::UpdateTeam));
+        $this->assertTrue($student->hasTeamPermission($team, TeamPermission::CreateInvitation));
+
+        $this->actingAs($student)
+            ->patch(route('teams.update', ['team' => $team->slug]), ['name' => 'Renamed Group'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('teams', ['id' => $team->id, 'name' => 'Renamed Group']);
+    }
+
+    /**
+     * Driven through the action rather than the HTTP endpoint.
+     *
+     * Nobody creates a team over HTTP any more, but CreateTeam still runs for
+     * every registration — so the slug rule it carries still has to hold, and
+     * "acme-2" over an existing "acme-10" would be a collision on the next
+     * sign up rather than a cosmetic slip.
+     */
     public function test_team_slug_uses_next_available_suffix()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
 
         Team::factory()->create(['name' => 'Acme', 'slug' => 'acme']);
         Team::factory()->create(['name' => 'Acme One', 'slug' => 'acme-1']);
         Team::factory()->create(['name' => 'Acme Ten', 'slug' => 'acme-10']);
 
-        $this
-            ->actingAs($user)
-            ->post(route('teams.store'), [
-                'name' => 'Acme',
-            ]);
+        app(CreateTeam::class)->handle($user, 'Acme');
 
         $this->assertDatabaseHas('teams', [
             'name' => 'Acme',
@@ -64,7 +312,7 @@ class TeamTest extends TestCase
 
     public function test_the_team_edit_page_can_be_rendered()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -84,7 +332,7 @@ class TeamTest extends TestCase
 
     public function test_teams_can_be_updated_by_owners()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create(['name' => 'Original Name']);
 
         $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -105,8 +353,8 @@ class TeamTest extends TestCase
 
     public function test_teams_cannot_be_updated_by_members()
     {
-        $owner = User::factory()->create();
-        $member = User::factory()->create();
+        $owner = User::factory()->student()->create();
+        $member = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -123,7 +371,7 @@ class TeamTest extends TestCase
 
     public function test_teams_can_be_deleted_by_owners()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -143,7 +391,7 @@ class TeamTest extends TestCase
 
     public function test_team_deletion_requires_name_confirmation()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -164,7 +412,7 @@ class TeamTest extends TestCase
 
     public function test_deleting_current_team_switches_to_alphabetically_first_remaining_team()
     {
-        $user = User::factory()->create(['name' => 'Mike']);
+        $user = User::factory()->student()->create(['name' => 'Mike']);
 
         $zuluTeam = Team::factory()->create(['name' => 'Zulu Team']);
         $zuluTeam->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -194,7 +442,7 @@ class TeamTest extends TestCase
 
     public function test_deleting_current_team_falls_back_to_personal_team_when_alphabetically_first()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $personalTeam = $user->personalTeam();
         $team = Team::factory()->create(['name' => 'Zulu Team']);
         $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -218,7 +466,7 @@ class TeamTest extends TestCase
 
     public function test_deleting_non_current_team_leaves_current_team_unchanged()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $personalTeam = $user->personalTeam();
         $team = Team::factory()->create();
         $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
@@ -242,8 +490,8 @@ class TeamTest extends TestCase
 
     public function test_members_can_leave_non_personal_teams()
     {
-        $owner = User::factory()->create();
-        $member = User::factory()->create();
+        $owner = User::factory()->student()->create();
+        $member = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -261,7 +509,7 @@ class TeamTest extends TestCase
 
     public function test_leaving_current_team_switches_to_alphabetically_first_remaining_team()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $member = User::factory()->create(['name' => 'Mike']);
 
         $zuluTeam = Team::factory()->create(['name' => 'Zulu Team']);
@@ -288,7 +536,7 @@ class TeamTest extends TestCase
 
     public function test_personal_teams_cannot_be_left()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $personalTeam = $user->personalTeam();
 
         $response = $this
@@ -302,7 +550,7 @@ class TeamTest extends TestCase
 
     public function test_team_owners_cannot_leave_their_team()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -318,7 +566,7 @@ class TeamTest extends TestCase
 
     public function test_users_cannot_leave_teams_they_dont_belong_to()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $response = $this
@@ -330,8 +578,8 @@ class TeamTest extends TestCase
 
     public function test_deleting_team_switches_other_affected_users_to_their_personal_team()
     {
-        $owner = User::factory()->create();
-        $member = User::factory()->create();
+        $owner = User::factory()->student()->create();
+        $member = User::factory()->student()->create();
 
         $team = Team::factory()->create();
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -353,7 +601,7 @@ class TeamTest extends TestCase
 
     public function test_personal_teams_cannot_be_deleted()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
 
         $personalTeam = $user->personalTeam();
 
@@ -373,8 +621,8 @@ class TeamTest extends TestCase
 
     public function test_teams_cannot_be_deleted_by_non_owners()
     {
-        $owner = User::factory()->create();
-        $member = User::factory()->create();
+        $owner = User::factory()->student()->create();
+        $member = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -391,7 +639,7 @@ class TeamTest extends TestCase
 
     public function test_users_can_switch_teams()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($user, ['role' => TeamRole::Member->value]);
@@ -407,7 +655,7 @@ class TeamTest extends TestCase
 
     public function test_users_cannot_switch_to_team_they_dont_belong_to()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $response = $this

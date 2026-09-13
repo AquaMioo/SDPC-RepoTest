@@ -90,4 +90,73 @@ class NotificationController extends Controller
 
         return back();
     }
+
+    /**
+     * Mark the ticked rows read.
+     *
+     * Scoped through the user's own relation, like read() above, so ids
+     * belonging to somebody else simply match nothing rather than erroring —
+     * a selection is not a place to tell somebody which ids exist.
+     */
+    public function readSelected(Request $request, Team $currentTeam): RedirectResponse
+    {
+        $request->user()
+            ->notifications()
+            ->whereIn('id', $this->selectedIds($request))
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return back();
+    }
+
+    /**
+     * Delete the ticked rows.
+     *
+     * These are gone, not hidden: there is no dismissed_at column and adding
+     * one would keep every row a person ever cleared forever. The list is a
+     * record of what happened, not the record — the projects, agreements and
+     * messages the rows point at are unaffected.
+     */
+    public function destroy(Request $request, Team $currentTeam): RedirectResponse
+    {
+        $request->user()
+            ->notifications()
+            ->whereIn('id', $this->selectedIds($request))
+            ->delete();
+
+        return back();
+    }
+
+    /**
+     * Clear the list of everything already read.
+     *
+     * Deliberately not "delete everything": unread rows are the ones nobody
+     * has looked at yet, and a single button that throws those away is a
+     * button somebody presses once and cannot undo.
+     */
+    public function clear(Request $request, Team $currentTeam): RedirectResponse
+    {
+        $request->user()
+            ->notifications()
+            ->whereNotNull('read_at')
+            ->delete();
+
+        return back();
+    }
+
+    /**
+     * The row ids the request ticked.
+     *
+     * @return array<int, string>
+     */
+    protected function selectedIds(Request $request): array
+    {
+        /** @var array{ids: array<int, string>} $validated */
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['string'],
+        ]);
+
+        return $validated['ids'];
+    }
 }

@@ -2,8 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Actions\Notifications\PresentNotification;
 use App\Models\Conversation;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -66,7 +68,13 @@ class HandleInertiaRequests extends Middleware
             'unreadMessages' => fn (): int => $user === null
                 ? 0
                 : Conversation::query()
-                    ->forParticipant($user)
+                    /*
+                     * visibleTo, so the badge counts the same threads the
+                     * inbox draws. On forParticipant it would keep counting
+                     * unread lines in the threads a signed agreement has since
+                     * closed off — a number the screen could not account for.
+                     */
+                    ->visibleTo($user)
                     ->with('latestMessage')
                     ->get()
                     ->filter(fn (Conversation $thread) => $thread->isUnreadFor($user))
@@ -77,6 +85,31 @@ class HandleInertiaRequests extends Middleware
              * partial reload that never draws the header.
              */
             'unreadNotifications' => fn (): int => $user?->unreadNotifications()->count() ?? 0,
+            /*
+             * The rows behind the bell's menu, so it can open without a
+             * request of its own. Six because the menu shows five and the
+             * sixth is what tells it there is more to see.
+             *
+             * Empty for anyone without a current team — the administrator, who
+             * has none. PresentNotification builds team-scoped URLs, so there
+             * is nothing it could point at for an account outside a team.
+             */
+            'recentNotifications' => function () use ($user): array {
+                $team = $user?->currentTeam;
+
+                if ($user === null || $team === null) {
+                    return [];
+                }
+
+                $presenter = app(PresentNotification::class);
+
+                return $user->notifications()
+                    ->latest()
+                    ->limit(6)
+                    ->get()
+                    ->map(fn (DatabaseNotification $row): array => $presenter->handle($row, $team))
+                    ->all();
+            },
             /*
              * The money side ships switched off, and the nav has to know:
              * without this the Transaction link would point at routes that

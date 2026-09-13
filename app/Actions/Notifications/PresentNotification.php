@@ -21,9 +21,14 @@ use Illuminate\Notifications\DatabaseNotification;
 class PresentNotification
 {
     /**
+     * The account itself, for events no person triggered.
+     */
+    public const SYSTEM_SENDER = 'SDPC';
+
+    /**
      * Describe one notification for the person it was sent to.
      *
-     * @return array{id: string, title: string, body: string|null, url: string|null, at: string|null, read: bool}
+     * @return array{id: string, from: string, initials: string, title: string, body: string|null, url: string|null, at: string|null, sentOn: string|null, sentTime: string|null, read: bool}
      */
     public function handle(DatabaseNotification $notification, Team $team): array
     {
@@ -32,14 +37,72 @@ class PresentNotification
 
         [$title, $body, $url] = $this->describe($data, $team);
 
+        $from = $this->actor($data) ?? self::SYSTEM_SENDER;
+
         return [
             'id' => $notification->id,
+            'from' => $from,
+            'initials' => $this->initials($from),
             'title' => $title,
             'body' => $body,
             'url' => $url,
             'at' => $notification->created_at?->diffForHumans(short: true),
+            /*
+             * Split rather than one formatted string: the list stacks the date
+             * over the time in its own column, and the bell menu joins them
+             * back with a comma. Formatting it once here keeps the two
+             * surfaces from drifting into different date styles.
+             */
+            'sentOn' => $notification->created_at?->format('M j'),
+            'sentTime' => $notification->created_at?->format('g:i a'),
             'read' => $notification->read_at !== null,
         ];
+    }
+
+    /**
+     * Who the notification is from, when a person triggered it.
+     *
+     * Read by probing the name keys the payloads actually carry rather than by
+     * matching on type a second time. Two reasons: the type match below would
+     * have to be kept in step with this one, and a payload from a release this
+     * code no longer knows about still yields a sender if it happens to carry
+     * one of these keys. Events nobody triggered — an approval, a status
+     * change, a countersignature — have no name in them at all and fall back
+     * to the system sender.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function actor(array $data): ?string
+    {
+        foreach (['sender_name', 'student_name', 'client_name', 'inviter_name'] as $key) {
+            $name = $this->text($data, $key);
+
+            if ($name !== null) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The one or two letters drawn in the avatar circle.
+     *
+     * Notification payloads store a name and never an id, so there is no user
+     * to read an avatar off — not even for rows written today, and certainly
+     * not for the ones already in the table. Initials are derived from the
+     * name itself, which works for every row ever written.
+     */
+    protected function initials(string $name): string
+    {
+        $words = preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $letters = array_map(
+            static fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)),
+            array_slice($words, 0, 2),
+        );
+
+        return implode('', $letters);
     }
 
     /**

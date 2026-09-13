@@ -4,10 +4,13 @@ export type Team = {
     id: number;
     name: string;
     slug: string;
+    /** Where the team came from, not whether anybody else is in it. */
     isPersonal: boolean;
     role?: TeamRole;
     roleLabel?: string;
     isCurrent?: boolean;
+    /** How many people are actually in it. */
+    memberCount?: number;
 };
 
 export type TeamMember = {

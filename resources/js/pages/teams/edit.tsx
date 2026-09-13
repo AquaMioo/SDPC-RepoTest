@@ -94,7 +94,20 @@ export default function TeamEdit({
 
             <h1 className="sr-only">{pageTitle}</h1>
 
-            <div className="flex flex-col space-y-10">
+            {/*
+             * Its own gutter, for the same reason as teams/index: this screen
+             * used to sit inside SettingsLayout, which supplied the shell.
+             * Reached from the header now, so it carries one itself or renders
+             * flush against the window edge. See .ai/rules/pages.md.
+             */}
+            <div
+                className="page-shell flex flex-col space-y-10"
+                style={{
+                    maxWidth: 'clamp(1120px, 100vw - 320px, 1600px)',
+                    paddingTop: 28,
+                    paddingBottom: 72,
+                }}
+            >
                 <div className="space-y-6">
                     {permissions.canUpdateTeam ? (
                         <>

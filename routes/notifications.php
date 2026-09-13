@@ -16,5 +16,15 @@ Route::prefix('{current_team}')
     ->group(function () {
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('notifications/read', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('notifications/read-selected', [NotificationController::class, 'readSelected'])->name('notifications.read-selected');
+
+        /*
+         * Both destructive routes are declared before the {notification}
+         * parameter below. `read-selected` would be caught by it otherwise —
+         * the literal would read as an id and 404 on every submission.
+         */
+        Route::delete('notifications/read', [NotificationController::class, 'clear'])->name('notifications.clear');
+        Route::delete('notifications', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
         Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
     });

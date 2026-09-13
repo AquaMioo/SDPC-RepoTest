@@ -14,8 +14,16 @@
 /vendor
 .DS_Store
 .env
-.env.backup
+# Globbed, not exact. `.env.backup` alone left `.env.backup-sqlite` — a real
+# backup holding eight live secrets — untracked but NOT ignored, one `git add .`
+# away from a public repository. The suffix is whatever the person making the
+# backup felt like typing, so match it.
+.env.backup*
 .env.production
+# The *.example files stay tracked: the patterns above are exact names, and
+# `.env.production.example` is a different one.
+.env.local
+.env.*.local
 .phpactor.json
 .phpunit.result.cache
 Homestead.json

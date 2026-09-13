@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AgreementStatus;
 use App\Enums\UserRole;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 
 /**
@@ -140,9 +142,14 @@ class Conversation extends Model
      * not see the conversation it was for. Adopting once, on open, fixes
      * those without a backfill nobody would remember to run.
      *
-     * Only a real team: a personal team is one person, and recording it would
-     * say nothing user_id does not already say — while making the thread look
-     * like a group that it is not.
+     * Only a team with somebody else in it: a team of one would say nothing
+     * user_id does not already say, while making the thread look like a group
+     * that it is not.
+     *
+     * Read off the membership rather than off is_personal. The team a student
+     * is handed at sign up is the team they build with — they are never asked
+     * to create a second one beside it — so it becomes a group as soon as
+     * somebody joins, whatever its origin says.
      */
     public function adoptStudentTeam(): void
     {
@@ -152,7 +159,7 @@ class Conversation extends Model
 
         $team = $this->student?->currentTeam;
 
-        if ($team === null || $team->is_personal) {
+        if ($team === null || $team->isSolo()) {
             return;
         }
 
@@ -238,6 +245,51 @@ class Conversation extends Model
                 ->where('users.id', $user->id))
             ->orWhereHas('project.team.members', fn (Builder $member) => $member
                 ->where('users.id', $user->id)));
+    }
+
+    /**
+     * The threads this person should still be shown.
+     *
+     * A signed agreement closes the pairing off. From that moment the student
+     * is building for one business and the business is building with one
+     * student, so every thread the two of them opened while shopping around
+     * stops being a live conversation — the other applicants a client spoke
+     * to, and the other clients a student was weighing up.
+     *
+     * Nothing is deleted. The rows and their messages stay exactly where they
+     * are and come back on their own once the agreement is no longer active,
+     * which is what makes this safe to apply to a thread somebody has already
+     * had a long exchange in.
+     *
+     * Two exclusions, one for each side of the pairing:
+     *
+     *   1. the posting is spoken for, and not by this thread's student — the
+     *      client stops seeing the applicants they did not choose;
+     *   2. this thread's student is spoken for, on some other posting — the
+     *      student stops seeing the clients they did not go with.
+     *
+     * Written as NOT EXISTS rather than whereDoesntHave so both read against
+     * the conversation's own columns in one query; the inbox draws every
+     * thread at once and this must not become a query per row.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        $query->forParticipant($user)
+            ->whereNotExists(fn (QueryBuilder $sub) => $sub
+                ->selectRaw('1')
+                ->from('agreements')
+                ->whereColumn('agreements.project_id', 'conversations.project_id')
+                ->whereColumn('agreements.student_id', '!=', 'conversations.user_id')
+                ->where('agreements.status', AgreementStatus::Active))
+            ->whereNotExists(fn (QueryBuilder $sub) => $sub
+                ->selectRaw('1')
+                ->from('agreements')
+                ->whereColumn('agreements.student_id', 'conversations.user_id')
+                ->whereColumn('agreements.project_id', '!=', 'conversations.project_id')
+                ->where('agreements.status', AgreementStatus::Active));
     }
 
     /**

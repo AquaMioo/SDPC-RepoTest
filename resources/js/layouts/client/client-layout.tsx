@@ -1,6 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    BellIcon,
     ChatCircleIcon,
     GearSixIcon,
     UserCircleIcon,
@@ -9,6 +8,8 @@ import type { CSSProperties, ReactNode } from 'react';
 
 import AccountStatusBanner from '@/components/account-status-banner';
 import { Btn } from '@/components/sdpc/btn';
+import { NotificationMenu } from '@/components/sdpc/notification-menu';
+import type { NotificationRow } from '@/components/sdpc/notification-menu';
 import {
     Tooltip,
     TooltipContent,
@@ -21,13 +22,13 @@ import { index as agreementsIndex } from '@/routes/agreements';
 import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
 import { index as messagesIndex } from '@/routes/messages';
-import { index as notificationsIndex } from '@/routes/notifications';
 import { edit as profileEdit } from '@/routes/profile';
 import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
 import { workflow as studentWorkflow } from '@/routes/student';
 import { index as studentBoard } from '@/routes/student/board';
 import { edit as studentProfileEdit } from '@/routes/student/profile';
+import { index as teamsIndex } from '@/routes/teams';
 import { index as transactionsIndex } from '@/routes/transactions';
 
 type SharedProps = {
@@ -37,6 +38,8 @@ type SharedProps = {
     };
     unreadMessages?: number;
     unreadNotifications?: number;
+    /** The bell's menu, shared by HandleInertiaRequests on every screen. */
+    recentNotifications?: NotificationRow[];
     /** False on a normal boot — the ledger is built but switched off. */
     billingEnabled?: boolean;
 };
@@ -48,13 +51,40 @@ type NavItem = {
     pending?: string;
 };
 
+/*
+ * Header icon size, passed to each icon explicitly.
+ *
+ * It cannot be set by font-size on the row: Phosphor icons draw at 1em, and
+ * .btn in nocturne.css sets font-size: 14px on the button wrapping each one, so
+ * anything inherited from above is overridden and the icons stayed at 14px.
+ * .btn-icon is a 36px box, which is what made them look mis-sized inside it.
+ */
+const NAV_ICON = 22;
+
 const BRAND: CSSProperties = {
     fontFamily: 'var(--font-heading)',
     fontWeight: 600,
-    fontSize: 18,
+    fontSize: 20,
     letterSpacing: '-0.02em',
     color: 'var(--color-accent)',
     textDecoration: 'none',
+};
+
+const ROLE_LABEL: CSSProperties = {
+    fontSize: 20,
+    letterSpacing: '.14em',
+    textTransform: 'uppercase',
+    color: 'color-mix(in srgb, var(--color-text) 45%, transparent)',
+};
+
+/*
+ * The dash between the wordmark and the label. It carries no letter-spacing of
+ * its own: .14em is trailing space after a character, which on a single dash
+ * lands entirely on its right and reads as an off-centre separator.
+ */
+const ROLE_SEPARATOR: CSSProperties = {
+    fontSize: ROLE_LABEL.fontSize,
+    color: ROLE_LABEL.color,
 };
 
 /*
@@ -122,6 +152,16 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                       ? null
                       : { ...billing, label: 'Performance' },
                   { label: 'Agreement', href: agreementsIndex.url(team.slug) },
+                  /*
+                   * Teams is a destination of its own now rather than a row
+                   * under Settings. Last on both navs, after Agreement, so the
+                   * two sides read the same way round.
+                   *
+                   * teamsIndex takes no team argument: settings/teams is one of
+                   * the few screens not mounted on the {current_team} prefix,
+                   * because it is where you go to change which team that is.
+                   */
+                  { label: 'Team', href: teamsIndex.url() },
               ]
             : [
                   { label: 'Dashboard', href: clientDashboard.url(team.slug) },
@@ -132,6 +172,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                       href: projectsIndex.url(team.slug),
                   },
                   { label: 'Agreement', href: agreementsIndex.url(team.slug) },
+                  { label: 'Team', href: teamsIndex.url() },
               ]
     ).filter((item): item is NavItem => item !== null);
 
@@ -162,9 +203,34 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         paddingBlock: 14,
                     }}
                 >
-                    <Link href={home} style={BRAND}>
-                        SDPC
-                    </Link>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: 8,
+                            flex: 'none',
+                        }}
+                    >
+                        <Link href={home} style={BRAND}>
+                            SDPC
+                        </Link>
+
+                        {/*
+                         * Which side of the platform you are on. This layout
+                         * serves students and clients both — the nav is picked
+                         * from auth.role — so without a label the only clue is
+                         * which links happen to be present, which is no clue at
+                         * all to somebody seeing the screen for the first time.
+                         * Same treatment as the wordmark on the admin portal.
+                         */}
+                        <span aria-hidden="true" style={ROLE_SEPARATOR}>
+                            -
+                        </span>
+
+                        <span style={ROLE_LABEL}>
+                            {isStudent ? 'Student' : 'Client'}
+                        </span>
+                    </div>
 
                     <nav className="app-bar-nav">
                         {navigation.map((item) => (
@@ -182,32 +248,34 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                             href={messagesIndex.url(team.slug)}
                             badge={page.props.unreadMessages ?? 0}
                         >
-                            <ChatCircleIcon />
+                            <ChatCircleIcon size={NAV_ICON} />
                         </IconAction>
-                        <IconAction
-                            label="Notifications"
-                            href={notificationsIndex.url(team.slug)}
-                            badge={page.props.unreadNotifications ?? 0}
-                        >
-                            <BellIcon />
-                        </IconAction>
+                        {/*
+                         * The bell opens its own menu rather than navigating.
+                         * Everything else on this row is still a plain link.
+                         */}
+                        <NotificationMenu
+                            rows={page.props.recentNotifications ?? []}
+                            unread={page.props.unreadNotifications ?? 0}
+                            teamSlug={team.slug}
+                        />
                         {isStudent ? (
                             <IconAction
                                 label="Your profile"
                                 href={studentProfileEdit.url(team.slug)}
                             >
-                                <UserCircleIcon />
+                                <UserCircleIcon size={NAV_ICON} />
                             </IconAction>
                         ) : (
                             <IconAction
                                 label="Business profile"
                                 href={clientProfileEdit.url(team.slug)}
                             >
-                                <UserCircleIcon />
+                                <UserCircleIcon size={NAV_ICON} />
                             </IconAction>
                         )}
                         <IconAction label="Settings" href={profileEdit.url()}>
-                            <GearSixIcon />
+                            <GearSixIcon size={NAV_ICON} />
                         </IconAction>
                     </div>
                 </div>

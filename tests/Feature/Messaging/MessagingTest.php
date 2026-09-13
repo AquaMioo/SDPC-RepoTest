@@ -3,9 +3,11 @@
 namespace Tests\Feature\Messaging;
 
 use App\Broadcasting\ConversationChannel;
+use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\TeamRole;
 use App\Events\MessageSent;
+use App\Models\Agreement;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -525,12 +527,19 @@ class MessagingTest extends TestCase
         $student->switchTeam($team);
 
         $conversation = $this->thread($project, $student->fresh());
-        $conversation->adoptStudentTeam();
 
         /* The leader invites: the existing team invitation, nothing new. */
         $teammate = User::factory()->student()->approved()->create();
         $team->members()->attach($teammate, ['role' => TeamRole::Member->value]);
         $teammate->switchTeam($team);
+
+        /*
+         * Adopted after the teammate joined, because a team of one is not a
+         * group and adoptStudentTeam() skips it. In the app this needs no
+         * ordering — it re-runs every time the thread is opened, so a team
+         * that grows later is picked up on the next visit.
+         */
+        $conversation->adoptStudentTeam();
 
         $conversation->messages()->create([
             'user_id' => $student->id,
@@ -563,11 +572,13 @@ class MessagingTest extends TestCase
         $student->switchTeam($team);
 
         $conversation = $this->thread($project, $student->fresh());
-        $conversation->adoptStudentTeam();
 
         $teammate = User::factory()->student()->approved()->create();
         $team->members()->attach($teammate, ['role' => TeamRole::Member->value]);
         $teammate->switchTeam($team);
+
+        /* After the teammate joined — see the test above. */
+        $conversation->adoptStudentTeam();
 
         $this->actingAs($teammate)
             ->get(route('messages.index', ['current_team' => $team]))
@@ -1298,6 +1309,213 @@ class MessagingTest extends TestCase
             'broadcasting.default' => 'unreachable',
             'broadcasting.connections.unreachable' => ['driver' => 'unreachable'],
         ]);
+    }
+
+    /**
+     * Forming the group is what makes the leader's client the team's client:
+     * every member reads and writes the thread that already holds the history.
+     */
+    public function test_a_student_can_bring_their_team_into_a_thread(): void
+    {
+        [, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $team = Team::factory()->create(['is_personal' => false]);
+        $team->members()->attach($student, ['role' => TeamRole::Owner->value]);
+        $student->switchTeam($team);
+
+        $mate = User::factory()->student()->approved()->create();
+        $team->members()->attach($mate, ['role' => TeamRole::LeadProgrammer->value]);
+
+        $this->assertFalse($thread->isParticipant($mate));
+
+        $this->actingAs($student)
+            ->post(route('messages.form-group', [
+                'current_team' => $team,
+                'conversation' => $thread,
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($team->id, $thread->refresh()->student_team_id);
+
+        /* The teammate now shares the leader's client. */
+        $this->assertTrue($thread->fresh()->isParticipant($mate));
+    }
+
+    public function test_a_student_without_a_real_team_is_told_to_form_one(): void
+    {
+        [, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($student)
+            ->post(route('messages.form-group', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]))
+            ->assertSessionHasErrors('team');
+
+        $this->assertNull($thread->refresh()->student_team_id);
+    }
+
+    /**
+     * A client cannot pull somebody else's team into their own conversation.
+     */
+    public function test_a_client_cannot_form_the_group(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($client)
+            ->post(route('messages.form-group', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $thread,
+            ]))
+            ->assertForbidden();
+
+        $this->assertNull($thread->refresh()->student_team_id);
+    }
+
+    /**
+     * A signed agreement closes the pairing off on the client's side.
+     */
+    public function test_a_contracted_posting_hides_the_applicants_who_missed_out(): void
+    {
+        [$client, $chosen, $project] = $this->pair(applied: true);
+        $passedOver = User::factory()->student()->approved()->create();
+
+        $kept = $this->thread($project, $chosen);
+        $dropped = $this->thread($project, $passedOver);
+
+        Agreement::factory()->create([
+            'team_id' => $client->current_team_id,
+            'project_id' => $project->id,
+            'student_id' => $chosen->id,
+            'status' => AgreementStatus::Active,
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('messages.index', ['current_team' => $client->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('threads', 1)
+                ->where('threads.0.id', $kept->id)
+                ->etc());
+
+        /* Hidden, not deleted — the record of the exchange survives. */
+        $this->assertDatabaseHas('conversations', ['id' => $dropped->id]);
+    }
+
+    /**
+     * And on the student's side: the clients they did not go with drop out.
+     */
+    public function test_a_contracted_student_stops_seeing_the_other_businesses(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        [, , $otherProject] = $this->pair();
+
+        $kept = $this->thread($project, $student);
+        $dropped = $this->thread($otherProject, $student);
+
+        Agreement::factory()->create([
+            'team_id' => $client->current_team_id,
+            'project_id' => $project->id,
+            'student_id' => $student->id,
+            'status' => AgreementStatus::Active,
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('messages.index', ['current_team' => $student->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('threads', 1)
+                ->where('threads.0.id', $kept->id)
+                ->etc());
+
+        $this->assertDatabaseHas('conversations', ['id' => $dropped->id]);
+    }
+
+    /**
+     * A closed-off thread sends you to the inbox, never to a 404.
+     *
+     * This was a 404 and it was the wrong answer: the thread exists, the
+     * person asking is a participant, and the only reason it is not on screen
+     * is a rule the platform applied for them. "Not found" reads as the inbox
+     * being broken — and it fired on an ordinary bookmark or back button, so
+     * it looked like it was breaking at random.
+     */
+    public function test_a_closed_off_thread_redirects_to_the_inbox_rather_than_404(): void
+    {
+        [$client, $chosen, $project] = $this->pair(applied: true);
+        $passedOver = User::factory()->student()->approved()->create();
+
+        $dropped = $this->thread($project, $passedOver);
+
+        Agreement::factory()->create([
+            'team_id' => $client->current_team_id,
+            'project_id' => $project->id,
+            'student_id' => $chosen->id,
+            'status' => AgreementStatus::Active,
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('messages.show', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $dropped,
+            ]))
+            ->assertRedirect(route('messages.index', [
+                'current_team' => $client->currentTeam,
+            ]));
+
+        /* Still nothing destroyed. */
+        $this->assertDatabaseHas('conversations', ['id' => $dropped->id]);
+    }
+
+    /**
+     * Somebody else's thread is still refused outright — that one really is
+     * none of their business, and 403 is the honest answer.
+     */
+    public function test_a_thread_you_are_not_in_is_still_refused(): void
+    {
+        [, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $stranger = User::factory()->student()->approved()->create();
+
+        $this->actingAs($stranger)
+            ->get(route('messages.show', [
+                'current_team' => $stranger->currentTeam,
+                'conversation' => $thread,
+            ]))
+            ->assertForbidden();
+    }
+
+    /**
+     * Nothing was destroyed, so everything returns once the build is over.
+     */
+    public function test_the_threads_come_back_when_the_agreement_is_no_longer_active(): void
+    {
+        [$client, $chosen, $project] = $this->pair(applied: true);
+        $passedOver = User::factory()->student()->approved()->create();
+
+        $this->thread($project, $chosen);
+        $this->thread($project, $passedOver);
+
+        $agreement = Agreement::factory()->create([
+            'team_id' => $client->current_team_id,
+            'project_id' => $project->id,
+            'student_id' => $chosen->id,
+            'status' => AgreementStatus::Active,
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('messages.index', ['current_team' => $client->currentTeam]))
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('threads', 1)->etc());
+
+        $agreement->update(['status' => AgreementStatus::Cancelled]);
+
+        $this->actingAs($client)
+            ->get(route('messages.index', ['current_team' => $client->currentTeam]))
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('threads', 2)->etc());
     }
 
     /**

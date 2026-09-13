@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\Notifications;
 
+use App\Actions\Notifications\PresentNotification;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\Client\ApplicationReceived;
 use App\Notifications\Client\ProjectInvitation;
+use App\Notifications\Client\ProjectPublished;
 use App\Notifications\Messaging\NewMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -261,6 +263,163 @@ class NotificationCentreTest extends TestCase
                 ->where('unreadCount', 105)
                 // The bell and the page have to say the same thing.
                 ->where('unreadNotifications', 105));
+    }
+
+    public function test_a_row_carries_who_it_is_from_and_when_it_was_sent(): void
+    {
+        $client = User::factory()->client()->create();
+        $sender = User::factory()->student()->create(['name' => 'Jan Joshua Mangahas']);
+
+        $conversation = Conversation::create([
+            'project_id' => Project::factory()->create()->id,
+            'user_id' => $sender->id,
+        ]);
+
+        $client->notify(new NewMessage($conversation->messages()->create([
+            'user_id' => $sender->id,
+            'body' => 'Sent you the reviewer',
+        ])));
+
+        $this->actingAs($client)
+            ->get(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('notifications.0.from', 'Jan Joshua Mangahas')
+                ->where('notifications.0.initials', 'JJ')
+                ->whereNot('notifications.0.sentOn', null)
+                ->whereNot('notifications.0.sentTime', null));
+    }
+
+    /**
+     * Nobody triggers an approval, so there is no name in the payload to show.
+     */
+    public function test_an_event_no_person_triggered_is_from_the_system(): void
+    {
+        $client = User::factory()->client()->create();
+
+        $client->notify(new ProjectPublished(Project::factory()->create()));
+
+        $this->actingAs($client)
+            ->get(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('notifications.0.from', PresentNotification::SYSTEM_SENDER)
+                ->where('notifications.0.initials', 'S'));
+    }
+
+    public function test_the_bell_menu_is_shared_with_every_screen(): void
+    {
+        $client = User::factory()->client()->create();
+        $client->notify(new ApplicationReceived($this->application()));
+
+        $this->actingAs($client)
+            ->get(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->assertInertia(fn ($page) => $page->has('recentNotifications', 1));
+    }
+
+    /**
+     * The menu shows five; the sixth is only what tells it there are more.
+     */
+    public function test_the_bell_menu_never_carries_more_than_six_rows(): void
+    {
+        $client = User::factory()->client()->create();
+        $application = $this->application();
+
+        foreach (range(1, 9) as $ignored) {
+            $client->notify(new ApplicationReceived($application));
+        }
+
+        $this->actingAs($client)
+            ->get(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->assertInertia(fn ($page) => $page->has('recentNotifications', 6));
+    }
+
+    public function test_the_ticked_rows_can_be_marked_read_together(): void
+    {
+        $client = User::factory()->client()->create();
+        $application = $this->application();
+
+        $client->notify(new ApplicationReceived($application));
+        $client->notify(new ApplicationReceived($application));
+
+        [$first, $second] = $client->notifications()->get()->all();
+
+        $this->actingAs($client)
+            ->from(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->post(route('notifications.read-selected', ['current_team' => $client->currentTeam]), [
+                'ids' => [$first->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertNotNull($first->fresh()->read_at);
+        $this->assertNull($second->fresh()->read_at, 'A row nobody ticked must stay unread.');
+    }
+
+    public function test_the_ticked_rows_can_be_deleted(): void
+    {
+        $client = User::factory()->client()->create();
+        $application = $this->application();
+
+        $client->notify(new ApplicationReceived($application));
+        $client->notify(new ApplicationReceived($application));
+
+        [$first, $second] = $client->notifications()->get()->all();
+
+        $this->actingAs($client)
+            ->from(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->delete(route('notifications.destroy', ['current_team' => $client->currentTeam]), [
+                'ids' => [$first->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('notifications', ['id' => $first->id]);
+        $this->assertDatabaseHas('notifications', ['id' => $second->id]);
+    }
+
+    /**
+     * Deleting is scoped through the account's own relation, so an id belonging
+     * to somebody else matches nothing rather than being destroyed.
+     */
+    public function test_deleting_cannot_reach_a_row_belonging_to_somebody_else(): void
+    {
+        $mine = User::factory()->client()->create();
+        $theirs = User::factory()->client()->create();
+
+        $theirs->notify(new ApplicationReceived($this->application()));
+        $row = $theirs->notifications()->sole();
+
+        $this->actingAs($mine)
+            ->from(route('notifications.index', ['current_team' => $mine->currentTeam]))
+            ->delete(route('notifications.destroy', ['current_team' => $mine->currentTeam]), [
+                'ids' => [$row->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('notifications', ['id' => $row->id]);
+    }
+
+    /**
+     * Clearing takes the read rows and deliberately leaves the unread ones:
+     * those are the ones nobody has looked at yet.
+     */
+    public function test_clearing_removes_what_was_read_and_keeps_what_was_not(): void
+    {
+        $client = User::factory()->client()->create();
+        $application = $this->application();
+
+        $client->notify(new ApplicationReceived($application));
+        $client->notify(new ApplicationReceived($application));
+
+        [$read, $unread] = $client->notifications()->get()->all();
+        $read->markAsRead();
+
+        $this->actingAs($client)
+            ->from(route('notifications.index', ['current_team' => $client->currentTeam]))
+            ->delete(route('notifications.clear', ['current_team' => $client->currentTeam]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('notifications', ['id' => $read->id]);
+        $this->assertDatabaseHas('notifications', ['id' => $unread->id]);
     }
 
     /**

@@ -19,7 +19,7 @@ class TeamInvitationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -44,7 +44,7 @@ class TeamInvitationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $invited = User::factory()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
@@ -67,7 +67,7 @@ class TeamInvitationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -91,7 +91,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_invitation_email_for_existing_users_uses_login_route()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
@@ -111,7 +111,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_invitation_email_for_unknown_users_uses_login_route()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -132,8 +132,8 @@ class TeamInvitationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
-        $admin = User::factory()->create();
+        $owner = User::factory()->student()->create();
+        $admin = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -153,7 +153,7 @@ class TeamInvitationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $member = User::factory()->create(['email' => 'member@example.com']);
         $team = Team::factory()->create();
 
@@ -174,7 +174,7 @@ class TeamInvitationTest extends TestCase
     {
         Notification::fake();
 
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
 
@@ -196,8 +196,8 @@ class TeamInvitationTest extends TestCase
 
     public function test_team_invitations_cannot_be_created_by_members()
     {
-        $owner = User::factory()->create();
-        $member = User::factory()->create();
+        $owner = User::factory()->student()->create();
+        $member = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -245,7 +245,7 @@ class TeamInvitationTest extends TestCase
      */
     public function test_owner_and_the_legacy_roles_cannot_be_invited_into()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
 
@@ -267,7 +267,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_team_invitations_can_be_cancelled_by_owners()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -290,7 +290,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_team_invitations_can_be_accepted()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
@@ -314,9 +314,46 @@ class TeamInvitationTest extends TestCase
         $this->assertNotNull($invitation->fresh()->accepted_at);
     }
 
+    /**
+     * An invitation can outlive the room it was sent for.
+     *
+     * The cap is checked again when the seat is actually taken, not only when
+     * the invitation was written — otherwise a team that filled up in between
+     * seats one person too many.
+     */
+    public function test_an_invitation_to_a_full_team_can_no_longer_be_accepted()
+    {
+        $owner = User::factory()->student()->create();
+        $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
+        $team = Team::factory()->create(['is_personal' => false]);
+
+        $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+        $invitation = TeamInvitation::factory()->create([
+            'team_id' => $team->id,
+            'email' => 'invited@example.com',
+            'invited_by' => $owner->id,
+        ]);
+
+        /* The team fills after the invitation went out. */
+        foreach (range(1, Team::MAX_MEMBERS - 1) as $ignored) {
+            $team->members()->attach(
+                User::factory()->student()->create(),
+                ['role' => TeamRole::LeadProgrammer->value],
+            );
+        }
+
+        $this->actingAs($invitedUser)
+            ->post(route('invitations.accept', $invitation))
+            ->assertSessionHasErrors('invitation');
+
+        $this->assertFalse($invitedUser->fresh()->belongsToTeam($team));
+        $this->assertNull($invitation->fresh()->accepted_at);
+    }
+
     public function test_team_invitations_can_be_declined_by_the_invited_user()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
@@ -341,7 +378,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_team_invitations_cannot_be_declined_by_uninvited_user()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $uninvitedUser = User::factory()->create(['email' => 'uninvited@example.com']);
         $team = Team::factory()->create();
 
@@ -366,7 +403,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_accepted_team_invitations_cannot_be_declined()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
@@ -391,7 +428,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_team_invitations_cannot_be_accepted_by_uninvited_user()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $uninvitedUser = User::factory()->create(['email' => 'uninvited@example.com']);
         $team = Team::factory()->create();
 
@@ -414,7 +451,7 @@ class TeamInvitationTest extends TestCase
 
     public function test_expired_invitations_cannot_be_accepted()
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->student()->create();
         $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 

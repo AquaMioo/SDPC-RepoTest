@@ -37,6 +37,14 @@ class Team extends Model
     use GeneratesUniqueTeamSlugs, HasFactory, SoftDeletes;
 
     /**
+     * The most people one team may hold, counting the owner.
+     *
+     * A capstone group, not a company. Four is the whole team including
+     * whoever formed it, so a leader invites three others.
+     */
+    public const MAX_MEMBERS = 4;
+
+    /**
      * Slugs a team may never take.
      *
      * Team routes are mounted on a bare `{current_team}` prefix, so a slug is
@@ -54,6 +62,7 @@ class Team extends Model
         'dashboard',
         'forgot-password',
         'invitations',
+        'legal',
         'login',
         'logout',
         'register',
@@ -109,6 +118,60 @@ class Team extends Model
             ->using(Membership::class)
             ->withPivot(['role'])
             ->withTimestamps();
+    }
+
+    /**
+     * Every open vote to remove somebody from this team.
+     *
+     * @return HasMany<TeamRemovalVote, $this>
+     */
+    public function removalVotes(): HasMany
+    {
+        return $this->hasMany(TeamRemovalVote::class);
+    }
+
+    /**
+     * Whether this team is still just one person.
+     *
+     * Distinct from is_personal, and the distinction matters. `is_personal`
+     * records where the team came from — everybody is handed one at sign up —
+     * and it never changes. This asks whether anybody else is actually in it.
+     *
+     * A student is not given a team and then asked to make a real one beside
+     * it; the one they were given IS their team, and it becomes a group the
+     * moment somebody accepts an invitation into it. So anything asking "is
+     * there a group here" reads this, and only the rules about the team's
+     * origin — you may not leave or delete the one you were handed — read
+     * is_personal.
+     */
+    public function isSolo(): bool
+    {
+        return $this->members()->count() <= 1;
+    }
+
+    /**
+     * Whether the team has reached MAX_MEMBERS.
+     */
+    public function isFull(): bool
+    {
+        return $this->members()->count() >= self::MAX_MEMBERS;
+    }
+
+    /**
+     * How many more people the team could take, counting invitations already
+     * sent and not yet answered.
+     *
+     * Pending invitations are counted because they are promises: three sent to
+     * a team of two would seat five if everybody said yes, and the refusal
+     * would land on whoever happened to accept last — somebody who did nothing
+     * wrong and cannot see why they were turned away.
+     */
+    public function remainingSeats(): int
+    {
+        $taken = $this->members()->count()
+            + $this->invitations()->whereNull('accepted_at')->count();
+
+        return max(0, self::MAX_MEMBERS - $taken);
     }
 
     /**

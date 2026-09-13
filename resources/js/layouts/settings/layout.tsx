@@ -1,10 +1,5 @@
 import { Link } from '@inertiajs/react';
-import {
-    LockSimpleIcon,
-    SignOutIcon,
-    UserIcon,
-    UsersThreeIcon,
-} from '@phosphor-icons/react';
+import { LockSimpleIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
 import type { ComponentType, PropsWithChildren, ReactNode } from 'react';
 
 import { useCurrentUrl } from '@/hooks/use-current-url';
@@ -12,7 +7,6 @@ import { toUrl } from '@/lib/utils';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
-import { index as teams } from '@/routes/teams';
 import type { NavItem } from '@/types';
 
 /**
@@ -72,10 +66,6 @@ const navItems: SettingsNavItem[] = [
     { title: 'Security', href: editSecurity(), icon: LockSimpleIcon },
 ];
 
-const teamItems: SettingsNavItem[] = [
-    { title: 'Teams', href: teams(), icon: UsersThreeIcon },
-];
-
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
 
@@ -117,10 +107,11 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
 
                 {navItems.map(row)}
 
-                <div style={RULE} />
-
-                {teamItems.map(row)}
-
+                {/*
+                 * Teams used to sit here behind its own rule. It is a top-level
+                 * destination in the header now, beside Agreement, rather than
+                 * something to go looking for under Settings.
+                 */}
                 <div style={RULE} />
 
                 <Link href={logout()} as="button" data-tab="" style={ROW}>
