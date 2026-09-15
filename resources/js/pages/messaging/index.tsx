@@ -140,6 +140,52 @@ function isEmojiOnly(message: {
 }
 
 /**
+ * How an action on one message goes out: re-read the thread and the list, and
+ * leave everything else on the page alone.
+ *
+ * Without `only` and preserveState a router visit is a whole page load as far
+ * as the screen is concerned. Every prop was rebuilt, NavigationSkeleton drew
+ * over the thread once it passed 300ms, and the page's own state was thrown
+ * away — the open picker, a half-typed draft, even a video call in progress.
+ * That was the "reload" on every reaction.
+ */
+const IN_PLACE = {
+    preserveScroll: true,
+    preserveState: true,
+    only: ['threads', 'active'],
+};
+
+type Reaction = { emoji: string; count: number; reacted: boolean };
+
+/**
+ * The same toggle ConversationController::react makes, applied ahead of it.
+ *
+ * Pressing an emoji you have already left takes yours away (and the chip with
+ * it when nobody else is left on it); anything else adds yours. A new emoji
+ * joins at the end, which is where the server's grouping puts it too, so the
+ * row does not jump when the real answer arrives.
+ */
+function toggleReaction(reactions: Reaction[], emoji: string): Reaction[] {
+    const existing = reactions.find((reaction) => reaction.emoji === emoji);
+
+    if (existing === undefined) {
+        return [...reactions, { emoji, count: 1, reacted: true }];
+    }
+
+    return reactions
+        .map((reaction) =>
+            reaction.emoji !== emoji
+                ? reaction
+                : {
+                      ...reaction,
+                      count: reaction.count + (reaction.reacted ? -1 : 1),
+                      reacted: !reaction.reacted,
+                  },
+        )
+        .filter((reaction) => reaction.count > 0);
+}
+
+/**
  * Messaging, shared by both modules.
  *
  * A thread exists per posting and student, so the list is a list of working
@@ -448,7 +494,10 @@ export default function Messages({
                 message: messageId,
             }),
             { body: draft },
-            { preserveScroll: true, onSuccess: () => setEditing(null) },
+            {
+                ...IN_PLACE,
+                onSuccess: () => setEditing(null),
+            },
         );
     };
 
@@ -463,24 +512,53 @@ export default function Messages({
                 conversation: active.id,
                 message: messageId,
             }),
-            { preserveScroll: true },
+            IN_PLACE,
         );
     };
 
+    /*
+     * The chip changes the moment it is pressed; the request only confirms it.
+     * Inertia puts the old reactions back by itself if the server refuses.
+     *
+     * The other side does not wait on this either: the controller broadcasts
+     * the change on the thread's channel, and ThreadChannel re-reads the
+     * thread when it hears it — the same path a new message takes.
+     */
     const react = (messageId: number, emoji: string) => {
         if (active === null) {
             return;
         }
 
-        router.post(
-            reactToMessage.url({
-                current_team: team.slug,
-                conversation: active.id,
-                message: messageId,
-            }),
-            { emoji },
-            { preserveScroll: true },
-        );
+        router
+            .optimistic<Props>((props) =>
+                props.active === null
+                    ? {}
+                    : {
+                          active: {
+                              ...props.active,
+                              messages: props.active.messages.map((message) =>
+                                  message.id === messageId
+                                      ? {
+                                            ...message,
+                                            reactions: toggleReaction(
+                                                message.reactions,
+                                                emoji,
+                                            ),
+                                        }
+                                      : message,
+                              ),
+                          },
+                      },
+            )
+            .post(
+                reactToMessage.url({
+                    current_team: team.slug,
+                    conversation: active.id,
+                    message: messageId,
+                }),
+                { emoji },
+                { ...IN_PLACE, only: ['active'] },
+            );
     };
 
     const needle = find.trim().toLowerCase();

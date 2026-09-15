@@ -7,6 +7,7 @@ use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\TeamRole;
 use App\Events\MessageSent;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Agreement;
 use App\Models\Application;
 use App\Models\Conversation;
@@ -1030,6 +1031,41 @@ class MessagingTest extends TestCase
             'message_id' => $message->id,
             'user_id' => $student->id,
         ]);
+    }
+
+    /**
+     * The screen reacts in place: it asks for the thread alone and keeps the
+     * rest of the page. The redirect back has to honour that, or the reaction
+     * lands with a whole page load — the "reload" QA saw on every emoji.
+     */
+    public function test_reacting_in_place_re_reads_only_the_thread(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+        $message = $thread->messages()->create(['user_id' => $client->id, 'body' => 'Turnover is Friday']);
+
+        $this->actingAs($student)
+            ->from(route('messages.show', ['current_team' => $student->currentTeam, 'conversation' => $thread]))
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                // Anything but the middleware's own asset version 409s.
+                'X-Inertia-Version' => app(HandleInertiaRequests::class)->version(request()),
+                'X-Inertia-Partial-Component' => 'messaging/index',
+                'X-Inertia-Partial-Data' => 'active',
+            ])
+            ->followingRedirects()
+            ->post(route('messages.react', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+                'message' => $message,
+            ]), ['emoji' => '👍'])
+            ->assertOk()
+            // An Inertia visit answers in JSON, which assertInertia() cannot read.
+            ->assertJsonPath('component', 'messaging/index')
+            ->assertJsonMissingPath('props.threads')
+            ->assertJsonPath('props.active.messages.0.reactions', [
+                ['emoji' => '👍', 'count' => 1, 'reacted' => true],
+            ]);
     }
 
     public function test_an_emoji_outside_the_set_is_rejected(): void
