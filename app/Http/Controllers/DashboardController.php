@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Messaging\UpcomingMeetings;
 use App\Actions\Student\BuildStudentDashboard;
 use App\Enums\UserRole;
 use App\Models\TeamInvitation;
@@ -12,7 +13,10 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(private BuildStudentDashboard $studentDashboard) {}
+    public function __construct(
+        private BuildStudentDashboard $studentDashboard,
+        private UpcomingMeetings $upcomingMeetings,
+    ) {}
 
     public function __invoke(Request $request): RedirectResponse|Response
     {
@@ -42,6 +46,7 @@ class DashboardController extends Controller
             return Inertia::render('student/dashboard', [
                 ...$this->studentDashboard->handle($user),
                 'pendingInvitations' => $invitations,
+                'upcomingMeetings' => $this->upcomingMeetings->handle($user),
             ]);
         }
 

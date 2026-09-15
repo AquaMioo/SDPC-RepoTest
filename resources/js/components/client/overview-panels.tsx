@@ -13,7 +13,9 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { Skeleton } from '@/components/ui/skeleton';
+import { localDateKey } from '@/lib/meeting-time';
 import { cn } from '@/lib/utils';
 
 export type CurrentProject = {
@@ -91,7 +93,14 @@ const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
  * A month grid with the milestone deadlines marked, and the next one written
  * out underneath. The month can be paged without leaving the screen.
  */
-export function CalendarPanel({ events }: { events?: CalendarEvent[] }) {
+export function CalendarPanel({
+    events,
+    meetings = [],
+}: {
+    events?: CalendarEvent[];
+    /** Booked meetings, marked on the day they fall in the viewer's zone. */
+    meetings?: UpcomingMeeting[];
+}) {
     const today = new Date();
     const [offset, setOffset] = useState(0);
 
@@ -105,8 +114,10 @@ export function CalendarPanel({ events }: { events?: CalendarEvent[] }) {
 
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
     const marked = new Set(
-        (events ?? [])
-            .map((event) => event.date)
+        [
+            ...(events ?? []).map((event) => event.date),
+            ...meetings.map((meeting) => localDateKey(meeting.scheduledAt)),
+        ]
             .filter((date): date is string => date !== null)
             .filter((date) => date.startsWith(prefix))
             .map((date) => Number(date.slice(8, 10))),

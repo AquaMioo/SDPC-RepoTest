@@ -7,12 +7,16 @@ import {
     CalendarPanel,
     ProjectProgressPanel,
     ProjectTeamPanel,
-    type Announcement,
-    type CalendarEvent,
-    type CurrentProject,
-    type TeamMemberCard,
+} from '@/components/client/overview-panels';
+import type {
+    Announcement,
+    CalendarEvent,
+    CurrentProject,
+    TeamMemberCard,
 } from '@/components/client/overview-panels';
 import PendingInvitationsModal from '@/components/pending-invitations-modal';
+import { UpcomingMeetingsPanel } from '@/components/sdpc/upcoming-meetings';
+import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
@@ -29,6 +33,8 @@ type Props = {
     currentProject?: CurrentProject | null;
     projectTeam?: TeamMemberCard[];
     calendarEvents?: CalendarEvent[];
+    /** Meetings booked in this business's threads, soonest first. */
+    upcomingMeetings?: UpcomingMeeting[];
 };
 
 /**
@@ -47,6 +53,7 @@ export default function ClientDashboard({
     currentProject,
     projectTeam,
     calendarEvents,
+    upcomingMeetings = [],
 }: Props) {
     const team = useCurrentTeam();
     const [showInvitations, setShowInvitations] = useState(
@@ -88,7 +95,10 @@ export default function ClientDashboard({
                 </div>
 
                 <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.2fr)_minmax(0,0.95fr)]">
-                    <CalendarPanel events={calendarEvents} />
+                    <CalendarPanel
+                        events={calendarEvents}
+                        meetings={upcomingMeetings}
+                    />
                     <ProjectProgressPanel
                         project={currentProject}
                         href={projectHref}
@@ -97,6 +107,10 @@ export default function ClientDashboard({
                         members={projectTeam}
                         workspaceHref={projectHref}
                     />
+                </div>
+
+                <div className="mt-5">
+                    <UpcomingMeetingsPanel meetings={upcomingMeetings} />
                 </div>
 
                 <div className="mt-5">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Actions\Messaging\UpcomingMeetings;
 use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
@@ -30,7 +31,7 @@ class ClientDashboardController extends Controller
      * applications are read on the Recruit and posting screens, which is where
      * a client acts on them.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, UpcomingMeetings $upcomingMeetings): Response
     {
         $team = $request->user()->currentTeam;
 
@@ -56,6 +57,12 @@ class ClientDashboardController extends Controller
             'currentProject' => Inertia::defer(fn () => $this->currentProject($team)),
             'projectTeam' => Inertia::defer(fn () => $this->projectTeam($team)),
             'calendarEvents' => Inertia::defer(fn () => $this->calendarEvents($team)),
+            /*
+             * Meetings booked in any thread this team can still open. Not
+             * deferred: it is one small query, and a meeting starting in ten
+             * minutes is the last thing that should arrive after a skeleton.
+             */
+            'upcomingMeetings' => $upcomingMeetings->handle($request->user()),
         ]);
     }
 

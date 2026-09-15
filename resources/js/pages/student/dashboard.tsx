@@ -12,7 +12,10 @@ import PendingInvitationsModal from '@/components/pending-invitations-modal';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
+import { UpcomingMeetingsPanel } from '@/components/sdpc/upcoming-meetings';
+import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { localDateKey, whenLabel } from '@/lib/meeting-time';
 import { process as studentProcess } from '@/routes/student';
 import { index as studentBoard } from '@/routes/student/board';
 import type { DashboardInvitation } from '@/types';
@@ -44,6 +47,8 @@ type Props = {
     calendar: { label: string; days: CalendarDay[] };
     announcement: { body: string; updatedAt: string | null } | null;
     pendingInvitations?: DashboardInvitation[];
+    /** Meetings booked in this student's threads, soonest first. */
+    upcomingMeetings?: UpcomingMeeting[];
 };
 
 /**
@@ -59,6 +64,7 @@ export default function StudentDashboard({
     calendar,
     announcement,
     pendingInvitations = [],
+    upcomingMeetings = [],
 }: Props) {
     const page = usePage<{ auth?: { user?: { name: string } | null } }>();
     const currentTeam = useCurrentTeam();
@@ -114,9 +120,16 @@ export default function StudentDashboard({
                  * columns at 375px put the whole row past the viewport edge.
                  */}
                 <div className="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-[320px_1fr_1fr]">
-                    <CalendarCard calendar={calendar} />
+                    <CalendarCard
+                        calendar={calendar}
+                        meetings={upcomingMeetings}
+                    />
                     <ProgressCard project={project} />
                     <TeamCard project={project} />
+                </div>
+
+                <div style={{ marginTop: 18 }}>
+                    <UpcomingMeetingsPanel meetings={upcomingMeetings} />
                 </div>
 
                 <AnnouncementsCard announcement={announcement} />
@@ -133,12 +146,43 @@ export default function StudentDashboard({
  * keyboard never reaches. Selecting a day writes it into the line under the
  * grid, so every day says what it holds without a pointer hovering over it.
  */
-function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
+function CalendarCard({
+    calendar,
+    meetings,
+}: {
+    calendar: Props['calendar'];
+    meetings: UpcomingMeeting[];
+}) {
     const [selected, setSelected] = useState<string | null>(null);
     const selectedDay =
         calendar.days.find((day) => day.date === selected) ?? null;
+
+    /*
+     * Meetings keyed on the viewer's own calendar day. The cells come from the
+     * server, but a meeting's day has to be read in the browser's time zone —
+     * see localDateKey.
+     */
+    const meetingsOn = new Map<string, string[]>();
+
+    for (const meeting of meetings) {
+        const key = localDateKey(meeting.scheduledAt);
+        const line = `${whenLabel(meeting.scheduledAt)} with ${meeting.with}`;
+
+        meetingsOn.set(key, [...(meetingsOn.get(key) ?? []), line]);
+    }
+
+    /** Everything on a day: its milestone, then any meetings. */
+    const describe = (day: CalendarDay): string | null => {
+        const parts = [
+            ...(day.milestone === null ? [] : [day.milestone]),
+            ...(meetingsOn.get(day.date) ?? []),
+        ];
+
+        return parts.length === 0 ? null : parts.join(' · ');
+    };
+
     const nothingScheduled = calendar.days.every(
-        (day) => day.milestone === null,
+        (day) => describe(day) === null,
     );
 
     return (
@@ -188,9 +232,9 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
                             data-muted={day.isOutsideMonth ? 'true' : undefined}
                             aria-pressed={isSelected}
                             aria-label={
-                                day.milestone === null
+                                describe(day) === null
                                     ? day.date
-                                    : `${day.date} — ${day.milestone}`
+                                    : `${day.date} — ${describe(day)}`
                             }
                             onClick={() =>
                                 setSelected(isSelected ? null : day.date)
@@ -208,7 +252,7 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
                             }}
                         >
                             {day.day}
-                            {day.milestone && (
+                            {describe(day) !== null && (
                                 <span
                                     aria-hidden="true"
                                     style={{
@@ -228,12 +272,12 @@ function CalendarCard({ calendar }: { calendar: Props['calendar'] }) {
 
             {selectedDay !== null ? (
                 <span style={{ fontSize: 11, color: MUTED(70) }}>
-                    {selectedDay.milestone ?? 'Nothing scheduled for this day.'}
+                    {describe(selectedDay) ?? 'Nothing scheduled for this day.'}
                 </span>
             ) : (
                 nothingScheduled && (
                     <span style={{ fontSize: 11, color: MUTED(55) }}>
-                        Milestone dates appear here once an agreement is signed.
+                        Milestones and booked meetings appear here.
                     </span>
                 )
             )}
