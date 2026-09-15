@@ -171,15 +171,6 @@ export default function Messages({
      */
     usePoll(30000, { only: ['threads', 'active'] });
 
-    useEcho(
-        `conversations.${active?.id ?? 0}`,
-        '.message.sent',
-        () => {
-            router.reload({ only: ['threads', 'active'] });
-        },
-        [active?.id],
-    );
-
     /*
      * The call in progress, and an invitation waiting to be answered.
      *
@@ -196,28 +187,6 @@ export default function Messages({
     const [callBusy, setCallBusy] = useState(false);
     const [scheduling, setScheduling] = useState(false);
     const [scheduledAt, setScheduledAt] = useState('');
-
-    useEcho(
-        `conversations.${active?.id ?? 0}`,
-        '.meeting.started',
-        (event: { id: number; conversationId: number }) => {
-            setInvitation({
-                meetingId: event.id,
-                conversationId: event.conversationId,
-            });
-        },
-        [active?.id],
-    );
-
-    useEcho(
-        `conversations.${active?.id ?? 0}`,
-        '.meeting.scheduled',
-        () => {
-            /* Nothing to join yet — it just belongs in the thread's list. */
-            router.reload({ only: ['active'] });
-        },
-        [active?.id],
-    );
 
     /*
      * Kept with the thread it belongs to rather than cleared when the thread
@@ -527,6 +496,18 @@ export default function Messages({
     return (
         <>
             <Head title="Messages" />
+
+            {/*
+             * Keyed on the thread so switching threads leaves the old channel
+             * and joins the new one, rather than listening to both.
+             */}
+            {active !== null && (
+                <ThreadChannel
+                    key={active.id}
+                    conversationId={active.id}
+                    onMeetingStarted={setInvitation}
+                />
+            )}
 
             {call !== null && (
                 <VideoCall
@@ -1691,4 +1672,68 @@ export default function Messages({
             </div>
         </>
     );
+}
+
+/**
+ * The live half of an open thread: new messages, a call starting, a meeting
+ * being scheduled.
+ *
+ * A component of its own so it can be left unmounted when no thread is open.
+ * The three subscriptions used to sit in the page and named the channel
+ * `conversations.${active?.id ?? 0}` — so an empty inbox, which is every new
+ * account, subscribed to conversation 0. No such thread exists, the channel
+ * authorisation refused it, and each page load raised three 403s from
+ * /broadcasting/auth. useEcho has no "off" switch; it subscribes when it
+ * mounts, so the only way not to subscribe is not to mount it.
+ */
+function ThreadChannel({
+    conversationId,
+    onMeetingStarted,
+}: {
+    conversationId: number;
+    onMeetingStarted: (invitation: {
+        meetingId: number;
+        conversationId: number;
+    }) => void;
+}) {
+    const channel = `conversations.${conversationId}`;
+
+    useEcho(
+        channel,
+        '.message.sent',
+        () => {
+            router.reload({ only: ['threads', 'active'] });
+        },
+        [conversationId],
+    );
+
+    /*
+     * The invitation rides the thread's own private channel and deliberately
+     * carries no token. Joining asks the server for one, where the participant
+     * check runs again against the authenticated user rather than against
+     * whoever the socket happens to belong to.
+     */
+    useEcho(
+        channel,
+        '.meeting.started',
+        (event: { id: number; conversationId: number }) => {
+            onMeetingStarted({
+                meetingId: event.id,
+                conversationId: event.conversationId,
+            });
+        },
+        [conversationId, onMeetingStarted],
+    );
+
+    useEcho(
+        channel,
+        '.meeting.scheduled',
+        () => {
+            /* Nothing to join yet — it just belongs in the thread's list. */
+            router.reload({ only: ['active'] });
+        },
+        [conversationId],
+    );
+
+    return null;
 }
