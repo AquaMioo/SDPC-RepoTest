@@ -18,6 +18,6 @@ class LoginResponse implements LoginResponseContract
 
         return $request->wantsJson()
             ? new JsonResponse(['two_factor' => false], 200)
-            : redirect()->intended($this->redirectPathForCurrentTeam($request, Fortify::redirects('login')));
+            : redirect()->to($this->destinationAfterSignIn($request, $this->redirectPathForCurrentTeam($request, Fortify::redirects('login'))));
     }
 }

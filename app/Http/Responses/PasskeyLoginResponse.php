@@ -16,10 +16,15 @@ class PasskeyLoginResponse implements PasskeyLoginResponseContract
     {
         $this->forgetHistoryFromBeforeSignIn();
 
-        $redirect = $this->redirectPathForCurrentTeam($request, Fortify::redirects('login'));
+        $redirect = $this->destinationAfterSignIn($request, $this->redirectPathForCurrentTeam($request, Fortify::redirects('login')));
 
+        /*
+         * Absolute, as it always was: redirect()->intended()->getTargetUrl()
+         * returned a full URL and the passkey client navigates to whatever it
+         * is handed. url() leaves an already-absolute intended URL alone.
+         */
         return $request->wantsJson()
-            ? new JsonResponse(['redirect' => redirect()->intended($redirect)->getTargetUrl()], 200)
-            : redirect()->intended($redirect);
+            ? new JsonResponse(['redirect' => url($redirect)], 200)
+            : redirect()->to($redirect);
     }
 }
