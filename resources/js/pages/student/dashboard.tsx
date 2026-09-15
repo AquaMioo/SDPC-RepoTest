@@ -16,7 +16,7 @@ import { UpcomingMeetingsPanel } from '@/components/sdpc/upcoming-meetings';
 import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { localDateKey, whenLabel } from '@/lib/meeting-time';
-import { process as studentProcess } from '@/routes/student';
+import { projectManagement } from '@/routes';
 import { index as studentBoard } from '@/routes/student/board';
 import type { DashboardInvitation } from '@/types';
 
@@ -41,7 +41,19 @@ type Props = {
         client: string;
         dueDate: string | null;
         statusLabel: string;
+        /** Tasks the client verified over every task; null before signing. */
         progress: number | null;
+        verifiedCount: number | null;
+        submittedCount: number | null;
+        taskCount: number | null;
+        currentPhase: string | null;
+        nextMilestone: { title: string; dueOn: string | null } | null;
+        phases: {
+            id: number;
+            title: string;
+            progress: number;
+            isDone: boolean;
+        }[];
         team: { name: string; role: string | null; isAvailable: boolean }[];
     } | null;
     calendar: { label: string; days: CalendarDay[] };
@@ -340,7 +352,16 @@ function ProgressCard({ project }: { project: Props['project'] }) {
                 </div>
             </div>
 
-            <div style={{ fontSize: 13.5 }}>Milestones approved</div>
+            {/*
+             * Named for what it counts: tasks the client verified. Checking a
+             * task off does not move this — only the client's verification
+             * does — so it is never the student's own estimate.
+             */}
+            <div style={{ fontSize: 13.5 }}>
+                {project?.taskCount
+                    ? `${project.verifiedCount} of ${project.taskCount} tasks verified`
+                    : 'Tasks verified'}
+            </div>
             <div
                 style={{
                     fontSize: 11,
@@ -354,6 +375,106 @@ function ProgressCard({ project }: { project: Props['project'] }) {
                       ? `${project.title} · ${project.statusLabel} · awaiting a signed agreement`
                       : `${project.title}${project.dueDate ? ` · due ${project.dueDate}` : ''}`}
             </div>
+
+            {project !== null && project.progress !== null && (
+                <div
+                    style={{
+                        width: '100%',
+                        display: 'grid',
+                        gap: 10,
+                        marginTop: 6,
+                    }}
+                >
+                    {(project.currentPhase || project.nextMilestone) && (
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns:
+                                    'repeat(auto-fit, minmax(110px, 1fr))',
+                                gap: 8,
+                                padding: '8px 10px',
+                                borderRadius: 'var(--radius-md)',
+                                background: MUTED(5),
+                                fontSize: 11,
+                            }}
+                        >
+                            {project.currentPhase && (
+                                <div>
+                                    <div style={{ color: MUTED(55) }}>
+                                        Current phase
+                                    </div>
+                                    <div style={{ fontSize: 12.5 }}>
+                                        {project.currentPhase}
+                                    </div>
+                                </div>
+                            )}
+                            {project.nextMilestone && (
+                                <div>
+                                    <div style={{ color: MUTED(55) }}>
+                                        Next milestone
+                                    </div>
+                                    <div style={{ fontSize: 12.5 }}>
+                                        {project.nextMilestone.title}
+                                    </div>
+                                    {project.nextMilestone.dueOn && (
+                                        <div style={{ color: MUTED(55) }}>
+                                            Due {project.nextMilestone.dueOn}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {project.phases.map((phase) => (
+                        <div
+                            key={phase.id}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                fontSize: 11.5,
+                            }}
+                        >
+                            <span style={{ width: 64, flex: 'none' }}>
+                                {phase.title}
+                            </span>
+                            <span
+                                role="progressbar"
+                                aria-valuenow={phase.progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={`${phase.title} verified`}
+                                style={{
+                                    flex: 1,
+                                    height: 5,
+                                    borderRadius: 3,
+                                    background: 'var(--color-divider)',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        display: 'block',
+                                        width: `${phase.progress}%`,
+                                        height: '100%',
+                                        background: 'var(--color-accent)',
+                                    }}
+                                />
+                            </span>
+                            <span
+                                style={{
+                                    width: 32,
+                                    textAlign: 'right',
+                                    color: MUTED(65),
+                                }}
+                            >
+                                {phase.progress}%
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </Panel>
     );
 }
@@ -423,10 +544,9 @@ function TeamCard({ project }: { project: Props['project'] }) {
             )}
 
             {/*
-             * The workspace is student/process — milestone tracking for the
-             * build in hand. It was already built and reachable only by URL,
-             * so this button is how anybody actually finds it. Without a
-             * project there is nothing to open.
+             * The workspace is Project Management — the checklist and timeline
+             * for the build in hand. Without a project there is nothing to
+             * open.
              */}
             <Btn
                 asChild={project !== null}
@@ -441,7 +561,7 @@ function TeamCard({ project }: { project: Props['project'] }) {
                 }
             >
                 {project !== null ? (
-                    <Link href={studentProcess.url(currentTeam.slug)}>
+                    <Link href={projectManagement.url(currentTeam.slug)}>
                         Open workspace
                     </Link>
                 ) : (

@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
-use App\Enums\MilestoneStatus;
+use App\Enums\TaskStatus;
 use Database\Factories\AgreementFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -170,43 +170,48 @@ class Agreement extends Model
     /**
      * Get how far the agreed work has moved, as a percentage.
      *
-     * The share of milestones the client has approved — nothing else. Every
-     * milestone counts the same, because they are equal steps through the
-     * build and not weighted by price: a cheap turnover phase is not less done
-     * than an expensive one.
+     * Granular Task Completion: the tasks the client has verified over every
+     * task in every phase. Nothing a student types in, and nothing a status
+     * merely claims — a task checked off by the student but not yet verified
+     * counts for nothing here, because only the client can say it is done.
      *
-     * Approval is the only thing measured here on purpose. A milestone that is
-     * "in progress" used to be scored 40% and one "submitted" 80%, and those
-     * numbers were nobody's: they were a status dressed up as a measurement.
-     * The client accepting the work is an event a person actually caused, so
-     * it is the one thing the ring can honestly count.
+     * No tasks is 0%, not a division by zero: a checklist nobody has written
+     * yet has nothing done on it.
+     *
+     * Every caller that reports progress — both dashboards, the agreement
+     * screen, the messaging panel — goes through here or through
+     * SummariseProgress, which counts the same way, so no two screens can
+     * disagree about the figure.
      */
     public function progress(): int
     {
-        $milestones = $this->milestones;
+        $total = $this->taskCount();
 
-        if ($milestones->isEmpty()) {
-            return 0;
-        }
-
-        return (int) round($this->approvedMilestoneCount() / $milestones->count() * 100);
+        return $total === 0
+            ? 0
+            : (int) round($this->verifiedTaskCount() / $total * 100);
     }
 
     /**
-     * Count the milestones the client has accepted.
-     *
-     * Matched on Approved itself rather than through MilestoneStatus::isFinal().
-     * The two agree today, but they answer different questions — isFinal() asks
-     * whether a milestone can still move, and the process screen uses it to
-     * decide what the student may edit. Give the enum one more terminal state
-     * and a ring that is supposed to count acceptances would quietly start
-     * counting something else.
+     * Count every task across the agreement's phases.
      */
-    public function approvedMilestoneCount(): int
+    public function taskCount(): int
     {
-        return $this->milestones
-            ->filter(fn (AgreementMilestone $milestone): bool => $milestone->status === MilestoneStatus::Approved)
-            ->count();
+        $this->loadMissing('milestones.tasks');
+
+        return $this->milestones->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks->count());
+    }
+
+    /**
+     * Count the tasks the client has verified.
+     */
+    public function verifiedTaskCount(): int
+    {
+        $this->loadMissing('milestones.tasks');
+
+        return $this->milestones->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks
+            ->filter(fn (AgreementTask $task): bool => $task->status === TaskStatus::Verified)
+            ->count());
     }
 
     /**

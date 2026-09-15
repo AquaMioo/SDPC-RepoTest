@@ -19,19 +19,25 @@ import { localDateKey } from '@/lib/meeting-time';
 import { cn } from '@/lib/utils';
 
 export type CurrentProject = {
+    agreementId: number;
     title: string;
     slug: string;
     reference: string;
+    /** Tasks the client verified over every task — see SummariseProgress. */
     progress: number;
-    approvedCount: number;
-    milestoneCount: number;
+    verifiedCount: number;
+    submittedCount: number;
+    taskCount: number;
     dueOn: string | null;
     currentPhase: string | null;
     nextMilestone: { title: string; dueOn: string | null } | null;
     milestones: {
         id: number;
         title: string;
-        statusLabel: string;
+        progress: number;
+        verifiedCount: number;
+        taskCount: number;
+        state: 'upcoming' | 'in_progress' | 'done';
         isDone: boolean;
     }[];
     updatedAt: string | null;
@@ -314,9 +320,9 @@ export function ProjectProgressPanel({
             <Card>
                 <CardTitle>Project progress</CardTitle>
                 <p className="mt-3 mb-0 text-[13px] leading-relaxed text-muted-foreground">
-                    Progress appears once a student has signed an agreement for
-                    one of your postings. Until then there are no milestones to
-                    track.
+                    Progress appears once you and a student have both signed the
+                    agreement for one of your postings. Until then there are no
+                    tasks to verify.
                 </p>
             </Card>
         );
@@ -342,14 +348,14 @@ export function ProjectProgressPanel({
                 <div className="mt-4 text-center">
                     {/*
                      * Spelled out, because a bare percentage invites you to
-                     * read it as "how much of the work is done". It is not
-                     * that — it is how many milestones the client has signed
-                     * off, which is the only part anybody actually recorded.
+                     * read it as the student's own estimate. It is the tasks
+                     * you have verified, and nothing else.
                      */}
                     <div className="text-[12px] text-muted-foreground">
-                        {project.approvedCount} of {project.milestoneCount}{' '}
-                        milestone
-                        {project.milestoneCount === 1 ? '' : 's'} approved
+                        {project.verifiedCount} of {project.taskCount} task
+                        {project.taskCount === 1 ? '' : 's'} verified
+                        {project.submittedCount > 0 &&
+                            ` · ${project.submittedCount} awaiting your review`}
                     </div>
                     <div className="mt-1 text-[14.5px] font-medium">
                         {project.title}
@@ -400,7 +406,7 @@ export function ProjectProgressPanel({
 
             <div className="mt-5">
                 <div className="mb-2.5 text-[12px] text-muted-foreground">
-                    Milestones
+                    Progress by milestone
                 </div>
                 <div className="grid gap-2.5">
                     {project.milestones.map((milestone) => (
@@ -423,16 +429,28 @@ export function ProjectProgressPanel({
                                     <CircleIcon />
                                 )}
                             </span>
-                            <span className="min-w-0 flex-1 truncate text-[12.5px]">
+                            <span className="w-[72px] shrink-0 truncate text-[12.5px]">
                                 {milestone.title}
                             </span>
                             {/*
-                             * The status somebody recorded, not a bar. A
-                             * half-filled bar for "in progress" was a
-                             * measurement nobody took.
+                             * A measured bar: the share of this phase's tasks
+                             * you verified. Not a status dressed as a number.
                              */}
-                            <span className="shrink-0 text-[12px] text-muted-foreground">
-                                {milestone.statusLabel}
+                            <span
+                                className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)]"
+                                role="progressbar"
+                                aria-valuenow={milestone.progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={`${milestone.title}: ${milestone.verifiedCount} of ${milestone.taskCount} tasks verified`}
+                            >
+                                <span
+                                    className="block h-full rounded-full bg-[var(--color-primary,#4a7c4e)]"
+                                    style={{ width: `${milestone.progress}%` }}
+                                />
+                            </span>
+                            <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">
+                                {milestone.progress}%
                             </span>
                         </div>
                     ))}

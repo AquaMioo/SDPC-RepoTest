@@ -3,8 +3,11 @@
 namespace App\Policies;
 
 use App\Enums\AgreementParty;
+use App\Enums\AgreementStatus;
 use App\Enums\TeamPermission;
+use App\Enums\TeamRole;
 use App\Models\Agreement;
+use App\Models\Membership;
 use App\Models\User;
 
 class AgreementPolicy
@@ -71,6 +74,67 @@ class AgreementPolicy
     {
         return $this->partyFor($user, $agreement) !== null
             && $agreement->status->acceptsSignatures();
+    }
+
+    /**
+     * Determine whether the user can open the agreement's Project Management.
+     *
+     * Only once the two sides are collaborating — both signatures in, so the
+     * agreement is active. Before that there is no work to track and nothing
+     * anybody agreed to track it against.
+     *
+     * Beyond the two parties, the signing student's own teammates may watch:
+     * a capstone group builds together. They read; they never write — see
+     * manageTasks().
+     */
+    public function viewProgress(User $user, Agreement $agreement): bool
+    {
+        if ($agreement->status !== AgreementStatus::Active) {
+            return false;
+        }
+
+        return $this->partyFor($user, $agreement) !== null
+            || $this->isStudentsTeammate($user, $agreement);
+    }
+
+    /**
+     * Determine whether the user can write the checklist and move the timeline.
+     *
+     * The student who signed, and only them: adding, editing, reordering and
+     * checking off tasks, and planning phase dates. A client is read-only here
+     * by design — the side that verifies work must not also be the side that
+     * defines and reports it.
+     */
+    public function manageTasks(User $user, Agreement $agreement): bool
+    {
+        return $agreement->status === AgreementStatus::Active
+            && $this->partyFor($user, $agreement) === AgreementParty::Student;
+    }
+
+    /**
+     * Determine whether the user can verify a task, or send one back.
+     *
+     * The client, and only the client: this is the one move that makes
+     * progress, so the student can never make it on their own work.
+     */
+    public function verifyTasks(User $user, Agreement $agreement): bool
+    {
+        return $agreement->status === AgreementStatus::Active
+            && $this->partyFor($user, $agreement) === AgreementParty::Client;
+    }
+
+    /**
+     * Whether the user is on a team the signing student owns.
+     */
+    protected function isStudentsTeammate(User $user, Agreement $agreement): bool
+    {
+        return Membership::query()
+            ->where('user_id', $user->id)
+            ->whereIn('team_id', Membership::query()
+                ->select('team_id')
+                ->where('user_id', $agreement->student_id)
+                ->where('role', TeamRole::Owner->value))
+            ->exists();
     }
 
     /**

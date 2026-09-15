@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Actions\Agreements\SummariseProgress;
 use App\Actions\Messaging\UpcomingMeetings;
 use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
@@ -67,12 +68,12 @@ class ClientDashboardController extends Controller
     }
 
     /**
-     * The posting the team is running, with its milestone progress.
+     * The posting the team is running, with its task progress.
      *
-     * Progress comes from the signed agreement rather than the posting: the
-     * milestones a client tracks are the ones both sides agreed to. Null when
-     * there is no live agreement, and the panel says so rather than drawing an
-     * empty ring.
+     * Progress comes from the signed agreement rather than the posting, and
+     * is the same Granular Task Completion figure Project Management shows —
+     * both read SummariseProgress. Null when there is no live agreement, and
+     * the panel says so rather than drawing an empty ring.
      *
      * @return array<string, mixed>|null
      */
@@ -81,7 +82,7 @@ class ClientDashboardController extends Controller
         $agreement = Agreement::query()
             ->where('team_id', $team->id)
             ->where('status', AgreementStatus::Active)
-            ->with(['project', 'milestones'])
+            ->with(['project', 'milestones.tasks'])
             ->latest('id')
             ->first();
 
@@ -89,47 +90,33 @@ class ClientDashboardController extends Controller
             return null;
         }
 
-        $milestones = $agreement->milestones;
+        $summary = app(SummariseProgress::class)->handle($agreement);
 
         /*
-         * The phase being worked, and the one after it. Reporting the same
-         * milestone as both — which happens if you simply take the first
-         * unapproved one twice — tells the client nothing.
+         * Work moves on the checklist far more often than the contract row,
+         * so "last updated" is whichever changed most recently.
          */
-        $current = $milestones->first(
-            fn (AgreementMilestone $milestone): bool => $milestone->status !== MilestoneStatus::Approved,
-        );
+        $lastTaskChange = $agreement->milestones
+            ->flatMap(fn (AgreementMilestone $milestone) => $milestone->tasks)
+            ->max('updated_at');
 
-        $next = $current === null
-            ? null
-            : $milestones->first(
-                fn (AgreementMilestone $milestone): bool => $milestone->position > $current->position,
-            );
+        $updatedAt = collect([$agreement->updated_at, $lastTaskChange])->filter()->max();
 
         return [
+            'agreementId' => $agreement->id,
             'title' => $agreement->project->title,
             'slug' => $agreement->project->slug,
             'reference' => $agreement->reference,
-            'progress' => $agreement->progress(),
+            'progress' => $summary['progress'],
             /* What the ring is counting, so it can say so. */
-            'approvedCount' => $agreement->approvedMilestoneCount(),
-            'milestoneCount' => $milestones->count(),
-            'dueOn' => $milestones->max('ends_on')?->format('j M Y'),
-            'currentPhase' => $current?->title,
-            'nextMilestone' => $next === null ? null : [
-                'title' => $next->title,
-                'dueOn' => $next->ends_on?->format('j M Y'),
-            ],
-            'milestones' => $milestones
-                ->map(fn (AgreementMilestone $milestone): array => [
-                    'id' => $milestone->id,
-                    'title' => $milestone->title,
-                    'statusLabel' => $milestone->status->label(),
-                    'isDone' => $milestone->status === MilestoneStatus::Approved,
-                ])
-                ->values()
-                ->all(),
-            'updatedAt' => $agreement->updated_at?->diffForHumans(),
+            'verifiedCount' => $summary['verifiedCount'],
+            'submittedCount' => $summary['submittedCount'],
+            'taskCount' => $summary['taskCount'],
+            'dueOn' => $summary['dueOn'],
+            'currentPhase' => $summary['currentPhase']['title'] ?? null,
+            'nextMilestone' => $summary['nextMilestone'],
+            'milestones' => $summary['phases'],
+            'updatedAt' => $updatedAt?->diffForHumans(),
         ];
     }
 
@@ -164,6 +151,12 @@ class ClientDashboardController extends Controller
      */
     protected function calendarEvents(Team $team): array
     {
+        /*
+         * The student's working schedule where they have moved a phase on the
+         * timeline, the agreed date where they have not — the calendar shows
+         * when the work is actually expected, the same dates Project
+         * Management draws.
+         */
         return AgreementMilestone::query()
             ->whereHas(
                 'agreement',
@@ -171,15 +164,15 @@ class ClientDashboardController extends Controller
                     ->where('team_id', $team->id)
                     ->where('status', AgreementStatus::Active),
             )
-            ->whereNotNull('ends_on')
-            ->orderBy('ends_on')
+            ->where(fn (Builder $query) => $query->whereNotNull('ends_on')->orWhereNotNull('planned_ends_on'))
             ->with('agreement.project:id,slug')
             ->get()
+            ->sortBy(fn (AgreementMilestone $milestone): string => (string) $milestone->scheduledEndsOn()?->toDateString())
             ->map(fn (AgreementMilestone $milestone): array => [
                 'id' => $milestone->id,
                 'title' => $milestone->title,
-                'date' => $milestone->ends_on?->toDateString(),
-                'label' => $milestone->ends_on?->format('j M Y'),
+                'date' => $milestone->scheduledEndsOn()?->toDateString(),
+                'label' => $milestone->scheduledEndsOn()?->format('j M Y'),
                 'projectSlug' => $milestone->agreement->project->slug,
                 'isDone' => $milestone->status === MilestoneStatus::Approved,
             ])

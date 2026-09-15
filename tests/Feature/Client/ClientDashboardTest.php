@@ -6,10 +6,12 @@ use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\SiteContentKey;
+use App\Enums\TaskStatus;
 use App\Enums\TeamRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementTask;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -214,7 +216,7 @@ class ClientDashboardTest extends TestCase
             );
     }
 
-    public function test_the_overview_reports_milestone_progress_from_the_agreement(): void
+    public function test_the_overview_reports_task_progress_from_the_agreement(): void
     {
         [$client, $team, $project] = $this->teamWithProject();
 
@@ -224,17 +226,30 @@ class ClientDashboardTest extends TestCase
             'status' => AgreementStatus::Active,
         ]);
 
-        // Two of four approved: the ring reads the milestones, not the posting.
-        foreach ([MilestoneStatus::Approved, MilestoneStatus::Approved, MilestoneStatus::Pending, MilestoneStatus::Pending] as $position => $status) {
-            AgreementMilestone::factory()->create([
+        /*
+         * Four phases, one task each, two verified: the ring reads the tasks
+         * the client verified, not the posting — and not a phase status
+         * somebody set, which is why the first phase's "Approved" on its own
+         * counts for nothing without verified work behind it.
+         */
+        foreach ([TaskStatus::Verified, TaskStatus::Verified, TaskStatus::Submitted, TaskStatus::Open] as $position => $status) {
+            $milestone = AgreementMilestone::factory()->create([
                 'agreement_id' => $agreement->id,
                 'position' => $position + 1,
+                'status' => $position === 0 ? MilestoneStatus::Approved : MilestoneStatus::Pending,
+            ]);
+
+            AgreementTask::factory()->create([
+                'agreement_milestone_id' => $milestone->id,
                 'status' => $status,
             ]);
         }
 
         $this->partialDashboard($client, $team, 'currentProject')
             ->assertJsonPath('props.currentProject.progress', 50)
+            ->assertJsonPath('props.currentProject.verifiedCount', 2)
+            ->assertJsonPath('props.currentProject.submittedCount', 1)
+            ->assertJsonPath('props.currentProject.taskCount', 4)
             ->assertJsonCount(4, 'props.currentProject.milestones');
     }
 

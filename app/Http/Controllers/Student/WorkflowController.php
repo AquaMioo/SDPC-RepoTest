@@ -2,112 +2,24 @@
 
 namespace App\Http\Controllers\Student;
 
-use App\Enums\ApplicationStatus;
 use App\Http\Controllers\Controller;
-use App\Models\Application;
-use App\Models\Project;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
+use App\Models\Team;
+use Illuminate\Http\RedirectResponse;
 
 /**
- * "Workflow" — everything the student currently has in flight.
+ * "Workflow" became "Project Management".
  *
- * Two halves: the work they were accepted onto, and the applications still
- * waiting on a client. Both read from the same applications table, which is
- * the only record of who is on what.
+ * The screen moved to ProjectManagementController, which serves both sides of
+ * a signed agreement; the applications list this page used to carry is a
+ * section of it now. The URL stays so bookmarks and old links still land.
  */
 class WorkflowController extends Controller
 {
     /**
-     * Show the student's active projects and open applications.
+     * Send the student to Project Management.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Team $currentTeam): RedirectResponse
     {
-        $student = $request->user();
-
-        return Inertia::render('student/workflow', [
-            'projects' => $this->activeProjects($student),
-            'applications' => $this->applications($student),
-        ]);
-    }
-
-    /**
-     * Get the projects the student was accepted onto and is still building.
-     *
-     * @return list<array<string, mixed>>
-     */
-    protected function activeProjects(User $student): array
-    {
-        return Project::query()
-            ->whereHas('applications', fn ($query) => $query
-                ->where('user_id', $student->id)
-                ->where('status', ApplicationStatus::Accepted))
-            ->active()
-            ->with(['team.clientProfile'])
-            ->latest('published_at')
-            ->get()
-            ->map(fn (Project $project): array => [
-                'id' => $project->id,
-                'slug' => $project->slug,
-                'title' => $project->title,
-                'client' => $project->team->clientProfile?->business_name ?? $project->team->name,
-                'status' => $project->status->label(),
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Get every application the student has sent, newest first.
-     *
-     * Accepted ones stay in the list as history — the project half above shows
-     * the work, this half shows what was asked and what came back.
-     *
-     * @return list<array<string, mixed>>
-     */
-    protected function applications(User $student): array
-    {
-        return Application::query()
-            ->where('user_id', $student->id)
-            ->with(['project.team.clientProfile'])
-            ->latest()
-            ->get()
-            ->map(fn (Application $application): array => [
-                'id' => $application->id,
-                'projectId' => $application->project->id,
-                'projectTitle' => $application->project->title,
-                'projectSlug' => $application->project->slug,
-                /*
-                 * An application row is what lets a thread exist, so a student
-                 * can open one on anything still live between the two of them.
-                 * A rejected or withdrawn application is a closed door, and a
-                 * message is not the way to reopen it.
-                 */
-                'canMessage' => in_array($application->status, [
-                    ApplicationStatus::Pending,
-                    ApplicationStatus::Shortlisted,
-                    ApplicationStatus::Accepted,
-                ], true),
-                'client' => $application->project->team->clientProfile?->business_name
-                    ?? $application->project->team->name,
-                'status' => $application->status->value,
-                'statusLabel' => $application->status->label(),
-                'source' => $application->source->label(),
-                'appliedAt' => $application->created_at?->format('j M Y'),
-                'respondedAt' => $application->responded_at?->format('j M Y'),
-                /*
-                 * An invitation is the student's to answer, so it offers
-                 * Accept and Decline instead of Withdraw — there is nothing to
-                 * take back from a conversation the client opened.
-                 */
-                'awaitsMyDecision' => $application->awaitsStudentDecision(),
-                /** Only an undecided application the student made can be taken back. */
-                'canWithdraw' => $application->status->isActionable()
-                    && ! $application->awaitsStudentDecision(),
-            ])
-            ->values()
-            ->all();
+        return redirect()->route('project-management', ['current_team' => $currentTeam]);
     }
 }

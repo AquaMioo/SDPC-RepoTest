@@ -6,8 +6,10 @@ use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
+use App\Enums\TaskStatus;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementTask;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\User;
@@ -25,15 +27,25 @@ class ProjectProcessTest extends TestCase
 {
     use RefreshDatabase;
 
+    /*
+     * The process screen grew into Project Management, shared by both sides.
+     * The old address still lands there, and the same guarantees are pinned
+     * against the new screen below.
+     */
+
     public function test_the_screen_is_empty_without_a_signed_agreement(): void
     {
         $student = User::factory()->student()->approved()->create();
 
         $this->actingAs($student)
             ->get(route('student.process', ['current_team' => $student->currentTeam]))
+            ->assertRedirect(route('project-management', ['current_team' => $student->currentTeam]));
+
+        $this->actingAs($student)
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('student/process')
+                ->component('project-management/index')
                 ->where('agreement', null));
     }
 
@@ -46,12 +58,12 @@ class ProjectProcessTest extends TestCase
         $agreement->update(['status' => AgreementStatus::Draft]);
 
         $this->actingAs($student)
-            ->get(route('student.process', ['current_team' => $student->currentTeam]))
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page->where('agreement', null));
     }
 
-    public function test_the_milestones_and_the_approved_share_are_shown(): void
+    public function test_the_phases_and_the_verified_share_are_shown(): void
     {
         [$student, $agreement] = $this->build([
             MilestoneStatus::Approved,
@@ -59,21 +71,27 @@ class ProjectProcessTest extends TestCase
             MilestoneStatus::Pending,
         ]);
 
+        foreach ([TaskStatus::Verified, TaskStatus::Submitted, TaskStatus::Open] as $index => $status) {
+            AgreementTask::factory()->create([
+                'agreement_milestone_id' => $agreement->milestones[$index]->id,
+                'status' => $status,
+            ]);
+        }
+
         $this->actingAs($student)
-            ->get(route('student.process', ['current_team' => $student->currentTeam]))
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('agreement.milestones', 3)
+                ->has('agreement.phases', 3)
                 /*
-                 * One of three approved. "Submitted" used to score 80 and pull
-                 * this to 60 — a number nobody supplied, because handing work
-                 * over is not the client accepting it.
+                 * One of three tasks verified. The submitted one counts for
+                 * nothing: handing work over is not the client accepting it.
                  */
-                ->where('agreement.progress', 33)
-                ->where('agreement.approvedCount', 1)
-                ->where('agreement.milestoneCount', 3)
+                ->where('agreement.summary.progress', 33)
+                ->where('agreement.summary.verifiedCount', 1)
+                ->where('agreement.summary.taskCount', 3)
                 ->where('agreement.reference', $agreement->reference)
-                ->where('agreement.milestones.0.statusLabel', 'Approved'));
+                ->where('agreement.phases.0.tasks.0.statusLabel', 'Verified'));
     }
 
     public function test_a_student_is_only_offered_their_own_half_of_the_moves(): void
@@ -81,13 +99,11 @@ class ProjectProcessTest extends TestCase
         [$student] = $this->build();
 
         $this->actingAs($student)
-            ->get(route('student.process', ['current_team' => $student->currentTeam]))
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('assignableStatuses', [
-                    ['value' => 'in_progress', 'label' => 'In progress'],
-                    ['value' => 'submitted', 'label' => 'In review'],
-                ]));
+                ->where('can.manage', true)
+                ->where('can.verify', false));
     }
 
     public function test_a_student_hands_a_milestone_over(): void

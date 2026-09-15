@@ -18,15 +18,13 @@ import {
 } from '@/components/ui/tooltip';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { useMod } from '@/hooks/use-mod';
-import { dashboard } from '@/routes';
+import { dashboard, projectManagement } from '@/routes';
 import { index as agreementsIndex } from '@/routes/agreements';
 import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
 import { index as messagesIndex } from '@/routes/messages';
 import { edit as profileEdit } from '@/routes/profile';
-import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
-import { workflow as studentWorkflow } from '@/routes/student';
 import { index as studentBoard } from '@/routes/student/board';
 import { edit as studentProfileEdit } from '@/routes/student/profile';
 import { index as teamsIndex } from '@/routes/teams';
@@ -148,7 +146,15 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             ? [
                   { label: 'Dashboard', href: dashboard.url(team.slug) },
                   { label: 'Get Client', href: studentBoard.url(team.slug) },
-                  { label: 'Workflow', href: studentWorkflow.url(team.slug) },
+                  /*
+                   * Was "Workflow". Both sides now land on the same
+                   * Project Management screen for a signed build; the
+                   * applications list lives on as a section of it.
+                   */
+                  {
+                      label: 'Project Management',
+                      href: projectManagement.url(team.slug),
+                  },
                   billing === null
                       ? null
                       : { ...billing, label: 'Performance' },
@@ -168,9 +174,14 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                   { label: 'Dashboard', href: clientDashboard.url(team.slug) },
                   { label: 'Recruit', href: recruitIndex.url(team.slug) },
                   billing,
+                  /*
+                   * Was "Project Process", the postings list. The postings
+                   * are still one click away from the new screen's "Your
+                   * postings" button and from the dashboard.
+                   */
                   {
-                      label: 'Project Process',
-                      href: projectsIndex.url(team.slug),
+                      label: 'Project Management',
+                      href: projectManagement.url(team.slug),
                   },
                   { label: 'Agreement', href: agreementsIndex.url(team.slug) },
                   { label: 'Team', href: teamsIndex.url() },

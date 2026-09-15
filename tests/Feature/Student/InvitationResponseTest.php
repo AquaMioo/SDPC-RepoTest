@@ -35,7 +35,7 @@ class InvitationResponseTest extends TestCase
         [$client, $student, $project] = $this->invitation();
 
         $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->has('applications', 1)
@@ -49,7 +49,7 @@ class InvitationResponseTest extends TestCase
         [$client, $student, $project] = $this->invitation(source: ApplicationSource::Applied);
 
         $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('applications.0.awaitsMyDecision', false)
                 ->where('applications.0.canWithdraw', true));

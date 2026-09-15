@@ -8,11 +8,16 @@ use App\Models\Application;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 /**
- * "Workflow" — the student's accepted work and the applications behind it.
+ * "Workflow" became "Project Management".
+ *
+ * The old address redirects to the shared screen, and the applications list
+ * this page used to carry is a section of it now. These keep pinning what the
+ * list shows; the monitoring half is covered in tests/Feature/Agreements.
  */
 class WorkflowTest extends TestCase
 {
@@ -24,8 +29,11 @@ class WorkflowTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+            ->assertRedirect(route('project-management', ['current_team' => $student->currentTeam]));
+
+        $this->screen($student)
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->component('student/workflow'));
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('project-management/index'));
     }
 
     public function test_a_client_is_kept_out(): void
@@ -41,14 +49,13 @@ class WorkflowTest extends TestCase
     {
         $student = $this->student();
 
-        $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+        $this->screen($student)
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('projects', 0)
+                ->where('agreement', null)
                 ->has('applications', 0));
     }
 
-    public function test_an_accepted_application_becomes_an_active_project(): void
+    public function test_an_accepted_application_waits_for_a_signed_agreement(): void
     {
         $student = $this->student();
         $project = Project::factory()->create([
@@ -58,25 +65,24 @@ class WorkflowTest extends TestCase
 
         $this->apply($student, $project, ApplicationStatus::Accepted);
 
-        $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+        // Accepted is not collaborating yet: the build is tracked once both
+        // sides sign, so the monitoring half stays locked.
+        $this->screen($student)
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('projects', 1)
-                ->where('projects.0.title', 'Inventory System')
-                ->has('applications', 1));
+                ->where('agreement', null)
+                ->has('applications', 1)
+                ->where('applications.0.projectTitle', 'Inventory System'));
     }
 
-    public function test_a_pending_application_is_not_an_active_project(): void
+    public function test_a_pending_application_can_still_be_withdrawn(): void
     {
         $student = $this->student();
         $project = Project::factory()->create(['status' => ProjectStatus::Open]);
 
         $this->apply($student, $project, ApplicationStatus::Pending);
 
-        $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+        $this->screen($student)
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('projects', 0)
                 ->has('applications', 1)
                 ->where('applications.0.canWithdraw', true));
     }
@@ -87,23 +93,21 @@ class WorkflowTest extends TestCase
 
         $this->apply($student, Project::factory()->create(), ApplicationStatus::Rejected);
 
-        $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+        $this->screen($student)
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('applications.0.canWithdraw', false));
     }
 
-    public function test_a_finished_project_leaves_the_active_list_but_keeps_its_application(): void
+    public function test_a_finished_project_keeps_its_application(): void
     {
         $student = $this->student();
         $project = Project::factory()->create(['status' => ProjectStatus::Completed]);
 
         $this->apply($student, $project, ApplicationStatus::Accepted);
 
-        $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+        $this->screen($student)
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('projects', 0)
+                ->where('agreement', null)
                 ->has('applications', 1));
     }
 
@@ -114,10 +118,9 @@ class WorkflowTest extends TestCase
 
         $this->apply($stranger, Project::factory()->create(), ApplicationStatus::Accepted);
 
-        $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+        $this->screen($student)
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('projects', 0)
+                ->where('agreement', null)
                 ->has('applications', 0));
     }
 
@@ -127,6 +130,15 @@ class WorkflowTest extends TestCase
     private function student(): User
     {
         return User::factory()->student()->approved()->create();
+    }
+
+    /**
+     * Open Project Management as the student, on their own team.
+     */
+    private function screen(User $student): TestResponse
+    {
+        return $this->actingAs($student)
+            ->get(route('project-management', ['current_team' => $student->currentTeam]));
     }
 
     /**

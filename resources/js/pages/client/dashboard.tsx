@@ -19,10 +19,8 @@ import { UpcomingMeetingsPanel } from '@/components/sdpc/upcoming-meetings';
 import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
-import {
-    create as projectsCreate,
-    show as projectsShow,
-} from '@/routes/projects';
+import { projectManagement } from '@/routes';
+import { create as projectsCreate } from '@/routes/projects';
 import type { DashboardInvitation } from '@/types';
 
 type Props = {
@@ -60,10 +58,12 @@ export default function ClientDashboard({
         pendingInvitations.length > 0,
     );
 
-    // Both the progress panel and the team panel point at the running posting,
-    // and neither has anywhere to go before one exists.
+    // Both the progress panel and the team panel open the build on Project
+    // Management, and neither has anywhere to go before one exists.
     const projectHref = currentProject
-        ? projectsShow.url([team.slug, currentProject.slug])
+        ? projectManagement.url(team.slug, {
+              query: { agreement: currentProject.agreementId },
+          })
         : null;
 
     return (

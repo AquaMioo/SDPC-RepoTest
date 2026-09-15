@@ -1,0 +1,436 @@
+import { Head, Link, router } from '@inertiajs/react';
+import { LockSimpleIcon } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+
+import { ApplicationsSection } from '@/components/project-management/applications-section';
+import { PhaseChecklist } from '@/components/project-management/phase-checklist';
+import { PhaseTimeline } from '@/components/project-management/phase-timeline';
+import {
+    IN_PLACE,
+    ScheduleDialog,
+} from '@/components/project-management/task-dialogs';
+import type {
+    ManagedAgreement,
+    Phase,
+    ProjectManagementProps,
+} from '@/components/project-management/types';
+import { Btn } from '@/components/sdpc/btn';
+import { Select } from '@/components/sdpc/input';
+import { Panel } from '@/components/sdpc/panel';
+import { Tag } from '@/components/sdpc/tag';
+import { useCurrentTeam } from '@/hooks/use-current-team';
+import { shortDate } from '@/lib/calendar-days';
+import { projectManagement } from '@/routes';
+import { show as agreementShow } from '@/routes/agreements';
+import { schedule as scheduleMilestone } from '@/routes/agreements/milestones';
+import { index as projectsIndex } from '@/routes/projects';
+import { index as boardIndex } from '@/routes/student/board';
+
+const MUTED = (pct: number) =>
+    `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
+
+const STATE_TAG: Record<
+    Phase['state'],
+    { label: string; variant: 'outline' | 'neutral' | 'accent' }
+> = {
+    in_progress: { label: 'In progress', variant: 'outline' },
+    upcoming: { label: 'Upcoming', variant: 'neutral' },
+    done: { label: 'Done', variant: 'accent' },
+};
+
+/**
+ * "Project Management" — where a signed build is tracked, by both sides.
+ *
+ * Replaces the student's Workflow and the client's Project Process tabs. The
+ * student is the updater: they write each phase's checklist, plan the timeline
+ * and check tasks off with proof. The client is the verifier: only they can
+ * mark a task done. Progress is the share of tasks the client verified, and it
+ * is worked out on the server — nothing on this screen lets anyone type it.
+ *
+ * Locked until the two sides are collaborating (a signed, active agreement).
+ */
+export default function ProjectManagement({
+    side,
+    agreements,
+    agreement,
+    can,
+    pendingAgreementId,
+    applications,
+}: ProjectManagementProps) {
+    const team = useCurrentTeam();
+    const [scheduling, setScheduling] = useState<Phase | null>(null);
+
+    return (
+        <>
+            <Head title="Project Management" />
+
+            <div
+                className="page-shell"
+                style={{
+                    maxWidth: 'clamp(1100px, 100vw - 320px, 1600px)',
+                    margin: '0 auto',
+                    paddingTop: 30,
+                    paddingBottom: 72,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 18,
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div style={{ marginRight: 'auto', minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: MUTED(55) }}>
+                            Project Management
+                        </div>
+                        <h3 style={{ margin: 0 }}>
+                            {agreement?.projectTitle ?? 'Project Management'}
+                        </h3>
+                        <div style={{ fontSize: 13, color: MUTED(60) }}>
+                            {agreement === null
+                                ? 'Track the build once you are collaborating.'
+                                : side === 'student'
+                                  ? 'Check a task off once it’s done and attach proof. It stays pending until the client reviews and verifies it.'
+                                  : `Tasks ${agreement.studentName} checks off wait here for you to review. Only the tasks you verify count towards progress.`}
+                        </div>
+                    </div>
+
+                    {agreements.length > 1 && (
+                        <Select
+                            aria-label="Choose a project"
+                            value={agreement?.id ?? ''}
+                            onChange={(event) =>
+                                router.get(
+                                    projectManagement.url(team.slug, {
+                                        query: {
+                                            agreement: event.target.value,
+                                        },
+                                    }),
+                                )
+                            }
+                            style={{ width: 'auto', maxWidth: '100%' }}
+                        >
+                            {agreements.map((each) => (
+                                <option key={each.id} value={each.id}>
+                                    {each.projectTitle} · {each.counterpart}
+                                </option>
+                            ))}
+                        </Select>
+                    )}
+
+                    {side === 'client' ? (
+                        <Btn asChild variant="secondary">
+                            <Link href={projectsIndex.url(team.slug)}>
+                                Your postings
+                            </Link>
+                        </Btn>
+                    ) : (
+                        <Btn asChild variant="secondary">
+                            <Link href={boardIndex.url(team.slug)}>
+                                Find more work
+                            </Link>
+                        </Btn>
+                    )}
+
+                    {agreement !== null && (
+                        <Tag
+                            variant="outline"
+                            title={`${agreement.summary.verifiedCount} of ${agreement.summary.taskCount} tasks verified`}
+                        >
+                            {agreement.summary.progress}% overall
+                        </Tag>
+                    )}
+                </div>
+
+                {agreement === null ? (
+                    <LockedPanel
+                        side={side}
+                        teamSlug={team.slug}
+                        pendingAgreementId={pendingAgreementId}
+                    />
+                ) : (
+                    <Workspace
+                        agreement={agreement}
+                        teamSlug={team.slug}
+                        canManage={can.manage}
+                        canVerify={can.verify}
+                        onEditDates={setScheduling}
+                    />
+                )}
+
+                {side === 'student' && (
+                    <ApplicationsSection
+                        applications={applications}
+                        teamSlug={team.slug}
+                    />
+                )}
+            </div>
+
+            {agreement !== null && scheduling !== null && (
+                <ScheduleDialog
+                    open
+                    onOpenChange={(open) => !open && setScheduling(null)}
+                    url={scheduleMilestone.url({
+                        current_team: team.slug,
+                        agreement: agreement.id,
+                        milestone: scheduling.id,
+                    })}
+                    phase={scheduling}
+                />
+            )}
+        </>
+    );
+}
+
+function Workspace({
+    agreement,
+    teamSlug,
+    canManage,
+    canVerify,
+    onEditDates,
+}: {
+    agreement: ManagedAgreement;
+    teamSlug: string;
+    canManage: boolean;
+    canVerify: boolean;
+    onEditDates: (phase: Phase) => void;
+}) {
+    const { summary } = agreement;
+
+    /*
+     * Dragging a bar moves it at once and asks the server afterwards: a bar
+     * that snaps back until the round trip lands reads as a failed drag.
+     * Inertia puts the old dates back itself if the server refuses.
+     */
+    const reschedule = (phase: Phase, startsOn: string, endsOn: string) => {
+        router
+            .optimistic<{ agreement: ManagedAgreement | null }>((props) =>
+                props.agreement === null
+                    ? {}
+                    : {
+                          agreement: {
+                              ...props.agreement,
+                              phases: props.agreement.phases.map((each) =>
+                                  each.id === phase.id
+                                      ? {
+                                            ...each,
+                                            startsOn,
+                                            endsOn,
+                                            isRescheduled: true,
+                                        }
+                                      : each,
+                              ),
+                          },
+                      },
+            )
+            .patch(
+                scheduleMilestone.url({
+                    current_team: teamSlug,
+                    agreement: agreement.id,
+                    milestone: phase.id,
+                }),
+                { starts_on: startsOn, ends_on: endsOn },
+                {
+                    ...IN_PLACE,
+                    onError: (errors) => {
+                        const message = Object.values(errors)[0];
+
+                        if (message) {
+                            toast.error(message);
+                        }
+                    },
+                },
+            );
+    };
+
+    return (
+        <>
+            <div
+                style={{
+                    display: 'flex',
+                    gap: 16,
+                    flexWrap: 'wrap',
+                    fontSize: 12.5,
+                    color: MUTED(65),
+                }}
+            >
+                <span>
+                    <strong style={{ color: 'var(--color-text)' }}>
+                        {summary.verifiedCount} of {summary.taskCount}
+                    </strong>{' '}
+                    tasks verified
+                </span>
+                {summary.submittedCount > 0 && (
+                    <span>{summary.submittedCount} pending client review</span>
+                )}
+                {summary.currentPhase && (
+                    <span>Current phase: {summary.currentPhase.title}</span>
+                )}
+                {summary.nextMilestone && (
+                    <span>
+                        Next: {summary.nextMilestone.title}
+                        {summary.nextMilestone.dueOn
+                            ? ` · due ${summary.nextMilestone.dueOn}`
+                            : ''}
+                    </span>
+                )}
+                <span style={{ marginLeft: 'auto' }}>
+                    {agreement.reference} · with {agreement.counterpart}
+                </span>
+            </div>
+
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                    gap: 12,
+                }}
+            >
+                {agreement.phases.map((phase) => (
+                    <Panel key={phase.id} padding="lg" gap="sm">
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 8,
+                            }}
+                        >
+                            <span
+                                style={{ fontSize: 13.5, marginRight: 'auto' }}
+                            >
+                                {phase.title}
+                            </span>
+                            <Tag variant={STATE_TAG[phase.state].variant}>
+                                {STATE_TAG[phase.state].label}
+                            </Tag>
+                        </div>
+                        <span style={{ fontSize: 11.5, color: MUTED(58) }}>
+                            {shortDate(phase.startsOn)} –{' '}
+                            {shortDate(phase.endsOn)}
+                        </span>
+                        <div
+                            role="progressbar"
+                            aria-valuenow={phase.progress}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`${phase.title} verified`}
+                            style={{
+                                height: 4,
+                                borderRadius: 2,
+                                background: MUTED(10),
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: `${phase.progress}%`,
+                                    height: '100%',
+                                    background: 'var(--color-accent)',
+                                }}
+                            />
+                        </div>
+                        <span style={{ fontSize: 11, color: MUTED(55) }}>
+                            {phase.verifiedCount} of {phase.taskCount} tasks
+                            verified
+                        </span>
+                    </Panel>
+                ))}
+            </div>
+
+            <PhaseTimeline
+                phases={agreement.phases}
+                canEdit={canManage}
+                onReschedule={reschedule}
+                onEditDates={onEditDates}
+            />
+
+            {agreement.phases.map((phase) => (
+                <PhaseChecklist
+                    key={phase.id}
+                    phase={phase}
+                    teamSlug={teamSlug}
+                    agreementId={agreement.id}
+                    canManage={canManage}
+                    canVerify={canVerify}
+                />
+            ))}
+        </>
+    );
+}
+
+function LockedPanel({
+    side,
+    teamSlug,
+    pendingAgreementId,
+}: {
+    side: 'student' | 'client';
+    teamSlug: string;
+    pendingAgreementId: number | null;
+}) {
+    return (
+        <Panel padding="lg" gap="md" style={{ alignItems: 'flex-start' }}>
+            <span
+                style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: MUTED(8),
+                    color: MUTED(70),
+                    fontSize: 18,
+                }}
+            >
+                <LockSimpleIcon />
+            </span>
+            <div style={{ fontSize: 15 }}>
+                Project Management opens once you are collaborating
+            </div>
+            <div
+                style={{
+                    fontSize: 13,
+                    color: MUTED(62),
+                    maxWidth: 620,
+                    lineHeight: 1.55,
+                }}
+            >
+                {side === 'student'
+                    ? 'It unlocks when a client has taken you on and you have both signed the agreement. Then you list each phase’s tasks, plan the timeline, and check work off for the client to verify.'
+                    : 'It unlocks when you have taken a student on and you have both signed the agreement. Then the student lists each phase’s tasks and checks work off, and you verify it here.'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {pendingAgreementId !== null && (
+                    <Btn asChild variant="primary">
+                        <Link
+                            href={agreementShow.url({
+                                current_team: teamSlug,
+                                agreement: pendingAgreementId,
+                            })}
+                        >
+                            Open the agreement to sign
+                        </Link>
+                    </Btn>
+                )}
+                {side === 'client' ? (
+                    <Btn asChild variant="secondary">
+                        <Link href={projectsIndex.url(teamSlug)}>
+                            Your postings
+                        </Link>
+                    </Btn>
+                ) : (
+                    <Btn asChild variant="secondary">
+                        <Link href={boardIndex.url(teamSlug)}>
+                            Find clients
+                        </Link>
+                    </Btn>
+                )}
+            </div>
+        </Panel>
+    );
+}

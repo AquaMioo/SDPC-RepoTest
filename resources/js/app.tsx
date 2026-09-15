@@ -59,6 +59,8 @@ createInertiaApp({
             case name.startsWith('messaging/'):
             case name.startsWith('agreements/'):
             case name.startsWith('notifications/'):
+            // Shared by both sides of a signed agreement, like the contract itself.
+            case name.startsWith('project-management/'):
             case name.startsWith('billing/'):
                 return ClientLayout;
             /*

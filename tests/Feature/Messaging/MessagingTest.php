@@ -138,7 +138,8 @@ class MessagingTest extends TestCase
     }
 
     /**
-     * The student's workflow screen is where that button lives, and without
+     * The applications section of the student's Project Management screen
+     * (once the Workflow screen) is where that button lives, and without
      * these two fields on the row it has nothing to post.
      */
     public function test_the_workflow_screen_carries_what_it_takes_to_open_a_thread(): void
@@ -146,10 +147,10 @@ class MessagingTest extends TestCase
         [, $student, $project] = $this->pair(applied: true);
 
         $this->actingAs($student)
-            ->get(route('student.workflow', ['current_team' => $student->currentTeam]))
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('student/workflow')
+                ->component('project-management/index')
                 ->where('applications.0.projectId', $project->id)
                 ->where('applications.0.canMessage', true)
                 ->etc()

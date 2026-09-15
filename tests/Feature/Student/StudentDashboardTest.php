@@ -6,8 +6,10 @@ use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\SiteContentKey;
+use App\Enums\TaskStatus;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementTask;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -88,7 +90,7 @@ class StudentDashboardTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->where('project', null));
     }
 
-    public function test_progress_counts_the_milestones_the_client_approved(): void
+    public function test_progress_counts_the_tasks_the_client_verified(): void
     {
         $student = $this->student();
         $project = $this->project(['status' => ProjectStatus::InProgress]);
@@ -102,12 +104,17 @@ class StudentDashboardTest extends TestCase
             'ends_on' => '2026-05-22',
         ]);
 
-        // Approved, in progress, pending. Only the approved one counts:
-        // "in progress" is a state somebody recorded, not a measurement.
-        foreach ([MilestoneStatus::Approved, MilestoneStatus::InProgress, MilestoneStatus::Pending] as $index => $status) {
-            AgreementMilestone::factory()->create([
+        // Verified, submitted, open. Only the verified one counts: checking a
+        // task off hands it to the client, it does not finish it.
+        foreach ([TaskStatus::Verified, TaskStatus::Submitted, TaskStatus::Open] as $index => $status) {
+            $milestone = AgreementMilestone::factory()->create([
                 'agreement_id' => $agreement->id,
                 'position' => $index + 1,
+                'status' => MilestoneStatus::Pending,
+            ]);
+
+            AgreementTask::factory()->create([
+                'agreement_milestone_id' => $milestone->id,
                 'status' => $status,
             ]);
         }
@@ -116,6 +123,8 @@ class StudentDashboardTest extends TestCase
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('project.progress', 33)
+                ->where('project.verifiedCount', 1)
+                ->where('project.taskCount', 3)
                 ->where('project.dueDate', '22 May 2026')
                 ->where('project.statusLabel', 'In progress'));
     }

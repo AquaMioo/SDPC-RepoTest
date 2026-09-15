@@ -2,6 +2,7 @@
 
 namespace App\Actions\Student;
 
+use App\Actions\Agreements\SummariseProgress;
 use App\Enums\ApplicationStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\SiteContentKey;
@@ -15,8 +16,8 @@ use Illuminate\Support\Carbon;
  * Gathers everything the student dashboard shows.
  *
  * A posting carries no dates and no money — it is a brief. The schedule lives
- * on the signed agreement instead, so the ring reports the milestones two
- * people actually moved and the calendar marks the phase dates they agreed.
+ * on the signed agreement instead, so the ring reports the tasks the client
+ * verified and the calendar marks the phase dates the student is working to.
  * Both fall back to nothing rather than to a guess: a student with no signed
  * agreement sees a dash, which is different from a zero.
  */
@@ -58,7 +59,7 @@ class BuildStudentDashboard
             ->where('student_id', $student->id)
             ->where('project_id', $project->id)
             ->active()
-            ->with('milestones')
+            ->with('milestones.tasks')
             ->latest('version')
             ->first();
     }
@@ -92,19 +93,30 @@ class BuildStudentDashboard
             return null;
         }
 
+        /*
+         * The same Granular Task Completion figures Project Management and the
+         * client dashboard draw: tasks the client verified over every task.
+         */
+        $summary = $agreement === null ? null : app(SummariseProgress::class)->handle($agreement);
+
         return [
             'title' => $project->title,
             'slug' => $project->slug,
             'client' => $project->team->clientProfile?->business_name ?? $project->team->name,
             'statusLabel' => $project->status->label(),
             /*
-             * The agreement's own figure: the share of milestones the client
-             * has approved, which is why the card is labelled "Milestones
-             * approved" rather than left to read as how much of the work is
-             * done. Null without an agreement — the ring shows a dash rather
-             * than a percentage nothing supports.
+             * Null without an agreement — the ring shows a dash rather than a
+             * percentage nothing supports. With one, it is the share of tasks
+             * the client verified, and the card says "x of y tasks verified"
+             * so it cannot be read as the student's own estimate.
              */
-            'progress' => $agreement?->progress(),
+            'progress' => $summary['progress'] ?? null,
+            'verifiedCount' => $summary['verifiedCount'] ?? null,
+            'submittedCount' => $summary['submittedCount'] ?? null,
+            'taskCount' => $summary['taskCount'] ?? null,
+            'currentPhase' => $summary['currentPhase']['title'] ?? null,
+            'nextMilestone' => $summary['nextMilestone'] ?? null,
+            'phases' => $summary['phases'] ?? [],
             'dueDate' => $agreement?->ends_on?->format('j M Y'),
             'agreementId' => $agreement?->id,
             'team' => $project->members
@@ -173,13 +185,14 @@ class BuildStudentDashboard
 
         $marks = [];
 
+        /* The working schedule: planned dates where the student moved a phase, agreed ones otherwise. */
         foreach ($agreement->milestones as $milestone) {
-            if ($milestone->starts_on !== null) {
-                $marks[$milestone->starts_on->toDateString()] = $milestone->title.' starts';
+            if ($milestone->scheduledStartsOn() !== null) {
+                $marks[$milestone->scheduledStartsOn()->toDateString()] = $milestone->title.' starts';
             }
 
-            if ($milestone->ends_on !== null) {
-                $date = $milestone->ends_on->toDateString();
+            if ($milestone->scheduledEndsOn() !== null) {
+                $date = $milestone->scheduledEndsOn()->toDateString();
 
                 $marks[$date] = isset($marks[$date])
                     ? $milestone->title
