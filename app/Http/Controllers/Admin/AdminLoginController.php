@@ -22,6 +22,8 @@ class AdminLoginController extends Controller
         // are issued by the developers rather than self-served.
         return Inertia::render('admin/login', [
             'status' => $request->session()->get('status'),
+            // Why this device was just signed out or refused. See App\Support\AccountSession.
+            'warning' => $request->session()->get('warning'),
         ]);
     }
 }

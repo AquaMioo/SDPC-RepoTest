@@ -190,6 +190,16 @@ class PresentNotification
                 $this->text($data, 'note'),
                 $this->agreementUrl($data, $team),
             ],
+            'account.access_blocked' => [
+                __('Someone tried to sign in to your account'),
+                __(':device was blocked because you were using the account. If it was not you, change your password.', [
+                    'device' => implode(' ', array_filter([
+                        $this->text($data, 'device') ?? __('A device'),
+                        $this->text($data, 'ip_address') === null ? null : '('.$this->text($data, 'ip_address').')',
+                    ])),
+                ]),
+                route('security.edit'),
+            ],
             default => [__('Something happened on your account'), null, null],
         };
     }

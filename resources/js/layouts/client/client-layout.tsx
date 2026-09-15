@@ -7,6 +7,7 @@ import {
 import type { CSSProperties, ReactNode } from 'react';
 
 import AccountStatusBanner from '@/components/account-status-banner';
+import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
 import { NotificationMenu } from '@/components/sdpc/notification-menu';
 import type { NotificationRow } from '@/components/sdpc/notification-menu';
@@ -290,6 +291,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             </header>
 
             <AccountStatusBanner />
+            <AccountSessionGuard />
 
             <main>{children}</main>
         </div>

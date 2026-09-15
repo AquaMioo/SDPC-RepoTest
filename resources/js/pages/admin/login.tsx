@@ -8,6 +8,7 @@ import {
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
+import AccountSessionWarning from '@/components/sdpc/account-session-warning';
 import { Btn } from '@/components/sdpc/btn';
 import { Input } from '@/components/sdpc/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -17,6 +18,8 @@ import { request } from '@/routes/password';
 
 type Props = {
     status?: string;
+    /** Why this device was signed out or refused — see AccountSession. */
+    warning?: string | null;
 };
 
 const ADORN: React.CSSProperties = {
@@ -34,7 +37,7 @@ const ADORN: React.CSSProperties = {
  * the base palette — the deeper #0c1614 green the design gives admin screens,
  * not the #e3e3e3 the public app wears.
  */
-export default function AdminLogin({ status }: Props) {
+export default function AdminLogin({ status, warning }: Props) {
     const [revealed, setRevealed] = useState(false);
 
     useMod('admin');
@@ -90,6 +93,8 @@ export default function AdminLogin({ status }: Props) {
                 <h4 style={{ margin: '0 0 4px', textAlign: 'center' }}>
                     Log in
                 </h4>
+
+                <AccountSessionWarning message={warning} />
 
                 {status && (
                     <div

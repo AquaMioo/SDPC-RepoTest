@@ -3,6 +3,7 @@ import { EyeIcon, EyeSlashIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
+import AccountSessionWarning from '@/components/sdpc/account-session-warning';
 import AuthPitch, { Accent, wordmark } from '@/components/sdpc/auth-pitch';
 import { Btn } from '@/components/sdpc/btn';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
@@ -20,6 +21,8 @@ import type { TeamInvitationContext } from '@/types';
 
 type Props = {
     status?: string;
+    /** Why this device was signed out or refused — see AccountSession. */
+    warning?: string | null;
     canResetPassword: boolean;
     canLoginWithGoogle?: boolean;
     googleSetupHint?: boolean;
@@ -43,6 +46,7 @@ const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
  */
 export default function Login({
     status,
+    warning,
     canResetPassword,
     canLoginWithGoogle = false,
     googleSetupHint = false,
@@ -119,6 +123,8 @@ export default function Login({
                         </h4>
 
                         <GoogleAuthError />
+
+                        <AccountSessionWarning message={warning} />
 
                         {status && (
                             <div

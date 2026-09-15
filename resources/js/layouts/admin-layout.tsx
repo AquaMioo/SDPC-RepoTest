@@ -2,6 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { BellIcon, SignOutIcon } from '@phosphor-icons/react';
 import type { CSSProperties, ReactNode } from 'react';
 
+import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
 import {
     Tooltip,
@@ -199,6 +200,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     }}
                 />
             </header>
+
+            <AccountSessionGuard />
 
             <main>{children}</main>
         </div>

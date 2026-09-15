@@ -114,4 +114,17 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | One Device Per Account
+    |--------------------------------------------------------------------------
+    |
+    | While an account is in use, any other device that signs in to it is
+    | turned away and the holder is alerted. See App\Support\AccountSession.
+    | Switching it off is for local debugging with several browsers only.
+    |
+    */
+
+    'single_session' => (bool) env('AUTH_SINGLE_SESSION', true),
+
 ];

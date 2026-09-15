@@ -3,12 +3,20 @@
 use App\Http\Controllers\Auth\AccountAppealController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\RegistrationController;
+use App\Http\Controllers\Auth\SessionHeartbeatController;
 use App\Http\Controllers\Auth\StudentCredentialController;
 use Illuminate\Support\Facades\Route;
 
 $guard = (string) config('fortify.guard');
 
 Route::middleware(['auth:'.$guard])->group(function () {
+    /*
+     * Pinged by an open tab while somebody is using it, so the account keeps
+     * counting as in use and another device cannot sign in over them. A GET so
+     * it needs no CSRF token; all it changes is the presence stamp.
+     */
+    Route::get('session/heartbeat', SessionHeartbeatController::class)->name('session.heartbeat');
+
     Route::get('credentials', [StudentCredentialController::class, 'create'])->name('credentials.create');
 
     Route::post('credentials', [StudentCredentialController::class, 'store'])

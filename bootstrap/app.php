@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EndSessionOnLoginScreen;
+use App\Http\Middleware\EnforceSingleSession;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTeamUrlDefaults;
@@ -41,6 +42,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['sidebar_state']);
 
         $middleware->web(append: [
+            // First: nothing after it may act for a device that does not hold the account.
+            EnforceSingleSession::class,
             EndSessionOnLoginScreen::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,

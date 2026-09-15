@@ -16,6 +16,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
+import { holdAccountInUse } from '@/lib/account-session';
 
 /** What the token endpoint hands back. */
 export type MeetingCredentials = {
@@ -194,6 +195,13 @@ export default function VideoCall({
     const micTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const cameraTrack = useRef<ICameraVideoTrack | null>(null);
     const screenTrack = useRef<ILocalVideoTrack | null>(null);
+
+    /*
+     * Nobody clicks during a call, so the tab's heartbeat would stop and the
+     * account would stop counting as in use — letting another device sign in
+     * and throw this one out of the meeting. See lib/account-session.
+     */
+    useEffect(() => holdAccountInUse(), []);
 
     /*
      * The clock only runs once there is a call to time. Started off `stage`

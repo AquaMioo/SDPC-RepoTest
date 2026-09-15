@@ -44,3 +44,8 @@ Pressing Back on a dashboard and then Forward used to redraw it with nobody re-a
 GET only — a POST that ended the session before Fortify read the credentials would make logging in impossible. Screens are matched by exact route name, not by a *.login pattern, because the two-factor challenge is also a *.login route and must stay reachable mid-sign-in.
 
 Known trade-off: this fires on any arrival at a login screen while signed in, not only on Back. A bookmark or a mailed "Log in" link ends the session too.
+
+## One device per account: EnforceSingleSession must stay first and refuse with logoutCurrentDevice()
+App\Support\AccountSession + EnforceSingleSession let one session hold an account (token in session + users.active_session_token); "in use" = User::isOnline(). It sits FIRST in the web group so TouchLastSeen and EndSessionOnLoginScreen only ever see the holder — a refused device that stamped last_seen_at, or reached EndSessionOnLoginScreen's logout(), would free the lock for itself.
+
+Refusals use logoutCurrentDevice(), never logout(): logout() fires Logout → ClearLastSeen nulls the stamp (frees the account for the intruder) and cycles the holder's remember token. It checks before $next (signed-in requests) AND after (the request that signs in — password, 2FA, Google, registration), so no sign-in path bypasses it. Password reset (PasswordReset → ReleaseAccountSession) is the owner's way back in. Session token is keyed by user id so actingAs switching users in tests still works.

@@ -95,6 +95,8 @@ class FortifyServiceProvider extends ServiceProvider
             'canLoginWithGoogle' => (bool) config('services.google.enabled'),
             'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
             'status' => $request->session()->get('status'),
+            // Why this device was just signed out or refused. See App\Support\AccountSession.
+            'warning' => $request->session()->get('warning'),
             'teamInvitation' => $this->teamInvitation($request),
         ]));
 
