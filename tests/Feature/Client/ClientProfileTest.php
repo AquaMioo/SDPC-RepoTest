@@ -109,78 +109,160 @@ class ClientProfileTest extends TestCase
         $this->assertFalse($user->isClient());
     }
 
-    public function test_a_digits_only_phone_number_is_accepted(): void
+    /**
+     * Only Philippine numbers, stored one way: +63 and the national number.
+     * The field shows +63 itself, but a number pasted with its 0 or its
+     * country code still lands in the same place.
+     */
+    public function test_a_philippine_mobile_number_is_saved_after_plus_63(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+
+        foreach (['+639171234567', '9171234567', '09171234567', '639171234567', '+63 917 123 4567', '0917-123-4567'] as $typed) {
+            $team->clientProfile->update(['phone_number' => null]);
+
+            $this->actingAs($client)
+                ->patch(
+                    route('client-profile.update', ['current_team' => $team->slug]),
+                    $this->profilePayload(['phone_number' => $typed]),
+                )
+                ->assertSessionHasNoErrors();
+
+            $this->assertSame('+639171234567', $team->clientProfile->fresh()->phone_number, "Typed: {$typed}");
+        }
+    }
+
+    public function test_a_landline_with_its_area_code_is_accepted(): void
     {
         [$client, $team] = $this->verifiedClient();
 
         $this->actingAs($client)
             ->patch(
                 route('client-profile.update', ['current_team' => $team->slug]),
-                $this->profilePayload(['phone_number' => '09171234567']),
+                $this->profilePayload(['phone_number' => '(044) 815 1234']),
             )
             ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('client_profiles', [
-            'team_id' => $team->id,
-            'phone_number' => '09171234567',
-        ]);
+        $this->assertSame('+63448151234', $team->clientProfile->fresh()->phone_number);
     }
 
-    /**
-     * The form strips these as they are typed, so reaching the rule at all
-     * means the field was posted around the form.
-     */
-    public function test_a_phone_number_carrying_anything_but_digits_is_rejected(): void
+    public function test_anything_but_a_philippine_number_is_rejected(): void
     {
         [$client, $team] = $this->verifiedClient();
+        $team->clientProfile->update(['phone_number' => '+639175550142']);
 
-        foreach (['+63 917 123 4567', '0917-123-4567', 'call me'] as $rejected) {
+        foreach (['call me', '+1 415 555 0100', '12345', '917123456', '91712345678', '+63 017 123 4567'] as $rejected) {
             $this->actingAs($client)
                 ->patch(
                     route('client-profile.update', ['current_team' => $team->slug]),
                     $this->profilePayload(['phone_number' => $rejected]),
                 )
-                ->assertSessionHasErrors('phone_number');
+                ->assertSessionHasErrors([
+                    'phone_number' => 'Enter a Philippine number after +63: a mobile such as 917 123 4567, or a landline with its area code.',
+                ]);
         }
 
-        $this->assertDatabaseMissing('client_profiles', [
-            'team_id' => $team->id,
-            'phone_number' => '+63 917 123 4567',
-        ]);
+        $this->assertSame('+639175550142', $team->clientProfile->fresh()->phone_number);
     }
 
     /**
-     * Profiles saved before the digits-only rule hold values like
-     * "+63 917 555 0142". The edit screen strips them on load, so the owner is
-     * not blocked from saving a field they never touched.
+     * Numbers saved under the older rules — with a 0, with 63, or spaced out
+     * with +63 — are rewritten once. Anything that is not recognisably
+     * Philippine is left for its owner to correct.
      */
-    public function test_a_legacy_phone_number_is_stripped_for_the_edit_form(): void
+    public function test_existing_phone_numbers_are_rewritten_after_plus_63(): void
+    {
+        $profiles = collect([
+            '09175550142' => '+639175550142',
+            '639175550142' => '+639175550142',
+            '+63 917 555 0142' => '+639175550142',
+            '+639175550142' => '+639175550142',
+            '1-555-0100' => '1-555-0100',
+        ])->map(fn (string $expected, string $stored): array => [
+            ClientProfile::factory()->create(['phone_number' => $stored]),
+            $expected,
+        ]);
+
+        $migration = require database_path('migrations/2026_09_16_145155_normalise_client_phone_numbers_to_plus_63.php');
+        $migration->up();
+
+        foreach ($profiles as [$profile, $expected]) {
+            $this->assertSame($expected, $profile->fresh()->phone_number);
+        }
+    }
+
+    /**
+     * "yourbusiness.com" is what people type; it is saved as a link rather
+     * than refused for missing its https://.
+     */
+    public function test_a_website_typed_without_https_is_saved_as_a_link(): void
     {
         [$client, $team] = $this->verifiedClient();
 
-        $team->clientProfile->update(['phone_number' => '+63 917 555 0142']);
-
-        $this->actingAs($client)
-            ->get(route('client-profile.edit', ['current_team' => $team->slug]))
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('profile.phoneNumber', '+63 917 555 0142')
-                ->etc()
-            );
-
-        // The stored value is untouched until a save; the form does the
-        // stripping, so the round trip lands on digits only.
         $this->actingAs($client)
             ->patch(
                 route('client-profile.update', ['current_team' => $team->slug]),
-                $this->profilePayload(['phone_number' => '639175550142']),
+                $this->profilePayload([
+                    'website_url' => ' yourbusiness.com ',
+                    'facebook_url' => 'facebook.com/yourbusiness',
+                ]),
             )
             ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('client_profiles', [
-            'team_id' => $team->id,
-            'phone_number' => '639175550142',
+        $profile = $team->clientProfile->fresh();
+
+        $this->assertSame('https://yourbusiness.com', $profile->website_url);
+        $this->assertSame('https://facebook.com/yourbusiness', $profile->facebook_url);
+
+        /* One that already says how to reach it is kept as it is. */
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload(['website_url' => 'http://old.yourbusiness.com']),
+            )
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('http://old.yourbusiness.com', $team->clientProfile->fresh()->website_url);
+    }
+
+    public function test_something_that_is_not_a_web_address_is_rejected(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload(['website_url' => 'not a website']),
+            )
+            ->assertSessionHasErrors(['website_url' => 'Enter a web address, such as yourbusiness.com.']);
+    }
+
+    /**
+     * The company details dialog saves to the same route without any contact
+     * fields. Tidying the contact fields must not blank the ones it never sent.
+     */
+    public function test_saving_company_details_leaves_the_contacts_alone(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+        $team->clientProfile->update([
+            'phone_number' => '+639175550142',
+            'website_url' => 'https://yourbusiness.com',
+            'facebook_url' => 'https://facebook.com/yourbusiness',
         ]);
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload(['tagline' => 'Hardware, done right']),
+            )
+            ->assertSessionHasNoErrors();
+
+        $profile = $team->clientProfile->fresh();
+
+        $this->assertSame('Hardware, done right', $profile->tagline);
+        $this->assertSame('+639175550142', $profile->phone_number);
+        $this->assertSame('https://yourbusiness.com', $profile->website_url);
+        $this->assertSame('https://facebook.com/yourbusiness', $profile->facebook_url);
     }
 
     public function test_a_known_province_and_city_pair_is_accepted(): void
@@ -388,6 +470,7 @@ class ClientProfileTest extends TestCase
     public function test_the_phone_number_may_still_be_left_empty(): void
     {
         [$client, $team] = $this->verifiedClient();
+        $team->clientProfile->update(['phone_number' => '+639175550142']);
 
         $this->actingAs($client)
             ->patch(
@@ -395,6 +478,9 @@ class ClientProfileTest extends TestCase
                 $this->profilePayload(['phone_number' => '']),
             )
             ->assertSessionHasNoErrors();
+
+        /* Emptied, not turned into a bare "+63". */
+        $this->assertNull($team->clientProfile->fresh()->phone_number);
     }
 
     /* ---------------------------------------------------------------------

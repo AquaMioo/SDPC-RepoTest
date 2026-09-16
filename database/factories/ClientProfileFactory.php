@@ -27,7 +27,7 @@ class ClientProfileFactory extends Factory
             'address' => fake()->streetAddress(),
             'city' => 'Sample City',
             'province' => 'Sample Province',
-            'phone_number' => fake()->phoneNumber(),
+            'phone_number' => fake()->numerify('+639#########'),
             'contact_email' => fake()->companyEmail(),
             'website_url' => fake()->url(),
             'facebook_url' => 'https://facebook.com/'.fake()->userName(),

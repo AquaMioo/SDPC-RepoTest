@@ -19,7 +19,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | .env.example | .ai/rules/general.md |
 | resources/js/** | .ai/rules/js.md |
 | tests/Feature/Matching/** | .ai/rules/matching.md |
-| app/Actions/Messaging/**, app/Http/Controllers/Messaging/ConversationController.php | .ai/rules/messaging.md |
+| app/Actions/Messaging/**, app/Http/Controllers/Messaging/ConversationController.php, app/Http/Controllers/Messaging/MeetingController.php | .ai/rules/messaging.md |
 | database/migrations/** | .ai/rules/migrations.md |
 | app/Models/Conversation.php, app/Models/Agreement.php | .ai/rules/models.md |
 | app/Actions/Notifications/** | .ai/rules/notifications.md |
@@ -27,6 +27,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/pages/** | .ai/rules/pages.md |
 | app/Policies/ProjectPolicy.php | .ai/rules/policies.md |
 | app/Services/Recommendation/** | .ai/rules/recommendation.md |
+| app/Http/Requests/Client/UpdateClientProfileRequest.php | .ai/rules/requests-client.md |
 | app/Http/Responses/** | .ai/rules/responses.md |
 | resources/js/routes/** | .ai/rules/routes.md |
 | app/Services/Matching/SkillInference.php | .ai/rules/services-matching.md |

@@ -21,6 +21,36 @@ import { update as accountUpdate } from '@/routes/profile';
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
+/** The small explanation under a field. */
+const HINT: React.CSSProperties = {
+    margin: '6px 0 0',
+    fontSize: 11,
+    color: MUTED(55),
+};
+
+/**
+ * The part of a Philippine number that follows +63.
+ *
+ * The field shows +63 itself, so this keeps what goes after it: digits only,
+ * without a country code or the 0 a number is dialled with locally, and no
+ * longer than a mobile number. Pasting "0917 123 4567" or "+63 917 123 4567"
+ * both land on "9171234567". UpdateClientProfileRequest does the same on the
+ * server.
+ */
+function afterPlus63(value: string): string {
+    let digits = value.replace(/\D/g, '');
+
+    if (digits.startsWith('63') && digits.length > 10) {
+        digits = digits.slice(2);
+    }
+
+    if (digits.startsWith('0')) {
+        digits = digits.slice(1);
+    }
+
+    return digits.slice(0, 10);
+}
+
 type Option = { value: string; label: string };
 
 export type Account = {
@@ -527,7 +557,8 @@ export function CompanyContactsDialog({
 
     const [form, setForm] = useState({
         owner_name: profile.ownerName ?? '',
-        phone_number: profile.phoneNumber ?? '',
+        /* Stored as +639…; the field holds what follows the +63. */
+        phone_number: afterPlus63(profile.phoneNumber ?? ''),
         contact_email: profile.contactEmail ?? '',
         address: profile.address ?? '',
         province: profile.province ?? '',
@@ -588,6 +619,8 @@ export function CompanyContactsDialog({
             {
                 business_name: profile.businessName,
                 ...form,
+                phone_number:
+                    form.phone_number === '' ? '' : `+63${form.phone_number}`,
                 /* Empty selects post "", and every rule here is nullable. */
                 province: form.province || null,
                 city: form.city || null,
@@ -627,19 +660,44 @@ export function CompanyContactsDialog({
 
                 <div className="field">
                     <label htmlFor="phone_number">Phone</label>
-                    <Input
-                        id="phone_number"
-                        inputMode="numeric"
-                        value={form.phone_number}
-                        placeholder="639175550142"
-                        /* Digits only, which is what the rule accepts. */
-                        onChange={(e) =>
-                            set(
-                                'phone_number',
-                                e.target.value.replace(/\D/g, ''),
-                            )
-                        }
-                    />
+                    {/*
+                     * +63 is part of the field, not something to type: only
+                     * Philippine numbers are taken. No placeholder — a sample
+                     * number in grey read as one already saved.
+                     */}
+                    <div style={{ position: 'relative' }}>
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                position: 'absolute',
+                                left: 10,
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                fontSize: 14,
+                                color: MUTED(70),
+                                pointerEvents: 'none',
+                            }}
+                        >
+                            +63
+                        </span>
+                        <Input
+                            id="phone_number"
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel-national"
+                            value={form.phone_number}
+                            aria-describedby="phone_number-hint"
+                            aria-invalid={Boolean(errors.phone_number)}
+                            style={{ paddingLeft: 44 }}
+                            onChange={(e) =>
+                                set('phone_number', afterPlus63(e.target.value))
+                            }
+                        />
+                    </div>
+                    <p id="phone_number-hint" style={HINT}>
+                        Philippine numbers only. Type the number after +63 — for
+                        a mobile, the 10 digits starting with 9.
+                    </p>
                     <InputError
                         message={errors.phone_number}
                         className="mt-1 text-[11px]"
@@ -755,12 +813,24 @@ export function CompanyContactsDialog({
 
                 <div className="field">
                     <label htmlFor="website_url">Website</label>
+                    {/*
+                     * Empty means empty. The old placeholder,
+                     * "https://example.test", looked like a website already
+                     * saved against the business.
+                     */}
                     <Input
                         id="website_url"
+                        inputMode="url"
+                        autoComplete="url"
                         value={form.website_url}
-                        placeholder="https://example.test"
+                        aria-describedby="website_url-hint"
+                        aria-invalid={Boolean(errors.website_url)}
                         onChange={(e) => set('website_url', e.target.value)}
                     />
+                    <p id="website_url-hint" style={HINT}>
+                        Optional. For example yourbusiness.com — https:// is
+                        added for you.
+                    </p>
                     <InputError
                         message={errors.website_url}
                         className="mt-1 text-[11px]"
@@ -771,10 +841,15 @@ export function CompanyContactsDialog({
                     <label htmlFor="facebook_url">Facebook page</label>
                     <Input
                         id="facebook_url"
+                        inputMode="url"
                         value={form.facebook_url}
-                        placeholder="https://facebook.com/yourpage"
+                        aria-describedby="facebook_url-hint"
+                        aria-invalid={Boolean(errors.facebook_url)}
                         onChange={(e) => set('facebook_url', e.target.value)}
                     />
+                    <p id="facebook_url-hint" style={HINT}>
+                        Optional. For example facebook.com/yourbusiness.
+                    </p>
                     <InputError
                         message={errors.facebook_url}
                         className="mt-1 text-[11px]"
