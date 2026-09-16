@@ -186,6 +186,25 @@ class Conversation extends Model
     }
 
     /**
+     * Stop a student's own threads being a team's group chat, once they are no
+     * longer on that team.
+     *
+     * A group chat is the thread's student plus their team plus the client,
+     * and the team is capped at Team::MAX_MEMBERS — so at most five people,
+     * because the student is one of the four. A student who left while their
+     * thread still named the team would sit outside that count, and the chat
+     * would reach six as soon as the team filled their seat. The thread falls
+     * back to the student alone, the same as JoinTeam::dissolve() does.
+     */
+    public static function releaseFromTeam(User $student, Team $team): void
+    {
+        static::query()
+            ->where('user_id', $student->id)
+            ->where('student_team_id', $team->id)
+            ->update(['student_team_id' => null]);
+    }
+
+    /**
      * Get which side of the thread the given user is on.
      */
     public function sideFor(User $user): UserRole

@@ -9,6 +9,7 @@ use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teams\DeleteTeamRequest;
 use App\Http\Requests\Teams\SaveTeamRequest;
+use App\Models\Conversation;
 use App\Models\Membership;
 use App\Models\Team;
 use App\Models\User;
@@ -195,6 +196,9 @@ class TeamController extends Controller
         $team->memberships()
             ->where('user_id', $user->id)
             ->delete();
+
+        /* Their own threads stop being this team's group chat. */
+        Conversation::releaseFromTeam($user, $team);
 
         /*
          * Joining replaced the student's own team, so leaving the one they

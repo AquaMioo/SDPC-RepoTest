@@ -2,6 +2,7 @@
 
 namespace App\Actions\Teams;
 
+use App\Models\Conversation;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -76,6 +77,9 @@ class VoteToRemoveMember
         $wasCurrent = $target->isCurrentTeam($team);
 
         $team->memberships()->where('user_id', $target->id)->delete();
+
+        /* Their own threads stop being this team's group chat. */
+        Conversation::releaseFromTeam($target, $team);
 
         /*
          * Grouped. Left ungrouped, the orWhere escapes the relation's own

@@ -4,6 +4,7 @@ namespace Tests\Feature\Teams;
 
 use App\Enums\TeamRole;
 use App\Models\Conversation;
+use App\Models\Project;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
@@ -131,6 +132,83 @@ class OneTeamPerStudentTest extends TestCase
         $this->assertSame(1, $member->teams()->count());
     }
 
+    /**
+     * A group chat is a team of four plus the client: five people. A member
+     * who leaves takes their own threads out of the team's hands, or the chat
+     * would hold them plus a full team once their seat was filled — six.
+     */
+    public function test_a_group_chat_never_holds_more_than_five_people(): void
+    {
+        [$leader, $team, $member] = $this->groupLedBy();
+        $this->fillTeam($team);
+
+        $client = User::factory()->client()->create();
+        $project = Project::factory()->create(['team_id' => $client->current_team_id]);
+
+        $leaderThread = Conversation::factory()->create([
+            'project_id' => $project->id,
+            'user_id' => $leader->id,
+            'student_team_id' => $team->id,
+        ]);
+        $memberThread = Conversation::factory()->create([
+            'project_id' => $project->id,
+            'user_id' => $member->id,
+            'student_team_id' => $team->id,
+        ]);
+
+        $this->assertSame(Team::MAX_MEMBERS + 1, $leaderThread->participants()->count());
+        $this->assertSame(Team::MAX_MEMBERS + 1, $memberThread->participants()->count());
+
+        $this->actingAs($member)->delete(route('teams.leave', $team));
+
+        // Somebody new takes the seat, so the team is four again.
+        $team->members()->attach(User::factory()->student()->create(), ['role' => TeamRole::SystemAnalyst->value]);
+
+        $this->assertNull($memberThread->fresh()->student_team_id);
+        $this->assertSame(
+            [$member->id, $client->id],
+            $memberThread->fresh()->participants()->pluck('id')->all(),
+        );
+        $this->assertFalse($memberThread->fresh()->isParticipant($leader));
+
+        // The team's own chat is untouched, and still five.
+        $this->assertSame($team->id, $leaderThread->fresh()->student_team_id);
+        $this->assertSame(Team::MAX_MEMBERS + 1, $leaderThread->fresh()->participants()->count());
+    }
+
+    public function test_being_voted_off_takes_the_students_threads_out_of_the_group_chat(): void
+    {
+        [$leader, $team, $member] = $this->groupLedBy();
+        $thread = Conversation::factory()->create(['user_id' => $member->id, 'student_team_id' => $team->id]);
+
+        // A team of two: the leader's vote is everyone's.
+        $this->actingAs($leader)->delete(route('teams.members.destroy', [$team, $member]));
+
+        $this->assertFalse($member->fresh()->belongsToTeam($team));
+        $this->assertNull($thread->fresh()->student_team_id);
+    }
+
+    /**
+     * Threads left attached by students who departed before the release
+     * existed are brought back to five by the one-time migration.
+     */
+    public function test_existing_group_chats_of_students_who_left_are_released(): void
+    {
+        [$leader, $team] = $this->groupLedBy();
+        $departed = User::factory()->student()->create();
+
+        $stale = Conversation::factory()->create(['user_id' => $departed->id, 'student_team_id' => $team->id]);
+        $kept = Conversation::factory()->create(['user_id' => $leader->id, 'student_team_id' => $team->id]);
+        $solo = Conversation::factory()->create(['user_id' => $departed->id]);
+
+        $migration = require database_path('migrations/2026_09_16_133431_release_group_chats_of_students_who_left_the_team.php');
+        $migration->up();
+
+        $this->assertNull($stale->fresh()->student_team_id);
+        $this->assertSame($team->id, $kept->fresh()->student_team_id);
+        $this->assertNull($solo->fresh()->student_team_id);
+    }
+
     public function test_the_team_page_says_whether_the_student_joined_or_created_it(): void
     {
         [$leader, $team, $member] = $this->groupLedBy();
@@ -211,6 +289,16 @@ class OneTeamPerStudentTest extends TestCase
         $ownTeam->delete();
 
         return [$leader->refresh(), $team->refresh(), $member->refresh()];
+    }
+
+    /**
+     * Seat students on the team until it holds Team::MAX_MEMBERS.
+     */
+    private function fillTeam(Team $team): void
+    {
+        while ($team->members()->count() < Team::MAX_MEMBERS) {
+            $team->members()->attach(User::factory()->student()->create(), ['role' => TeamRole::QualityAssurance->value]);
+        }
     }
 
     private function invite(Team $team, User $inviter, User $invitee): TeamInvitation
