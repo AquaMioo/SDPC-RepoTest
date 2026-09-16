@@ -34,6 +34,15 @@ const ACTIVITY_EVENTS = [
     'touchstart',
 ] as const;
 
+/*
+ * The "someone tried to sign in" alert is a heads-up, not a dialog: it shows
+ * briefly and the notification bell keeps it (with the change-password link).
+ * It used to stay until closed, and because the toaster sits above every
+ * page, it was still on screen after the account had logged out.
+ */
+const ACCESS_BLOCKED_TOAST = 'account-access-blocked';
+const ACCESS_BLOCKED_SHOWN_FOR_MS = 2_000;
+
 /**
  * Keeps this device's hold on the account, and warns when somebody else tries.
  *
@@ -133,6 +142,13 @@ function Guard({ userId }: { userId: number }) {
         };
     }, []);
 
+    /*
+     * The alert belongs to the signed-in account. The guard unmounts when the
+     * account logs out (or another one takes its place), so take the alert
+     * down with it rather than leaving it over the public pages.
+     */
+    useEffect(() => () => void toast.dismiss(ACCESS_BLOCKED_TOAST), [userId]);
+
     useEchoNotification<AccessBlocked>(
         `App.Models.User.${userId}`,
         (notification) => {
@@ -143,9 +159,14 @@ function Guard({ userId }: { userId: number }) {
                 .filter(Boolean)
                 .join(' ');
 
+            /*
+             * One id, so a second attempt replaces the alert rather than
+             * stacking another, and logging out can find it to dismiss.
+             */
             toast.warning('Someone tried to sign in to your account', {
+                id: ACCESS_BLOCKED_TOAST,
                 description: `${device} was blocked because you are using the account. If it was not you, change your password.`,
-                duration: Infinity,
+                duration: ACCESS_BLOCKED_SHOWN_FOR_MS,
                 closeButton: true,
                 action: {
                     label: 'Change password',
@@ -153,6 +174,7 @@ function Guard({ userId }: { userId: number }) {
                 },
             });
 
+            /* Already stored as a bell entry; this brings the bell up to date. */
             router.reload({
                 only: ['unreadNotifications', 'recentNotifications'],
             });
