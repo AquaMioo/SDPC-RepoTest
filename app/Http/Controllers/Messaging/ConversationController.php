@@ -15,6 +15,7 @@ use App\Models\AgreementMilestone;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\Meeting;
+use App\Models\MeetingAttendee;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\Project;
@@ -240,6 +241,8 @@ class ConversationController extends Controller
                         'scheduledFor' => $meeting->scheduled_at?->diffForHumans(),
                         'isMine' => $meeting->created_by === $user->id,
                     ])->values()->all(),
+                /* A call running now, so anybody who missed the ring can join. */
+                'call' => $this->callInProgress($active),
                 'messages' => $active->messages->map(fn (Message $message) => [
                     'id' => $message->id,
                     'body' => $message->body,
@@ -549,6 +552,37 @@ class ConversationController extends Controller
         abort_unless($message->conversation_id === $conversation->id, HttpResponse::HTTP_NOT_FOUND);
 
         abort_unless($message->wasSentBy($user), HttpResponse::HTTP_FORBIDDEN);
+    }
+
+    /**
+     * The call somebody is in on this thread right now, if any.
+     *
+     * The ring lasts 45 seconds and the live invitation only reaches whoever
+     * has the thread open. Anyone who declined, missed it, or opened the
+     * thread later still needs a way into the call the rest of the group is
+     * in, and this is it.
+     *
+     * @return array{id: int, people: list<string>}|null
+     */
+    protected function callInProgress(Conversation $conversation): ?array
+    {
+        $meeting = $conversation->meetings()
+            ->inProgress()
+            ->with(['attendees' => fn ($attendees) => $attendees->present()->with('user')])
+            ->first();
+
+        if ($meeting === null) {
+            return null;
+        }
+
+        return [
+            'id' => $meeting->id,
+            'people' => $meeting->attendees
+                ->map(fn (MeetingAttendee $attendee): ?string => $attendee->user?->name)
+                ->filter()
+                ->values()
+                ->all(),
+        ];
     }
 
     /**

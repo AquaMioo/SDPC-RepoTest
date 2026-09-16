@@ -9,6 +9,7 @@ use App\Http\Requests\Messaging\OpenMeetingRequest;
 use App\Models\Conversation;
 use App\Models\Meeting;
 use App\Models\Team;
+use App\Models\User;
 use App\Services\Agora\RtcTokenBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,6 +43,10 @@ class MeetingController extends Controller
      * back with a token because the caller is about to join it; a meeting
      * booked for later does not, because there is nothing to join and a token
      * minted now would have expired by the time there was.
+     *
+     * Pressing Call while somebody is already in a call on the thread joins
+     * that call. In a group thread two people pressing Call used to open two
+     * separate calls, and the group split between them without knowing.
      */
     public function store(OpenMeetingRequest $request, Team $currentTeam, Conversation $conversation): JsonResponse
     {
@@ -53,12 +58,44 @@ class MeetingController extends Controller
 
         $scheduledAt = $request->validated('scheduled_at');
 
-        $meeting = DB::transaction(fn (): Meeting => $conversation->meetings()->create([
-            'created_by' => $user->id,
-            'channel_name' => Meeting::newChannelName(),
-            'scheduled_at' => $scheduledAt,
-            'started_at' => $scheduledAt === null ? now() : null,
-        ]));
+        /** @var array{0: Meeting, 1: bool} $opened */
+        $opened = DB::transaction(function () use ($conversation, $user, $scheduledAt): array {
+            if ($scheduledAt === null) {
+                /*
+                 * Locked on the thread, so two people pressing Call at the
+                 * same moment end up in one call rather than one each.
+                 */
+                Conversation::query()->whereKey($conversation->id)->lockForUpdate()->first();
+
+                $running = $conversation->meetings()->inProgress()->first();
+
+                if ($running !== null) {
+                    $running->markPresent($user);
+
+                    return [$running, false];
+                }
+            }
+
+            $meeting = $conversation->meetings()->create([
+                'created_by' => $user->id,
+                'channel_name' => Meeting::newChannelName(),
+                'scheduled_at' => $scheduledAt,
+                'started_at' => $scheduledAt === null ? now() : null,
+            ]);
+
+            if (! $meeting->isScheduled()) {
+                $meeting->markPresent($user);
+            }
+
+            return [$meeting, true];
+        });
+
+        [$meeting, $isNew] = $opened;
+
+        /* Joining a call already ringing rings nobody a second time. */
+        if (! $isNew) {
+            return response()->json($this->joinPayload($meeting, $user->id));
+        }
 
         /*
          * A courtesy on top of a write that already succeeded, exactly as
@@ -75,12 +112,17 @@ class MeetingController extends Controller
             $this->ring->ring($meeting, $user);
         }
 
-        return response()->json([
-            'meeting' => $this->present($meeting),
-            'token' => $meeting->isScheduled()
-                ? null
-                : $this->tokenFor($meeting, $user->id),
-        ], HttpResponse::HTTP_CREATED);
+        if ($meeting->isScheduled()) {
+            return response()->json([
+                'meeting' => $this->present($meeting),
+                'token' => null,
+            ], HttpResponse::HTTP_CREATED);
+        }
+
+        return response()->json(
+            $this->joinPayload($meeting, $user->id),
+            HttpResponse::HTTP_CREATED,
+        );
     }
 
     /**
@@ -107,14 +149,59 @@ class MeetingController extends Controller
             $meeting->forceFill(['started_at' => now()])->save();
         }
 
-        return response()->json([
-            'meeting' => $this->present($meeting->fresh()),
-            'token' => $this->tokenFor($meeting, $user->id),
-        ]);
+        $meeting->markPresent($user);
+
+        return response()->json($this->joinPayload($meeting->fresh(), $user->id));
     }
 
     /**
-     * Close a meeting. Either participant may.
+     * Still here.
+     *
+     * The call screen calls this every 20 seconds. A tab that is closed, or a
+     * connection that drops, never says goodbye; the heartbeat stopping is
+     * how the platform finds out, so a call nobody is left in stops being
+     * offered to join.
+     *
+     * 410 once the call is over, which tells the screen to close.
+     */
+    public function heartbeat(Request $request, Team $currentTeam, Meeting $meeting): HttpResponse
+    {
+        $this->ensureEnabled();
+
+        $user = $request->user();
+
+        abort_unless($meeting->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+        abort_unless($meeting->isJoinable(), HttpResponse::HTTP_GONE);
+
+        $meeting->markPresent($user);
+
+        return response()->noContent();
+    }
+
+    /**
+     * Leave a call, leaving it running for everyone still in it.
+     *
+     * The call ends only when the last person leaves — and then whoever is
+     * still being rung for it stops ringing, which is also what happens when
+     * a caller gives up before anybody answers.
+     */
+    public function leave(Request $request, Team $currentTeam, Meeting $meeting): JsonResponse
+    {
+        $this->ensureEnabled();
+
+        $user = $request->user();
+
+        abort_unless($meeting->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+
+        if ($meeting->markLeft($user)) {
+            $this->ring->hangUp($meeting, $user);
+        }
+
+        return response()->json(['meeting' => $this->present($meeting->fresh())]);
+    }
+
+    /**
+     * Close a meeting for everyone. Any participant may.
      */
     public function end(Request $request, Team $currentTeam, Meeting $meeting): JsonResponse
     {
@@ -131,6 +218,28 @@ class MeetingController extends Controller
         }
 
         return response()->json(['meeting' => $this->present($meeting->fresh())]);
+    }
+
+    /**
+     * What somebody joining a call needs: the call, their token, and who else
+     * might turn up in it.
+     *
+     * `people` names the tiles. Agora only knows each person by uid (the user
+     * id), and everyone listed can already read every name in the thread.
+     *
+     * @return array{meeting: array<string, mixed>, token: array<string, mixed>, people: list<array{uid: int, name: string}>}
+     */
+    private function joinPayload(Meeting $meeting, int $uid): array
+    {
+        return [
+            'meeting' => $this->present($meeting),
+            'token' => $this->tokenFor($meeting, $uid),
+            'people' => $meeting->conversation
+                ->participants()
+                ->map(fn (User $person): array => ['uid' => $person->id, 'name' => $person->name])
+                ->values()
+                ->all(),
+        ];
     }
 
     /**

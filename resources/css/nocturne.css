@@ -1005,3 +1005,16 @@ button[data-day][aria-pressed="true"] { border-color: var(--color-accent); }
 @media (min-width: 1360px) {
   .msg-grid { grid-template-columns: 300px minmax(0, 1fr) 300px; }
 }
+
+/* The call screen's tiles, one per person. The screen passes the column count
+   as --call-cols; a phone gets its own, narrower count, because three people
+   side by side on 375px are three slivers. */
+.call-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(var(--call-cols, 1), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+}
+@media (max-width: 640px) {
+  .call-grid { grid-template-columns: repeat(var(--call-cols-narrow, 1), minmax(0, 1fr)); }
+}

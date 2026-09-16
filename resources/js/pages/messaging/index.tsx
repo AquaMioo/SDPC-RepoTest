@@ -11,12 +11,17 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import VideoCall from '@/components/messaging/video-call';
-import type { MeetingCredentials } from '@/components/messaging/video-call';
+import type {
+    MeetingCredentials,
+    MeetingPerson,
+} from '@/components/messaging/video-call';
 import { Btn } from '@/components/sdpc/btn';
 import { Input } from '@/components/sdpc/input';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
+    heartbeat as meetingHeartbeat,
+    leave as leaveMeeting,
     store as startMeeting,
     token as meetingToken,
 } from '@/routes/meetings';
@@ -68,6 +73,8 @@ type Props = {
             scheduledFor: string | null;
             isMine: boolean;
         }[];
+        /** A call somebody is in right now, and who. */
+        call: { id: number; people: string[] } | null;
         messages: {
             id: number;
             body: string | null;
@@ -218,50 +225,49 @@ export default function Messages({
     usePoll(30000, { only: ['threads', 'active'] });
 
     /*
-     * The call in progress, and an invitation waiting to be answered.
+     * The call this screen is in, if any.
      *
-     * The invitation rides the thread's own private channel and deliberately
-     * carries no token. Joining asks the server for one, where the participant
-     * check runs again against the authenticated user rather than against
-     * whoever the socket happens to belong to.
+     * A call running on the open thread arrives as `active.call`, re-read
+     * when the thread's channel says one started. It deliberately carries no
+     * token: joining asks the server for one, where the participant check
+     * runs again against the authenticated user rather than against whoever
+     * the socket happens to belong to.
      */
-    const [call, setCall] = useState<MeetingCredentials | null>(null);
-    const [invitation, setInvitation] = useState<{
+    const [call, setCall] = useState<{
         meetingId: number;
-        conversationId: number;
+        credentials: MeetingCredentials;
+        people: MeetingPerson[];
     } | null>(null);
+    const [dismissedCall, setDismissedCall] = useState<number | null>(null);
     const [callBusy, setCallBusy] = useState(false);
     const [scheduling, setScheduling] = useState(false);
     const [scheduledAt, setScheduledAt] = useState('');
 
-    /*
-     * Kept with the thread it belongs to rather than cleared when the thread
-     * changes: deriving it costs nothing and avoids a state write inside an
-     * effect, which would re-render every open thread twice.
-     */
-    const pendingInvitation =
-        invitation !== null && invitation.conversationId === active?.id
-            ? invitation.meetingId
-            : null;
+    /* The running call to offer, unless this person waved it away. */
+    const runningCall =
+        active?.call && active.call.id !== dismissedCall ? active.call : null;
 
     /**
      * These endpoints answer in JSON rather than with an Inertia page, so they
      * are fetched directly. Laravel checks X-XSRF-TOKEN against the cookie it
      * set, which is why the header is read back out of document.cookie.
      */
-    const postJson = async (
+    const sendJson = (
         url: string,
         method = 'POST',
         body?: Record<string, unknown>,
+        keepalive = false,
     ) => {
         const xsrf = document.cookie
             .split('; ')
             .find((entry) => entry.startsWith('XSRF-TOKEN='))
             ?.split('=')[1];
 
-        const response = await fetch(url, {
+        return fetch(url, {
             method,
             credentials: 'same-origin',
+            /* Lets a leave sent while the tab is closing still arrive. */
+            keepalive,
             body: body === undefined ? undefined : JSON.stringify(body),
             headers: {
                 Accept: 'application/json',
@@ -269,6 +275,14 @@ export default function Messages({
                 'X-XSRF-TOKEN': decodeURIComponent(xsrf ?? ''),
             },
         });
+    };
+
+    const postJson = async (
+        url: string,
+        method = 'POST',
+        body?: Record<string, unknown>,
+    ) => {
+        const response = await sendJson(url, method, body);
 
         if (!response.ok) {
             throw new Error(
@@ -279,6 +293,7 @@ export default function Messages({
         return response.json();
     };
 
+    /** Start a call, or join the one already running on the thread. */
     const startCall = async () => {
         if (active === null || callBusy) {
             return;
@@ -294,13 +309,81 @@ export default function Messages({
                 }),
             );
 
-            setInvitation(null);
-            setCall(body.token as MeetingCredentials);
+            setCall({
+                meetingId: body.meeting.id,
+                credentials: body.token as MeetingCredentials,
+                people: body.people as MeetingPerson[],
+            });
         } catch {
             /* Left to the caller to retry; nothing has been created. */
         } finally {
             setCallBusy(false);
         }
+    };
+
+    /*
+     * While in a call: say so every 20 seconds, so the platform knows the
+     * call is still running (MeetingAttendee::PRESENCE_WINDOW is 90), and
+     * say goodbye if the tab is closed. A 410 means somebody ended the call
+     * for everyone, so the screen closes.
+     */
+    const inCallId = call?.meetingId ?? null;
+
+    useEffect(() => {
+        if (inCallId === null) {
+            return;
+        }
+
+        const args = { current_team: team.slug, meeting: inCallId };
+
+        const beat = async () => {
+            try {
+                const response = await sendJson(meetingHeartbeat.url(args));
+
+                if (response.status === 410) {
+                    setCall(null);
+                    router.reload({ only: ['active'] });
+                }
+            } catch {
+                /* A dropped beat is what the window allows for. */
+            }
+        };
+
+        void beat();
+        const timer = window.setInterval(() => void beat(), 20_000);
+
+        const onPageHide = () => {
+            void sendJson(leaveMeeting.url(args), 'PATCH', undefined, true);
+        };
+
+        window.addEventListener('pagehide', onPageHide);
+
+        return () => {
+            window.clearInterval(timer);
+            window.removeEventListener('pagehide', onPageHide);
+        };
+    }, [inCallId, team.slug]);
+
+    /**
+     * Leave the call, leaving it running for anyone still in it. The server
+     * ends it if this was the last person.
+     */
+    const leaveCall = () => {
+        if (call !== null) {
+            void sendJson(
+                leaveMeeting.url({
+                    current_team: team.slug,
+                    meeting: call.meetingId,
+                }),
+                'PATCH',
+                undefined,
+                true,
+            )
+                .catch(() => undefined)
+                .finally(() => router.reload({ only: ['active'] }));
+        }
+
+        setCall(null);
     };
 
     const scheduleCall = async () => {
@@ -352,11 +435,14 @@ export default function Messages({
                 }),
             );
 
-            setInvitation(null);
-            setCall(body.token as MeetingCredentials);
+            setCall({
+                meetingId: body.meeting.id,
+                credentials: body.token as MeetingCredentials,
+                people: body.people as MeetingPerson[],
+            });
         } catch {
-            /* The meeting may have ended between the invitation and the tap. */
-            setInvitation(null);
+            /* The call may have ended between the invitation and the tap. */
+            router.reload({ only: ['active'] });
         } finally {
             setCallBusy(false);
         }
@@ -618,17 +704,14 @@ export default function Messages({
              * and joins the new one, rather than listening to both.
              */}
             {active !== null && (
-                <ThreadChannel
-                    key={active.id}
-                    conversationId={active.id}
-                    onMeetingStarted={setInvitation}
-                />
+                <ThreadChannel key={active.id} conversationId={active.id} />
             )}
 
             {call !== null && (
                 <VideoCall
-                    credentials={call}
-                    onLeave={() => setCall(null)}
+                    credentials={call.credentials}
+                    people={call.people}
+                    onLeave={leaveCall}
                     title={active?.project ?? 'Call'}
                     participant={active?.title ?? 'The other side'}
                 />
@@ -943,15 +1026,21 @@ export default function Messages({
 
                                     {/* Absent, not disabled, when the platform
                                         has no Agora credentials to call with. */}
+                                    {/* Joins the running call rather than
+                                        opening a second one beside it. */}
                                     {videoEnabled && (
                                         <Btn
                                             variant="secondary"
                                             onClick={startCall}
                                             disabled={callBusy}
-                                            title="Start a video call on this thread"
+                                            title={
+                                                active.call
+                                                    ? 'Join the call running on this thread'
+                                                    : 'Start a video call on this thread'
+                                            }
                                         >
                                             <VideoCameraIcon />
-                                            Call
+                                            {active.call ? 'Join call' : 'Call'}
                                         </Btn>
                                     )}
 
@@ -1072,48 +1161,56 @@ export default function Messages({
                                     </div>
                                 )}
 
-                                {/* Somebody on the other side opened a call.
-                                    The invitation carries no token — joining
-                                    asks the server for one of our own. */}
-                                {pendingInvitation !== null &&
-                                    call === null && (
-                                        <div
+                                {/* A call somebody is in on this thread. Shown
+                                    to anyone not in it, however long ago it
+                                    started — the ring only lasts 45 seconds.
+                                    It carries no token; joining asks the
+                                    server for one of our own. */}
+                                {runningCall !== null && call === null && (
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            alignItems: 'center',
+                                            gap: 12,
+                                            padding: '10px 18px',
+                                            background:
+                                                'var(--color-accent-800)',
+                                            color: 'var(--color-accent-100)',
+                                            fontSize: 13,
+                                        }}
+                                    >
+                                        <span
                                             style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                                padding: '10px 18px',
-                                                background:
-                                                    'var(--color-accent-800)',
-                                                color: 'var(--color-accent-100)',
-                                                fontSize: 13,
+                                                marginRight: 'auto',
+                                                minWidth: 0,
                                             }}
                                         >
-                                            <span
-                                                style={{ marginRight: 'auto' }}
-                                            >
-                                                A video call is waiting on this
-                                                thread.
-                                            </span>
-                                            <Btn
-                                                variant="secondary"
-                                                onClick={() =>
-                                                    joinCall(pendingInvitation)
-                                                }
-                                                disabled={callBusy}
-                                            >
-                                                Join
-                                            </Btn>
-                                            <Btn
-                                                variant="ghost"
-                                                onClick={() =>
-                                                    setInvitation(null)
-                                                }
-                                            >
-                                                Dismiss
-                                            </Btn>
-                                        </div>
-                                    )}
+                                            A video call is running on this
+                                            thread
+                                            {runningCall.people.length > 0 &&
+                                                ` with ${runningCall.people.join(', ')}`}
+                                            .
+                                        </span>
+                                        <Btn
+                                            variant="secondary"
+                                            onClick={() =>
+                                                joinCall(runningCall.id)
+                                            }
+                                            disabled={callBusy}
+                                        >
+                                            Join
+                                        </Btn>
+                                        <Btn
+                                            variant="ghost"
+                                            onClick={() =>
+                                                setDismissedCall(runningCall.id)
+                                            }
+                                        >
+                                            Dismiss
+                                        </Btn>
+                                    </div>
+                                )}
 
                                 <div
                                     ref={scrollRef}
@@ -1802,16 +1899,7 @@ export default function Messages({
  * /broadcasting/auth. useEcho has no "off" switch; it subscribes when it
  * mounts, so the only way not to subscribe is not to mount it.
  */
-function ThreadChannel({
-    conversationId,
-    onMeetingStarted,
-}: {
-    conversationId: number;
-    onMeetingStarted: (invitation: {
-        meetingId: number;
-        conversationId: number;
-    }) => void;
-}) {
+function ThreadChannel({ conversationId }: { conversationId: number }) {
     const channel = `conversations.${conversationId}`;
 
     useEcho(
@@ -1825,20 +1913,17 @@ function ThreadChannel({
 
     /*
      * The invitation rides the thread's own private channel and deliberately
-     * carries no token. Joining asks the server for one, where the participant
-     * check runs again against the authenticated user rather than against
-     * whoever the socket happens to belong to.
+     * carries no token. It only says to re-read the thread, which now names
+     * the running call; joining asks the server for a token, where the
+     * participant check runs again against the authenticated user.
      */
     useEcho(
         channel,
         '.meeting.started',
-        (event: { id: number; conversationId: number }) => {
-            onMeetingStarted({
-                meetingId: event.id,
-                conversationId: event.conversationId,
-            });
+        () => {
+            router.reload({ only: ['active'] });
         },
-        [conversationId, onMeetingStarted],
+        [conversationId],
     );
 
     useEcho(

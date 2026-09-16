@@ -5,9 +5,11 @@ namespace App\Models;
 use Database\Factories\MeetingFactory;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -25,6 +27,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $scheduled_at
  * @property Carbon|null $started_at
  * @property Carbon|null $ended_at
+ * @property-read Collection<int, MeetingAttendee> $attendees
  */
 class Meeting extends Model
 {
@@ -54,6 +57,33 @@ class Meeting extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Everyone who has joined, including those who have since left.
+     *
+     * @return HasMany<MeetingAttendee, $this>
+     */
+    public function attendees(): HasMany
+    {
+        return $this->hasMany(MeetingAttendee::class);
+    }
+
+    /**
+     * Calls somebody is in right now.
+     *
+     * Started, not ended, and at least one person still present. A call whose
+     * last person closed the tab never gets an ended_at, and this is what
+     * stops it being offered to join forever.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function inProgress(Builder $query): void
+    {
+        $query->whereNotNull('started_at')
+            ->whereNull('ended_at')
+            ->whereHas('attendees', fn (Builder $attendee) => $attendee->present());
     }
 
     /**
@@ -95,6 +125,63 @@ class Meeting extends Model
     public function isJoinable(): bool
     {
         return $this->ended_at === null;
+    }
+
+    /**
+     * Record that this user is in the call, now.
+     *
+     * Joining, the heartbeat and rejoining after Leave all land here, so a
+     * person has one row per call however often they drop in and out. An
+     * upsert rather than read-then-write, so two tabs beating at once cannot
+     * both try to insert.
+     */
+    public function markPresent(User $user): void
+    {
+        $now = now();
+
+        MeetingAttendee::query()->upsert(
+            [[
+                'meeting_id' => $this->id,
+                'user_id' => $user->id,
+                'joined_at' => $now,
+                'last_seen_at' => $now,
+                'left_at' => null,
+            ]],
+            ['meeting_id', 'user_id'],
+            ['last_seen_at', 'left_at'],
+        );
+    }
+
+    /**
+     * Record that this user has left, and close the call if they were the
+     * last one in it.
+     *
+     * Returns whether this ended the call, so the caller knows to stop the
+     * ringing on everybody else's screen.
+     */
+    public function markLeft(User $user): bool
+    {
+        $this->attendees()
+            ->where('user_id', $user->id)
+            ->whereNull('left_at')
+            ->update(['left_at' => now()]);
+
+        if ($this->ended_at !== null || $this->attendees()->present()->exists()) {
+            return false;
+        }
+
+        /*
+         * Conditional, so the last two people leaving together end the call
+         * once and ring nobody off twice.
+         */
+        $ended = static::query()
+            ->whereKey($this->id)
+            ->whereNull('ended_at')
+            ->update(['ended_at' => now()]);
+
+        $this->refresh();
+
+        return $ended === 1;
     }
 
     /**

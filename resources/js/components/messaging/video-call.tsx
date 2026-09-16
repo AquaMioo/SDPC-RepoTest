@@ -27,7 +27,32 @@ export type MeetingCredentials = {
     expiresIn: number;
 };
 
+/** Everyone who may turn up in the call, so each tile can be named. */
+export type MeetingPerson = {
+    uid: number;
+    name: string;
+};
+
 type Stage = 'connecting' | 'live' | 'failed';
+
+/**
+ * How many columns the other people's tiles take.
+ *
+ * A group chat is at most five people — a team of four and the client — so
+ * there are never more than four other tiles: one fills the screen, two to
+ * four share a 2×2. A phone stacks two rather than squeezing them side by side
+ * (see .call-grid in nocturne.css).
+ */
+function gridColumns(count: number): { wide: number; narrow: number } {
+    return {
+        wide: count <= 1 ? 1 : 2,
+        narrow: count <= 2 ? 1 : 2,
+    };
+}
+
+function initialOf(name: string): string {
+    return name.trim().charAt(0).toUpperCase() || '?';
+}
 
 /**
  * Say what went wrong in terms of something the reader can act on.
@@ -142,6 +167,66 @@ function chime(direction: 'on' | 'off'): void {
 }
 
 /**
+ * One other person in the call.
+ *
+ * Their video plays into a box of its own. Every remote track used to play
+ * into the same box, so in a group call only the first person to arrive could
+ * be seen and everyone else was hidden behind them.
+ */
+function RemoteTile({
+    user,
+    name,
+    muted,
+}: {
+    user: IAgoraRTCRemoteUser;
+    name: string;
+    muted: boolean;
+}) {
+    const screen = useRef<HTMLDivElement | null>(null);
+
+    /*
+     * Read on every render rather than stored: the SDK swaps the track object
+     * when somebody switches between camera and screen share, and the parent
+     * re-renders on every publish and unpublish.
+     */
+    const video = user.videoTrack;
+
+    useEffect(() => {
+        if (!video || !screen.current) {
+            return;
+        }
+
+        /* Contain, not cover, so a shared screen is not cropped. */
+        video.play(screen.current, { fit: 'contain' });
+
+        return () => video.stop();
+    }, [video]);
+
+    return (
+        <div style={TILE}>
+            <div
+                ref={screen}
+                aria-label={`${name}'s camera`}
+                style={{ position: 'absolute', inset: 0 }}
+            />
+
+            {!video && (
+                <div style={COVER}>
+                    <span style={AVATAR}>{initialOf(name)}</span>
+                </div>
+            )}
+
+            <span style={TILE_LABEL}>
+                {name}
+                {muted && (
+                    <MicrophoneSlashIcon aria-label={`${name} is muted`} />
+                )}
+            </span>
+        </div>
+    );
+}
+
+/**
  * A video call on one project conversation.
  *
  * The SDK is imported dynamically rather than at module scope: it is around
@@ -154,11 +239,14 @@ function chime(direction: 'on' | 'off'): void {
  */
 export default function VideoCall({
     credentials,
+    people,
     onLeave,
     title,
     participant,
 }: {
     credentials: MeetingCredentials;
+    /** Names for the tiles; Agora only knows people by uid. */
+    people: MeetingPerson[];
     onLeave: () => void;
     /** What the call is about — the posting both sides are here for. */
     title: string;
@@ -180,7 +268,15 @@ export default function VideoCall({
     const [micOn, setMicOn] = useState(true);
     const [cameraOn, setCameraOn] = useState(true);
     const [sharing, setSharing] = useState(false);
-    const [peers, setPeers] = useState(0);
+
+    /*
+     * Everyone else in the channel, as the SDK sees them. Copied into state
+     * on every join, leave, publish and unpublish so the tiles redraw.
+     */
+    const [remotes, setRemotes] = useState<IAgoraRTCRemoteUser[]>([]);
+
+    /* Who has muted their microphone without unpublishing it, by uid. */
+    const [mutedPeers, setMutedPeers] = useState<Record<string, boolean>>({});
 
     /* Seconds since the call went live, for the clock in the corner. */
     const [elapsed, setElapsed] = useState(0);
@@ -189,7 +285,6 @@ export default function VideoCall({
     const [deviceNote, setDeviceNote] = useState<string | null>(null);
 
     const localRef = useRef<HTMLDivElement | null>(null);
-    const remoteRef = useRef<HTMLDivElement | null>(null);
 
     const client = useRef<IAgoraRTCClient | null>(null);
     const micTrack = useRef<IMicrophoneAudioTrack | null>(null);
@@ -257,6 +352,8 @@ export default function VideoCall({
                 });
                 client.current = rtc;
 
+                const refresh = () => setRemotes([...rtc.remoteUsers]);
+
                 rtc.on(
                     'user-published',
                     async (
@@ -265,21 +362,36 @@ export default function VideoCall({
                     ) => {
                         await rtc.subscribe(user, media);
 
-                        if (media === 'video' && remoteRef.current) {
-                            user.videoTrack?.play(remoteRef.current);
-                        }
-
+                        /* Video is played by the person's own tile. */
                         if (media === 'audio') {
                             user.audioTrack?.play();
                         }
 
-                        setPeers(rtc.remoteUsers.length);
+                        refresh();
                     },
                 );
 
-                rtc.on('user-left', () => setPeers(rtc.remoteUsers.length));
-                rtc.on('user-unpublished', () =>
-                    setPeers(rtc.remoteUsers.length),
+                rtc.on('user-joined', refresh);
+                rtc.on('user-left', refresh);
+                rtc.on('user-unpublished', refresh);
+
+                /*
+                 * Mute keeps the microphone published (see toggleMic), so it
+                 * arrives as an info update rather than an unpublish.
+                 */
+                rtc.on(
+                    'user-info-updated',
+                    (uid: string | number, message: string) => {
+                        if (
+                            message === 'mute-audio' ||
+                            message === 'unmute-audio'
+                        ) {
+                            setMutedPeers((current) => ({
+                                ...current,
+                                [String(uid)]: message === 'mute-audio',
+                            }));
+                        }
+                    },
                 );
 
                 await rtc.join(
@@ -569,7 +681,11 @@ export default function VideoCall({
         ':' +
         String(elapsed % 60).padStart(2, '0');
 
-    const initial = participant.trim().charAt(0).toUpperCase() || '?';
+    const nameOf = (uid: string | number): string =>
+        people.find((person) => person.uid === Number(uid))?.name ??
+        'Participant';
+
+    const columns = gridColumns(remotes.length);
 
     return (
         <div
@@ -601,6 +717,12 @@ export default function VideoCall({
                 >
                     <span style={PILL}>{title}</span>
 
+                    {stage === 'live' && remotes.length > 0 && (
+                        <span style={{ ...PILL, color: MUTED }}>
+                            {remotes.length + 1} in the call
+                        </span>
+                    )}
+
                     <span
                         style={{
                             ...PILL,
@@ -614,15 +736,30 @@ export default function VideoCall({
                     </span>
                 </div>
 
+                {/* One tile per person, however many turn up. */}
                 <div
-                    ref={remoteRef}
-                    aria-label="The other participant"
+                    className="call-grid"
+                    aria-label="Other participants"
                     style={{
-                        width: '100%',
-                        height: '100%',
-                        background: 'var(--color-bg)',
+                        position: 'absolute',
+                        inset: 0,
+                        padding: '64px clamp(8px, 2vw, 18px) 12px',
+                        ['--call-cols' as string]: columns.wide,
+                        ['--call-cols-narrow' as string]: columns.narrow,
                     }}
-                />
+                >
+                    {remotes.map((user) => (
+                        <RemoteTile
+                            key={user.uid}
+                            user={user}
+                            name={nameOf(user.uid)}
+                            muted={
+                                !user.hasAudio ||
+                                mutedPeers[String(user.uid)] === true
+                            }
+                        />
+                    ))}
+                </div>
 
                 {stage !== 'live' && (
                     <div style={COVER}>
@@ -689,7 +826,7 @@ export default function VideoCall({
                  * Waiting names the person you are waiting for. "Waiting for
                  * the other side" alone reads as though nobody is expected.
                  */}
-                {stage === 'live' && peers === 0 && (
+                {stage === 'live' && remotes.length === 0 && (
                     <div style={COVER}>
                         <div
                             style={{
@@ -699,7 +836,7 @@ export default function VideoCall({
                                 gap: 14,
                             }}
                         >
-                            <span style={AVATAR}>{initial}</span>
+                            <span style={AVATAR}>{initialOf(participant)}</span>
 
                             <div
                                 style={{
@@ -713,7 +850,7 @@ export default function VideoCall({
                                     {participant}
                                 </span>
                                 <span style={{ fontSize: 13, color: MUTED }}>
-                                    Waiting for the other side to join…
+                                    Waiting for others to join…
                                 </span>
                             </div>
                         </div>
@@ -891,7 +1028,36 @@ const COVER: React.CSSProperties = {
     padding: 24,
 };
 
-/** The stand-in for somebody who has not arrived yet. */
+/** The box one other person's video plays in. */
+const TILE: React.CSSProperties = {
+    position: 'relative',
+    minHeight: 0,
+    borderRadius: 12,
+    overflow: 'hidden',
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)',
+};
+
+/** Their name, over the foot of their tile. */
+const TILE_LABEL: React.CSSProperties = {
+    position: 'absolute',
+    left: 10,
+    bottom: 8,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 'calc(100% - 20px)',
+    padding: '3px 10px',
+    borderRadius: 999,
+    fontSize: 12,
+    background: 'var(--color-bg)',
+    border: '1px solid var(--color-divider)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+};
+
+/** The stand-in for somebody with no picture: not arrived, or camera off. */
 const AVATAR: React.CSSProperties = {
     width: 84,
     height: 84,
