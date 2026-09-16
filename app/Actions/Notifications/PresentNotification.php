@@ -74,7 +74,7 @@ class PresentNotification
      */
     protected function actor(array $data): ?string
     {
-        foreach (['sender_name', 'student_name', 'client_name', 'inviter_name'] as $key) {
+        foreach (['sender_name', 'student_name', 'client_name', 'inviter_name', 'caller_name'] as $key) {
             $name = $this->text($data, $key);
 
             if ($name !== null) {
@@ -189,6 +189,32 @@ class PresentNotification
                 __('Changes were requested on :reference', ['reference' => $reference ?? '']),
                 $this->text($data, 'note'),
                 $this->agreementUrl($data, $team),
+            ],
+            'conversation.team_joined' => $this->text($data, 'audience') === 'team'
+                ? [
+                    __(':student added your team to a conversation', [
+                        'student' => $this->text($data, 'student_name') ?? __('Your teammate'),
+                    ]),
+                    __('About :project with :business. You can read and reply in the thread now.', [
+                        'project' => $project ?? __('a project'),
+                        'business' => $this->text($data, 'business_name') ?? __('the client'),
+                    ]),
+                    $this->conversationUrl($data, $team),
+                ]
+                : [
+                    __(':team joined your conversation with :student', [
+                        'team' => $this->text($data, 'team_name') ?? __('A student team'),
+                        'student' => $this->text($data, 'student_name') ?? __('the student'),
+                    ]),
+                    __('About :project. Everyone on the team can read and write the thread now.', [
+                        'project' => $project ?? __('your posting'),
+                    ]),
+                    $this->conversationUrl($data, $team),
+                ],
+            'call.incoming' => [
+                __(':caller called you', ['caller' => $this->text($data, 'caller_name') ?? __('Somebody')]),
+                __('A video call about :project.', ['project' => $project ?? __('your project')]),
+                $this->conversationUrl($data, $team),
             ],
             'account.access_blocked' => [
                 __('Someone tried to sign in to your account'),

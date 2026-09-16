@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\DB;
  */
 class VoteToRemoveMember
 {
+    public function __construct(private readonly GiveOwnTeam $giveOwnTeam) {}
+
     /**
      * @return array{removed: bool, votes: int, needed: int}
      */
@@ -71,6 +73,8 @@ class VoteToRemoveMember
      */
     protected function remove(Team $team, User $target): void
     {
+        $wasCurrent = $target->isCurrentTeam($team);
+
         $team->memberships()->where('user_id', $target->id)->delete();
 
         /*
@@ -85,8 +89,12 @@ class VoteToRemoveMember
                 ->orWhere('voter_id', $target->id))
             ->delete();
 
-        if ($target->isCurrentTeam($team)) {
-            $target->switchTeam($target->personalTeam());
+        /*
+         * Joining replaced the student's own team, so being removed from the
+         * one they joined hands them a fresh one. See GiveOwnTeam.
+         */
+        if ($wasCurrent || $target->teams()->doesntExist()) {
+            $this->giveOwnTeam->handle($target);
         }
     }
 }

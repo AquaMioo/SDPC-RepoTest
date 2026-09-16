@@ -362,6 +362,44 @@ export default function Messages({
         }
     };
 
+    /*
+     * "Answer" on the ringing card (IncomingCallAlert) lands here with
+     * ?join=<meeting>. Join once, then drop the parameter so a refresh does
+     * not join again. The token is still asked for over HTTP, behind the
+     * thread's participant check.
+     */
+    const answeredFromRing = useRef(false);
+
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        const meetingId = Number(url.searchParams.get('join'));
+
+        if (!Number.isInteger(meetingId) || meetingId <= 0) {
+            return;
+        }
+
+        /*
+         * Deferred, and guarded inside the callback: StrictMode mounts the
+         * effect twice, and the first timer is cleared before it fires, so
+         * the guard has to be set by the run that actually joins.
+         */
+        const timer = window.setTimeout(() => {
+            if (answeredFromRing.current) {
+                return;
+            }
+
+            answeredFromRing.current = true;
+            url.searchParams.delete('join');
+            window.history.replaceState(window.history.state, '', url);
+
+            void joinCall(meetingId);
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+        // Runs once, on the visit the ring started.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const form = useForm({ body: '', image: null as File | null });
 
     /** The message being edited, and the text as it stands mid-edit. */

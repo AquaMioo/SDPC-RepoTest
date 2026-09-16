@@ -10,8 +10,11 @@ use App\Models\Conversation;
 use App\Models\Meeting;
 use App\Models\Project;
 use App\Models\User;
+use App\Notifications\Messaging\CallEnded;
+use App\Notifications\Messaging\IncomingCall;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
@@ -213,6 +216,106 @@ class MeetingTest extends TestCase
         $this->assertNull($response->json('token'));
         $this->assertTrue($response->json('meeting.isScheduled'));
         $this->assertNull($response->json('meeting.startedAt'));
+    }
+
+    /**
+     * The phone ringing: everyone else in the thread is rung on their own
+     * channel, wherever they are on the platform — never the caller.
+     */
+    public function test_starting_a_call_rings_everyone_else_in_the_thread(): void
+    {
+        Notification::fake();
+
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($student)
+            ->postJson(route('meetings.store', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]))
+            ->assertCreated();
+
+        $meeting = Meeting::sole();
+
+        Notification::assertSentTo(
+            $client,
+            IncomingCall::class,
+            function (IncomingCall $notification, array $channels) use ($meeting, $student, $client): bool {
+                $payload = $notification->toArray($client);
+
+                return in_array('broadcast', $channels, true)
+                    && $notification->broadcastType() === 'call.incoming'
+                    && $payload['meeting_id'] === $meeting->id
+                    && $payload['caller_name'] === $student->name
+                    && ! array_key_exists('token', $payload);
+            },
+        );
+        Notification::assertNotSentTo($student, IncomingCall::class);
+    }
+
+    public function test_a_booked_meeting_does_not_ring(): void
+    {
+        Notification::fake();
+
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $this->actingAs($student)
+            ->postJson(route('meetings.store', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]), ['scheduled_at' => now()->addDay()->toIso8601String()])
+            ->assertCreated();
+
+        Notification::assertNotSentTo($client, IncomingCall::class);
+        Notification::assertNotSentTo($student, IncomingCall::class);
+    }
+
+    public function test_hanging_up_stops_the_ringing_for_everyone_else(): void
+    {
+        Notification::fake();
+
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+        $meeting = $this->meeting($thread, $student);
+
+        $this->actingAs($student)
+            ->patchJson(route('meetings.end', [
+                'current_team' => $student->currentTeam,
+                'meeting' => $meeting,
+            ]))
+            ->assertOk();
+
+        Notification::assertSentTo(
+            $client,
+            CallEnded::class,
+            fn (CallEnded $notification): bool => $notification->toArray($client)['meeting_id'] === $meeting->id,
+        );
+        Notification::assertNotSentTo($student, CallEnded::class);
+    }
+
+    /**
+     * The ring is a courtesy on top of a call that already exists: a
+     * broadcaster that cannot be reached must not fail the call.
+     */
+    public function test_an_unreachable_broadcaster_never_fails_the_call(): void
+    {
+        [, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        config([
+            'broadcasting.default' => 'reverb',
+            'broadcasting.connections.reverb.options.host' => '127.0.0.1',
+            'broadcasting.connections.reverb.options.port' => 1,
+        ]);
+
+        $this->actingAs($student)
+            ->postJson(route('meetings.store', [
+                'current_team' => $student->currentTeam,
+                'conversation' => $thread,
+            ]))
+            ->assertCreated();
     }
 
     public function test_booking_invites_the_other_side_as_a_diary_entry_not_a_ringing_phone(): void

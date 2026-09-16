@@ -45,8 +45,7 @@ class TeamPolicy
      */
     public function leave(User $user, Team $team): bool
     {
-        return ! $team->is_personal
-            && $user->belongsToTeam($team)
+        return $user->belongsToTeam($team)
             && ! $user->ownsTeam($team);
     }
 

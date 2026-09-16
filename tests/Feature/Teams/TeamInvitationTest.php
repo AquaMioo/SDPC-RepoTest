@@ -45,7 +45,7 @@ class TeamInvitationTest extends TestCase
         Notification::fake();
 
         $owner = User::factory()->student()->create();
-        $invited = User::factory()->create(['email' => 'invited@example.com']);
+        $invited = User::factory()->student()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -291,8 +291,8 @@ class TeamInvitationTest extends TestCase
     public function test_team_invitations_can_be_accepted()
     {
         $owner = User::factory()->student()->create();
-        $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
-        $team = Team::factory()->create();
+        $invitedUser = User::factory()->student()->create(['email' => 'invited@example.com']);
+        $team = Team::factory()->create(['name' => 'Capstone Crew']);
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
 
@@ -307,8 +307,8 @@ class TeamInvitationTest extends TestCase
             ->actingAs($invitedUser)
             ->post(route('invitations.accept', $invitation));
 
-        $response->assertRedirect(route('dashboard'));
-        $response->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Invitation accepted.']);
+        $response->assertRedirect(route('dashboard', ['current_team' => $team->slug]));
+        $response->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'You joined Capstone Crew. It is your team now.']);
 
         $this->assertTrue($invitedUser->fresh()->belongsToTeam($team));
         $this->assertNotNull($invitation->fresh()->accepted_at);

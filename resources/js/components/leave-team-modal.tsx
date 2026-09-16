@@ -41,7 +41,8 @@ export default function LeaveTeamModal({ team, open, onOpenChange }: Props) {
                     <DialogTitle>Leave team</DialogTitle>
                     <DialogDescription>
                         Are you sure you want to leave{' '}
-                        <strong>{team?.name}</strong>?
+                        <strong>{team?.name}</strong>? You'll get a team of your
+                        own again.
                     </DialogDescription>
                 </DialogHeader>
 

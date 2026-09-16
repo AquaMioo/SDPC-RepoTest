@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMessage;
 use App\Actions\Messaging\NotifyOfMessage;
+use App\Actions\Messaging\NotifyTeamJoined;
 use App\Enums\MilestoneStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -42,6 +43,7 @@ class ConversationController extends Controller
     public function __construct(
         private readonly AnnounceMessage $announce,
         private readonly NotifyOfMessage $notify,
+        private readonly NotifyTeamJoined $notifyTeamJoined,
     ) {}
 
     /**
@@ -312,6 +314,9 @@ class ConversationController extends Controller
         }
 
         $conversation->forceFill(['student_team_id' => $team->id])->save();
+
+        /* Both other sides hear about it: the client, and the teammates now in the thread. */
+        $this->notifyTeamJoined->handle($conversation->fresh(['project.team', 'studentTeam']), $user);
 
         Inertia::flash('toast', [
             'type' => 'success',

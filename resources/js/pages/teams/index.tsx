@@ -34,6 +34,13 @@ type Props = {
     /** Why the button is absent, shown in its place. */
     createBlockedBecause?: string | null;
     collaboratingTeams?: CollaboratingTeam[];
+    /** How a student is on their one team. Null for a client. */
+    membership?: {
+        kind: 'created' | 'joined';
+        team: string;
+        lead: string | null;
+        memberCount: number;
+    } | null;
 };
 
 export default function TeamsIndex({
@@ -41,6 +48,7 @@ export default function TeamsIndex({
     canCreateTeam = true,
     createBlockedBecause = null,
     collaboratingTeams = [],
+    membership = null,
 }: Props) {
     const [leaveTeamDialogOpen, setLeaveTeamDialogOpen] = useState(false);
     const [teamLeaving, setTeamLeaving] = useState<Team | null>(null);
@@ -98,10 +106,34 @@ export default function TeamsIndex({
                     )}
                 </div>
 
+                {membership && (
+                    <div
+                        data-test="team-membership-status"
+                        className="rounded-lg border p-4"
+                    >
+                        <p className="font-medium">
+                            {membership.kind === 'joined'
+                                ? "You've joined the team"
+                                : "You've created the team"}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            {membership.kind === 'joined'
+                                ? `You're on ${membership.team}${membership.lead ? `, led by ${membership.lead}` : ''}. The team you had on your own was removed when you joined — a student is on one team at a time.`
+                                : membership.memberCount > 1
+                                  ? `You lead ${membership.team}, and ${membership.memberCount - 1} ${membership.memberCount - 1 === 1 ? 'person has' : 'people have'} joined you. While you lead a group you can't join another team.`
+                                  : `${membership.team} is yours. Invite others to join you, or accept an invitation to join someone else's team — this one is replaced if you do.`}
+                        </p>
+                    </div>
+                )}
+
                 <div className="space-y-3">
                     {teams.map((team) => {
-                        const canLeaveTeam =
-                            !team.isPersonal && team.role !== 'owner';
+                        /*
+                         * Anyone but the lead may leave. A student who leaves
+                         * the team they joined is given one of their own
+                         * again, so is_personal no longer decides this.
+                         */
+                        const canLeaveTeam = team.role !== 'owner';
 
                         return (
                             <div

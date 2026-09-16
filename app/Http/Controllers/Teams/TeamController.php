@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Teams;
 
 use App\Actions\Teams\CollaboratingTeams;
 use App\Actions\Teams\CreateTeam;
+use App\Actions\Teams\GiveOwnTeam;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teams\DeleteTeamRequest;
@@ -48,11 +49,41 @@ class TeamController extends Controller
             'canCreateTeam' => false,
             'createBlockedBecause' => $user->isClient()
                 ? null
-                : 'This is your team. Rename it and invite up to '.(Team::MAX_MEMBERS - 1).' others into it.',
+                : 'A student is on one team at a time. Joining another team replaces yours while nobody else has joined it.',
+            'membership' => $user->isStudent() ? $this->membership($user) : null,
             'collaboratingTeams' => $user->isClient()
                 ? $collaborating->handle($user)
                 : [],
         ]);
+    }
+
+    /**
+     * Which of the two ways the student is on their team.
+     *
+     * "Created": the team is theirs, and anyone else on it joined them — they
+     * stay its lead. "Joined": they accepted somebody else's invitation, and
+     * the team they had on their own was dissolved when they did.
+     *
+     * @return array{kind: 'created'|'joined', team: string, lead: string|null, memberCount: int}|null
+     */
+    protected function membership(User $user): ?array
+    {
+        $team = $user->currentTeam;
+
+        if ($team === null) {
+            return null;
+        }
+
+        $ownsIt = $user->ownsTeam($team);
+
+        return [
+            'kind' => $ownsIt ? 'created' : 'joined',
+            'team' => $team->name,
+            'lead' => $ownsIt
+                ? null
+                : $team->members()->wherePivot('role', TeamRole::Owner->value)->value('name'),
+            'memberCount' => $team->members()->count(),
+        ];
     }
 
     /**
@@ -154,22 +185,23 @@ class TeamController extends Controller
     /**
      * Leave the specified team.
      */
-    public function leave(Request $request, Team $team): RedirectResponse
+    public function leave(Request $request, Team $team, GiveOwnTeam $giveOwnTeam): RedirectResponse
     {
         Gate::authorize('leave', $team);
 
         $user = $request->user();
-
-        $fallbackTeam = $user->isCurrentTeam($team)
-            ? $user->fallbackTeam($team)
-            : null;
+        $wasCurrent = $user->isCurrentTeam($team);
 
         $team->memberships()
             ->where('user_id', $user->id)
             ->delete();
 
-        if ($fallbackTeam) {
-            $user->switchTeam($fallbackTeam);
+        /*
+         * Joining replaced the student's own team, so leaving the one they
+         * joined hands them a fresh one — a student is always on exactly one.
+         */
+        if ($wasCurrent || $user->teams()->doesntExist()) {
+            $giveOwnTeam->handle($user);
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('You left the team ":name"', ['name' => $team->name])]);

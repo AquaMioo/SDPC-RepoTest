@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 
 /**
  * A thread between one business and one student about one posting.
@@ -103,6 +104,24 @@ class Conversation extends Model
     public function latestMessage(): HasOne
     {
         return $this->hasOne(Message::class)->latestOfMany();
+    }
+
+    /**
+     * Everyone who may read and write this thread, once each.
+     *
+     * The same set isParticipant() answers for: the student it belongs to,
+     * their team if the thread has one, and the business's team.
+     *
+     * @return SupportCollection<int, User>
+     */
+    public function participants(): SupportCollection
+    {
+        return collect([$this->student])
+            ->merge($this->studentTeam?->members()->get() ?? [])
+            ->merge($this->project->team->members()->get())
+            ->filter()
+            ->unique('id')
+            ->values();
     }
 
     /**

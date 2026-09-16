@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import TeamInvitationController from '@/actions/App/Http/Controllers/Teams/TeamInvitationController';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,6 +29,18 @@ export default function PendingInvitationsModal({
         router.visit(TeamInvitationController.accept(invitation), {
             onStart: () => setProcessingCode(invitation.code),
             onFinish: () => setProcessingCode(null),
+            /*
+             * A refusal comes back as a validation error on "invitation" —
+             * leading a group, already on a team, a full team. Without this the
+             * button simply did nothing.
+             */
+            onError: (errors) => {
+                const message = Object.values(errors)[0];
+
+                if (message) {
+                    toast.error(message);
+                }
+            },
         });
     };
 
@@ -50,7 +63,8 @@ export default function PendingInvitationsModal({
                     <DialogTitle>Pending team invitations</DialogTitle>
                     <DialogDescription>
                         Accept or decline the teams you have been invited to
-                        join.
+                        join. A student is on one team at a time: accepting
+                        replaces the team you have on your own.
                     </DialogDescription>
                 </DialogHeader>
 

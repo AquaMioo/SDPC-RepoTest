@@ -7,6 +7,7 @@ import {
 import type { CSSProperties, ReactNode } from 'react';
 
 import AccountStatusBanner from '@/components/account-status-banner';
+import IncomingCallAlert from '@/components/messaging/incoming-call-alert';
 import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
 import { NotificationMenu } from '@/components/sdpc/notification-menu';
@@ -303,6 +304,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
 
             <AccountStatusBanner />
             <AccountSessionGuard />
+            <IncomingCallAlert />
 
             <main>{children}</main>
         </div>

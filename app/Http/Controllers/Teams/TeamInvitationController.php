@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Teams;
 
+use App\Actions\Teams\JoinTeam;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teams\CreateTeamInvitationRequest;
@@ -11,7 +12,6 @@ use App\Models\TeamInvitation;
 use App\Models\User;
 use App\Notifications\Teams\TeamInvitation as TeamInvitationNotification;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -22,9 +22,20 @@ class TeamInvitationController extends Controller
     /**
      * Store a newly created invitation.
      */
-    public function store(CreateTeamInvitationRequest $request, Team $team): RedirectResponse
+    public function store(CreateTeamInvitationRequest $request, Team $team, JoinTeam $joinTeam): RedirectResponse
     {
         Gate::authorize('inviteMember', $team);
+
+        /*
+         * One team per student. An account that could never accept is told
+         * now, rather than their invitation failing when they try.
+         */
+        $existing = User::query()->firstWhere('email', $request->validated('email'));
+        $refusal = $existing === null ? null : $joinTeam->refusal($existing, $team);
+
+        if ($refusal !== null) {
+            throw ValidationException::withMessages(['email' => $refusal]);
+        }
 
         /*
          * Seats, not members: an invitation already sent is a seat promised.
@@ -80,7 +91,7 @@ class TeamInvitationController extends Controller
     /**
      * Accept the invitation.
      */
-    public function accept(RespondToTeamInvitationRequest $request, TeamInvitation $invitation): RedirectResponse
+    public function accept(RespondToTeamInvitationRequest $request, TeamInvitation $invitation, JoinTeam $joinTeam): RedirectResponse
     {
         $user = $request->user();
 
@@ -96,22 +107,17 @@ class TeamInvitationController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($user, $invitation) {
-            $team = $invitation->team;
+        /*
+         * One team per student: joining replaces a team they have on their
+         * own, and is refused while they lead a group or sit on another team.
+         * See App\Actions\Teams\JoinTeam.
+         */
+        $team = $joinTeam->handle($user, $invitation);
 
-            $team->memberships()->firstOrCreate(
-                ['user_id' => $user->id],
-                ['role' => $invitation->role],
-            );
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('You joined :team. It is your team now.', ['team' => $team->name])]);
 
-            $invitation->update(['accepted_at' => now()]);
-
-            $user->switchTeam($team);
-        });
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Invitation accepted.')]);
-
-        return to_route('dashboard');
+        /* Named explicitly: the team the URL defaults were built from may just have been dissolved. */
+        return to_route('dashboard', ['current_team' => $team->slug]);
     }
 
     /**

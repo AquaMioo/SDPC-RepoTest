@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Messaging;
 
+use App\Actions\Notifications\PresentNotification;
 use App\Broadcasting\ConversationChannel;
 use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
@@ -16,6 +17,7 @@ use App\Models\MessageReaction;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\Messaging\TeamJoinedConversation;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Contracts\Broadcasting\Broadcaster;
 use Illuminate\Database\Events\QueryExecuted;
@@ -1377,6 +1379,52 @@ class MessagingTest extends TestCase
 
         /* The teammate now shares the leader's client. */
         $this->assertTrue($thread->fresh()->isParticipant($mate));
+    }
+
+    /**
+     * Both other sides hear about the group forming: the client, whose
+     * conversation became a group, and the teammates now in it.
+     */
+    public function test_bringing_a_team_in_notifies_the_client_and_the_teammates(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $team = Team::factory()->create(['is_personal' => false, 'name' => 'Byte Builders']);
+        $team->members()->attach($student, ['role' => TeamRole::Owner->value]);
+        $student->switchTeam($team);
+
+        $mate = User::factory()->student()->approved()->create();
+        $team->members()->attach($mate, ['role' => TeamRole::LeadProgrammer->value]);
+
+        $this->actingAs($student)
+            ->post(route('messages.form-group', [
+                'current_team' => $team,
+                'conversation' => $thread,
+            ]))
+            ->assertSessionHasNoErrors();
+
+        // The client also has the notification for the application itself.
+        $forClient = $client->notifications()->where('type', TeamJoinedConversation::class)->sole();
+        $this->assertSame('conversation.team_joined', $forClient->data['type']);
+        $this->assertSame('client', $forClient->data['audience']);
+        $this->assertSame('Byte Builders', $forClient->data['team_name']);
+        $this->assertSame($thread->id, $forClient->data['conversation_id']);
+
+        $forMate = $mate->notifications()->where('type', TeamJoinedConversation::class)->sole();
+        $this->assertSame('team', $forMate->data['audience']);
+        $this->assertSame($student->name, $forMate->data['student_name']);
+
+        // The student who pressed the button is told by the toast, not the bell.
+        $this->assertSame(0, $student->notifications()->count());
+
+        $clientTeam = $client->currentTeam;
+        $row = app(PresentNotification::class)->handle($forClient, $clientTeam);
+        $this->assertSame('Byte Builders joined your conversation with '.$student->name, $row['title']);
+        $this->assertSame(route('messages.show', ['current_team' => $clientTeam->slug, 'conversation' => $thread->id]), $row['url']);
+
+        $row = app(PresentNotification::class)->handle($forMate, $team);
+        $this->assertSame($student->name.' added your team to a conversation', $row['title']);
     }
 
     public function test_a_student_without_a_real_team_is_told_to_form_one(): void

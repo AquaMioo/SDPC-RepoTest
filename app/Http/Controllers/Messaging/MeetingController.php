@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMeeting;
+use App\Actions\Messaging\RingParticipants;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Messaging\OpenMeetingRequest;
 use App\Models\Conversation;
@@ -28,7 +29,10 @@ use Illuminate\Support\Facades\DB;
  */
 class MeetingController extends Controller
 {
-    public function __construct(private readonly AnnounceMeeting $announce) {}
+    public function __construct(
+        private readonly AnnounceMeeting $announce,
+        private readonly RingParticipants $ring,
+    ) {}
 
     /**
      * Open a meeting on a thread, now or for later.
@@ -62,6 +66,14 @@ class MeetingController extends Controller
          * the other side must never fail the call for the person placing it.
          */
         $this->announce->handle($meeting);
+
+        /*
+         * A call started now rings everyone else in the thread, wherever they
+         * are on the platform. A booked meeting is a diary entry, not a ring.
+         */
+        if (! $meeting->isScheduled()) {
+            $this->ring->ring($meeting, $user);
+        }
 
         return response()->json([
             'meeting' => $this->present($meeting),
@@ -113,6 +125,9 @@ class MeetingController extends Controller
         /* Idempotent: two people hanging up together is the normal case. */
         if ($meeting->ended_at === null) {
             $meeting->forceFill(['ended_at' => now()])->save();
+
+            /* Whoever is still being rung for it should stop ringing. */
+            $this->ring->hangUp($meeting, $request->user());
         }
 
         return response()->json(['meeting' => $this->present($meeting->fresh())]);
