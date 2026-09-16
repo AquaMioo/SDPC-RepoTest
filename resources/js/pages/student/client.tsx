@@ -24,6 +24,7 @@ type Props = {
         businessName: string;
         description: string | null;
         ownerName: string | null;
+        barangay: string | null;
         city: string | null;
         province: string | null;
         websiteUrl: string | null;
@@ -104,7 +105,13 @@ export default function StudentClient({
                             {[
                                 'Client',
                                 business.ownerName,
-                                [business.city, business.province]
+                                [
+                                    business.barangay
+                                        ? `Barangay ${business.barangay}`
+                                        : null,
+                                    business.city,
+                                    business.province,
+                                ]
                                     .filter(Boolean)
                                     .join(', ') || null,
                             ]

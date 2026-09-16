@@ -4,6 +4,7 @@ namespace App\Http\Requests\Client;
 
 use App\Enums\Industry;
 use App\Enums\OrganizationSize;
+use App\Models\Barangay;
 use App\Models\ClientProfile;
 use App\Models\Location;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -48,6 +49,8 @@ class UpdateClientProfileRequest extends FormRequest
              */
             'city' => ['nullable', 'string', 'max:255', Rule::exists(Location::class, 'city')],
             'province' => ['nullable', 'string', 'max:255', Rule::exists(Location::class, 'province')],
+            /* Checked against the chosen city in withValidator. */
+            'barangay' => ['nullable', 'string', 'max:255'],
             // Digits only. The form strips anything else as it is typed, so a
             // rejection here means the field was posted around the form.
             'phone_number' => ['nullable', 'string', 'max:32', 'regex:/^\d+$/'],
@@ -72,6 +75,22 @@ class UpdateClientProfileRequest extends FormRequest
         $validator->after(function (Validator $validator): void {
             $province = $this->input('province');
             $city = $this->input('city');
+            $barangay = $this->input('barangay');
+
+            /*
+             * A barangay only means something inside a city, so it needs the
+             * city and province beside it, and has to be one of that city's.
+             */
+            if (filled($barangay)) {
+                if (blank($province) || blank($city)) {
+                    $validator->errors()->add('barangay', __('Choose the province and city before the barangay.'));
+                } elseif (! Barangay::existsIn($province, $city, $barangay)) {
+                    $validator->errors()->add(
+                        'barangay',
+                        __(':barangay is not a barangay of :city.', ['barangay' => $barangay, 'city' => $city]),
+                    );
+                }
+            }
 
             // Nothing to cross-check until both are given, and either alone is
             // already reported by its own rule.

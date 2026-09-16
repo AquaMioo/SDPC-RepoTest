@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $logo_path
  * @property string|null $address
  * @property string|null $city
+ * @property string|null $barangay
  * @property string|null $province
  * @property string|null $phone_number
  * @property string|null $contact_email
@@ -39,7 +40,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'team_id', 'business_name', 'business_description', 'owner_name',
     'industry', 'organization_size', 'tagline',
-    'logo_path', 'address', 'city', 'province', 'phone_number',
+    'logo_path', 'address', 'city', 'barangay', 'province', 'phone_number',
     'contact_email', 'website_url', 'facebook_url', 'permit_path',
     'verification_status', 'verified_at',
 ])]

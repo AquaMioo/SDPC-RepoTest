@@ -87,6 +87,7 @@ class ClientDirectoryController extends Controller
                 'businessName' => $profile->business_name,
                 'description' => $profile->business_description,
                 'ownerName' => $profile->owner_name,
+                'barangay' => $profile->barangay,
                 'city' => $profile->city,
                 'province' => $profile->province,
                 'websiteUrl' => $profile->website_url,

@@ -7,6 +7,7 @@ use App\Enums\OrganizationSize;
 use App\Enums\TeamRole;
 use App\Enums\UserRole;
 use App\Enums\VerificationStatus;
+use App\Models\Barangay;
 use App\Models\ClientProfile;
 use App\Models\Location;
 use App\Models\Team;
@@ -252,10 +253,33 @@ class ClientProfileTest extends TestCase
             ->get(route('client-profile.edit', ['current_team' => $team->slug]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
+                /*
+                 * A list — one entry per province with its cities — which is
+                 * what the contacts dialog reads. San Jose Del Monte, Bulacan
+                 * is the whole served area.
+                 */
+                ->has('locations', 1)
                 ->where('locations.0.province', 'Bulacan')
-                ->has('locations.0.cities', 24)
+                ->where('locations.0.cities', ['San Jose Del Monte'])
                 ->etc()
             );
+    }
+
+    /**
+     * The platform serves San Jose Del Monte only, so another Bulacan town is
+     * refused even though it is a real place in the right province.
+     */
+    public function test_a_town_outside_san_jose_del_monte_is_rejected(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+        $this->seedLocations();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload(['province' => 'Bulacan', 'city' => 'Malolos']),
+            )
+            ->assertSessionHasErrors('city');
     }
 
     public function test_the_location_may_still_be_left_empty(): void
@@ -269,6 +293,87 @@ class ClientProfileTest extends TestCase
                 $this->profilePayload(['province' => '', 'city' => '']),
             )
             ->assertSessionHasNoErrors();
+    }
+
+    public function test_a_barangay_of_the_chosen_city_is_saved(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+        $this->seedLocations();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload([
+                    'province' => 'Bulacan',
+                    'city' => 'San Jose Del Monte',
+                    'barangay' => 'Muzon',
+                ]),
+            )
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('client_profiles', [
+            'team_id' => $team->id,
+            'barangay' => 'Muzon',
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('client-profile.edit', ['current_team' => $team->slug]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('profile.barangay', 'Muzon')
+                ->etc()
+            );
+    }
+
+    public function test_a_barangay_that_is_not_in_the_city_is_rejected(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+        $this->seedLocations();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload([
+                    'province' => 'Bulacan',
+                    'city' => 'San Jose Del Monte',
+                    'barangay' => 'Poblacion Uno',
+                ]),
+            )
+            ->assertSessionHasErrors('barangay');
+    }
+
+    /**
+     * A barangay only means something inside a city, so one sent without the
+     * city is refused rather than saved on its own.
+     */
+    public function test_a_barangay_needs_its_province_and_city(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+        $this->seedLocations();
+
+        $this->actingAs($client)
+            ->patch(
+                route('client-profile.update', ['current_team' => $team->slug]),
+                $this->profilePayload(['province' => '', 'city' => '', 'barangay' => 'Muzon']),
+            )
+            ->assertSessionHasErrors('barangay');
+    }
+
+    public function test_the_edit_screen_carries_the_barangays_of_the_served_city(): void
+    {
+        [$client, $team] = $this->verifiedClient();
+        $this->seedLocations();
+
+        $this->actingAs($client)
+            ->get(route('client-profile.edit', ['current_team' => $team->slug]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('barangays', 1)
+                ->where('barangays.0.province', 'Bulacan')
+                ->where('barangays.0.city', 'San Jose Del Monte')
+                ->where('barangays.0.barangays', fn ($names) => collect($names)->contains('Muzon')
+                    && collect($names)->count() === Barangay::count())
+                ->etc()
+            );
     }
 
     /**

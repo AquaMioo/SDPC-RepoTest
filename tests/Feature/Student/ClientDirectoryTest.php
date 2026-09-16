@@ -122,6 +122,30 @@ class ClientDirectoryTest extends TestCase
         $response->assertDontSee('09171234567');
     }
 
+    public function test_a_business_profile_names_its_barangay(): void
+    {
+        $student = User::factory()->student()->create();
+        $owner = User::factory()->verifiedBusiness()->create();
+
+        $owner->currentTeam->clientProfile->update([
+            'province' => 'Bulacan',
+            'city' => 'San Jose Del Monte',
+            'barangay' => 'Muzon',
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('student.clients.show', [
+                'current_team' => $student->currentTeam,
+                'business' => $owner->currentTeam,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('business.barangay', 'Muzon')
+                ->where('business.city', 'San Jose Del Monte')
+                ->etc()
+            );
+    }
+
     public function test_an_unverified_business_profile_is_not_found(): void
     {
         $student = User::factory()->student()->create();

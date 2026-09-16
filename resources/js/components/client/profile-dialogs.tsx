@@ -30,6 +30,19 @@ export type Account = {
     roleLabel: string;
 };
 
+/** One province and its cities, as Location::groupedByProvince() sends them. */
+export type LocationOption = {
+    province: string;
+    cities: string[];
+};
+
+/** One city's barangays, as Barangay::groupedByLocation() sends them. */
+export type BarangayOption = {
+    province: string;
+    city: string;
+    barangays: string[];
+};
+
 export type BusinessProfile = {
     businessName: string;
     businessDescription: string | null;
@@ -39,6 +52,7 @@ export type BusinessProfile = {
     ownerName: string | null;
     address: string | null;
     city: string | null;
+    barangay: string | null;
     province: string | null;
     phoneNumber: string | null;
     contactEmail: string | null;
@@ -501,11 +515,13 @@ export function CompanyContactsDialog({
     onOpenChange,
     profile,
     locations,
+    barangays,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     profile: BusinessProfile;
-    locations: Record<string, string[]>;
+    locations: LocationOption[];
+    barangays: BarangayOption[];
 }) {
     const team = useCurrentTeam();
 
@@ -516,6 +532,7 @@ export function CompanyContactsDialog({
         address: profile.address ?? '',
         province: profile.province ?? '',
         city: profile.city ?? '',
+        barangay: profile.barangay ?? '',
         website_url: profile.websiteUrl ?? '',
         facebook_url: profile.facebookUrl ?? '',
     });
@@ -525,7 +542,43 @@ export function CompanyContactsDialog({
     const set = (key: keyof typeof form, value: string) =>
         setForm((current) => ({ ...current, [key]: value }));
 
-    const cities = form.province ? (locations[form.province] ?? []) : [];
+    /*
+     * The server sends a list — one entry per province with its cities — not a
+     * province-keyed object. Reading it with Object.keys() offered the list
+     * index "0" as the only province, and choosing it handed the city select
+     * an object to .map(), which threw and froze the dialog.
+     */
+    const provinces = locations.map((location) => location.province);
+
+    /*
+     * A profile saved before the list existed can hold a value the list no
+     * longer offers. Keep it selectable so the field shows what is stored
+     * instead of silently reading "Not stated".
+     */
+    if (form.province !== '' && !provinces.includes(form.province)) {
+        provinces.push(form.province);
+    }
+
+    const cities =
+        locations.find((location) => location.province === form.province)
+            ?.cities ?? [];
+
+    const cityOptions =
+        form.city !== '' && !cities.includes(form.city)
+            ? [...cities, form.city]
+            : cities;
+
+    /* The barangays of the chosen city — San Jose Del Monte's, today. */
+    const barangayNames =
+        barangays.find(
+            (entry) =>
+                entry.province === form.province && entry.city === form.city,
+        )?.barangays ?? [];
+
+    const barangayOptions =
+        form.barangay !== '' && !barangayNames.includes(form.barangay)
+            ? [...barangayNames, form.barangay]
+            : barangayNames;
 
     const save = () => {
         setBusy(true);
@@ -538,6 +591,7 @@ export function CompanyContactsDialog({
                 /* Empty selects post "", and every rule here is nullable. */
                 province: form.province || null,
                 city: form.city || null,
+                barangay: form.barangay || null,
             },
             {
                 preserveScroll: true,
@@ -633,13 +687,14 @@ export function CompanyContactsDialog({
                             id="province"
                             value={form.province}
                             onChange={(e) => {
-                                /* A new province orphans the chosen city. */
+                                /* A new province orphans the chosen city and barangay. */
                                 set('province', e.target.value);
                                 set('city', '');
+                                set('barangay', '');
                             }}
                         >
                             <option value="">Not stated</option>
-                            {Object.keys(locations).map((province) => (
+                            {provinces.map((province) => (
                                 <option key={province} value={province}>
                                     {province}
                                 </option>
@@ -657,10 +712,14 @@ export function CompanyContactsDialog({
                             id="city"
                             value={form.city}
                             disabled={form.province === ''}
-                            onChange={(e) => set('city', e.target.value)}
+                            onChange={(e) => {
+                                /* Barangays belong to one city. */
+                                set('city', e.target.value);
+                                set('barangay', '');
+                            }}
                         >
                             <option value="">Not stated</option>
-                            {cities.map((city) => (
+                            {cityOptions.map((city) => (
                                 <option key={city} value={city}>
                                     {city}
                                 </option>
@@ -668,6 +727,27 @@ export function CompanyContactsDialog({
                         </Select>
                         <InputError
                             message={errors.city}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="barangay">Barangay</label>
+                        <Select
+                            id="barangay"
+                            value={form.barangay}
+                            disabled={form.city === ''}
+                            onChange={(e) => set('barangay', e.target.value)}
+                        >
+                            <option value="">Not stated</option>
+                            {barangayOptions.map((barangay) => (
+                                <option key={barangay} value={barangay}>
+                                    {barangay}
+                                </option>
+                            ))}
+                        </Select>
+                        <InputError
+                            message={errors.barangay}
                             className="mt-1 text-[11px]"
                         />
                     </div>

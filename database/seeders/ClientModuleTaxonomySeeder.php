@@ -33,45 +33,28 @@ class ClientModuleTaxonomySeeder extends Seeder
     /**
      * Seed the places a business profile can name.
      *
-     * Bulacan only, because that is the province the platform serves — a
-     * nationwide list would be mostly rows nobody ever picks. "San Jose Del
-     * Monte" is spelled the way the seeded profiles already spell it, so the
-     * businesses that exist keep validating against this list.
+     * San Jose Del Monte, Bulacan only: that is the area the platform serves,
+     * so it is the only province and city the business contacts form offers
+     * and the only pair validation accepts. The rest of Bulacan used to be
+     * listed too; the 2026_09_16 migration removed those rows, because this
+     * method only ever adds. Widening the scope means adding to this list.
+     *
+     * "San Jose Del Monte" is spelled the way the seeded profiles already spell
+     * it, so the businesses that exist keep validating against this list.
      */
     protected function seedLocations(): void
     {
-        $bulacan = [
-            'Angat',
-            'Balagtas',
-            'Baliuag',
-            'Bocaue',
-            'Bulakan',
-            'Bustos',
-            'Calumpit',
-            'Doña Remedios Trinidad',
-            'Guiguinto',
-            'Hagonoy',
-            'Malolos',
-            'Marilao',
-            'Meycauayan',
-            'Norzagaray',
-            'Obando',
-            'Pandi',
-            'Paombong',
-            'Plaridel',
-            'Pulilan',
-            'San Ildefonso',
-            'San Jose Del Monte',
-            'San Miguel',
-            'San Rafael',
-            'Santa Maria',
+        $served = [
+            'Bulacan' => ['San Jose Del Monte'],
         ];
 
-        foreach ($bulacan as $city) {
-            Location::updateOrCreate(
-                ['slug' => Str::slug('bulacan-'.$city)],
-                ['province' => 'Bulacan', 'city' => $city],
-            );
+        foreach ($served as $province => $cities) {
+            foreach ($cities as $city) {
+                Location::updateOrCreate(
+                    ['slug' => Str::slug($province.'-'.$city)],
+                    ['province' => $province, 'city' => $city],
+                );
+            }
         }
 
         $this->seedBarangays();

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -16,10 +17,21 @@ use Illuminate\Support\Collection;
  * @property string $slug
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Barangay> $barangays
  */
 #[Fillable(['province', 'city', 'slug'])]
 class Location extends Model
 {
+    /**
+     * The barangays of this city.
+     *
+     * @return HasMany<Barangay, $this>
+     */
+    public function barangays(): HasMany
+    {
+        return $this->hasMany(Barangay::class);
+    }
+
     /**
      * Every province with its cities, ready for two linked selects.
      *

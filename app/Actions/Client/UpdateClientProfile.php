@@ -37,7 +37,7 @@ class UpdateClientProfile
                 ->only([
                     'business_name', 'business_description', 'owner_name',
                     'industry', 'organization_size', 'tagline',
-                    'address', 'city', 'province', 'phone_number',
+                    'address', 'city', 'barangay', 'province', 'phone_number',
                     'contact_email', 'website_url', 'facebook_url',
                 ])
                 ->all();

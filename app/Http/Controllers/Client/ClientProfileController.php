@@ -7,6 +7,7 @@ use App\Enums\Industry;
 use App\Enums\OrganizationSize;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\UpdateClientProfileRequest;
+use App\Models\Barangay;
 use App\Models\ClientProfile;
 use App\Models\Location;
 use App\Models\Team;
@@ -40,6 +41,7 @@ class ClientProfileController extends Controller
                 'ownerName' => $profile->owner_name,
                 'address' => $profile->address,
                 'city' => $profile->city,
+                'barangay' => $profile->barangay,
                 'province' => $profile->province,
                 'phoneNumber' => $profile->phone_number,
                 'contactEmail' => $profile->contact_email,
@@ -81,6 +83,8 @@ class ClientProfileController extends Controller
              * can filter in the browser without a round trip.
              */
             'locations' => Location::groupedByProvince(),
+            /* The barangay select, which follows the chosen city. */
+            'barangays' => Barangay::groupedByLocation(),
         ]);
     }
 
