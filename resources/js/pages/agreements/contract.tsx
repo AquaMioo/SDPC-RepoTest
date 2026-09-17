@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { DownloadSimpleIcon, ShieldCheckIcon } from '@phosphor-icons/react';
+import { toast } from 'sonner';
 
 import SignatureForm from '@/components/agreements/signature-form';
 import { Btn } from '@/components/sdpc/btn';
@@ -101,12 +102,22 @@ export default function AgreementContract({ agreement }: Props) {
                             download
                             title="Download the Memorandum of Agreement (PDF)"
                             data-test="download-memorandum"
-                            style={{ textDecoration: 'none' }}
+                            className="tag-link"
+                            /*
+                             * The browser saves the file quietly, often
+                             * with nothing on the page to show it, so the
+                             * click says so itself.
+                             */
+                            onClick={() =>
+                                toast.success(
+                                    'Downloading the Memorandum of Agreement…',
+                                    {
+                                        description: `${agreement.reference} Memorandum of Agreement.pdf`,
+                                    },
+                                )
+                            }
                         >
-                            <Tag
-                                variant="outline"
-                                style={{ cursor: 'pointer' }}
-                            >
+                            <Tag variant="outline">
                                 <DownloadSimpleIcon
                                     style={{ marginRight: 5 }}
                                 />

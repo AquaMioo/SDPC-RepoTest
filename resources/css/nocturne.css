@@ -544,6 +544,36 @@ textarea.input { min-height: 90px; resize: vertical; }
 .tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
 .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
 
+/* A tag that is also a link, such as the Memorandum of Agreement download on
+   the contract screen. On its own a tag gives no sign it can be pressed, so
+   this one fills in on hover, sinks a little when pressed, and shows a ring
+   for keyboard focus. */
+.tag-link {
+  display: inline-flex;
+  text-decoration: none;
+  border-radius: calc(var(--radius-md) * 0.75);
+  cursor: pointer;
+}
+.tag-link .tag {
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.tag-link:hover .tag {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.tag-link:active .tag {
+  transform: translateY(1px) scale(0.98);
+  background: color-mix(in srgb, var(--color-accent) 80%, var(--color-text));
+}
+.tag-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tag-link .tag { transition: none; }
+  .tag-link:active .tag { transform: none; }
+}
+
 /* — navigation — */
 .nav {
   display: flex; align-items: center; gap: var(--space-4);
