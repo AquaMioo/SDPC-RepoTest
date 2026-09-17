@@ -338,9 +338,17 @@ class ProjectBoardController extends Controller
     ): RedirectResponse {
         Gate::authorize('acceptInvitation', $application);
 
+        /* Counted first: accepting closes them. */
+        $closing = Application::query()
+            ->openInvitationsFor($request->user())
+            ->whereKeyNot($application->id)
+            ->count();
+
         $respondToInvitation->accept($application);
 
-        return back()->with('success', 'Invitation accepted. Your agreement is ready to review.');
+        return back()->with('success', $closing === 0
+            ? 'Invitation accepted. Your agreement is ready to review.'
+            : 'Invitation accepted. Your agreement is ready to review. Your other invitations were closed, and those clients have been told.');
     }
 
     /**

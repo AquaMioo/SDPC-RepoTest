@@ -175,6 +175,30 @@ class PresentNotification
                 __('An agreement has been drafted. The work starts once both sides have signed it.'),
                 route('agreements.index', ['current_team' => $team->slug]),
             ],
+            'invitation.closed' => [
+                __(':student is no longer available', [
+                    'student' => $this->text($data, 'student_name') ?? __('A student'),
+                ]),
+                __(':reason Your invitation to :project was closed.', [
+                    'reason' => ($data['accepted_invitation'] ?? true) === false
+                        ? __('They have already been taken on by another client.')
+                        : __('They have already accepted an invitation from another client.'),
+                    'project' => $project ?? __('your posting'),
+                ]),
+                route('recruit.index', ['current_team' => $team->slug]),
+            ],
+            'team.invitation_closed' => [
+                __(':student joined another team', [
+                    'student' => $this->text($data, 'student_name') ?? __('A student'),
+                ]),
+                __('They accepted an invitation to :joined, so your invitation to :team was cancelled.', [
+                    'joined' => $this->text($data, 'joined_team_name') ?? __('another team'),
+                    'team' => $this->text($data, 'team_name') ?? __('your team'),
+                ]),
+                $this->text($data, 'team_slug') === null
+                    ? null
+                    : route('teams.edit', ['team' => $this->text($data, 'team_slug')]),
+            ],
             'application.accepted' => [
                 __('You were accepted for :project', ['project' => $project ?? __('a project')]),
                 __('An agreement has been drafted. The work starts once both sides have signed it.'),
@@ -190,6 +214,29 @@ class PresentNotification
                 $this->text($data, 'note'),
                 $this->agreementUrl($data, $team),
             ],
+            'conversation.member_added' => $this->text($data, 'audience') === 'member'
+                ? [
+                    __(':inviter added you to a group chat', [
+                        'inviter' => $this->text($data, 'inviter_name') ?? __('Your team creator'),
+                    ]),
+                    __('About :project with :business. You can read and reply in the thread now.', [
+                        'project' => $project ?? __('a project'),
+                        'business' => $this->text($data, 'business_name') ?? __('the client'),
+                    ]),
+                    $this->conversationUrl($data, $team),
+                ]
+                : [
+                    __(':member joined your conversation', [
+                        'member' => $this->text($data, 'member_name') ?? __('A student'),
+                    ]),
+                    __(':inviter from :team added them to the chat about :project.', [
+                        'inviter' => $this->text($data, 'inviter_name') ?? __('The team creator'),
+                        'team' => $this->text($data, 'team_name') ?? __('the student team'),
+                        'project' => $project ?? __('your posting'),
+                    ]),
+                    $this->conversationUrl($data, $team),
+                ],
+            /* Written before group chats became invite-only; kept so old rows still read. */
             'conversation.team_joined' => $this->text($data, 'audience') === 'team'
                 ? [
                     __(':student added your team to a conversation', [

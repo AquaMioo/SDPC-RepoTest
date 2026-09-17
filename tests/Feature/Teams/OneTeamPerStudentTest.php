@@ -134,8 +134,9 @@ class OneTeamPerStudentTest extends TestCase
 
     /**
      * A group chat is a team of four plus the client: five people. A member
-     * who leaves takes their own threads out of the team's hands, or the chat
-     * would hold them plus a full team once their seat was filled — six.
+     * who leaves takes their own threads out of the team's hands, and loses
+     * their place in the team's chat, or the chat would hold them plus a full
+     * team once their seat was filled — six.
      */
     public function test_a_group_chat_never_holds_more_than_five_people(): void
     {
@@ -150,29 +151,41 @@ class OneTeamPerStudentTest extends TestCase
             'user_id' => $leader->id,
             'student_team_id' => $team->id,
         ]);
+        $leaderThread->members()->attach($team->members()->where('users.id', '!=', $leader->id)->pluck('users.id'));
+
         $memberThread = Conversation::factory()->create([
             'project_id' => $project->id,
             'user_id' => $member->id,
             'student_team_id' => $team->id,
         ]);
+        $memberThread->members()->attach($leader);
 
         $this->assertSame(Team::MAX_MEMBERS + 1, $leaderThread->participants()->count());
-        $this->assertSame(Team::MAX_MEMBERS + 1, $memberThread->participants()->count());
+        $this->assertSame(3, $memberThread->participants()->count());
 
         $this->actingAs($member)->delete(route('teams.leave', $team));
 
         // Somebody new takes the seat, so the team is four again.
-        $team->members()->attach(User::factory()->student()->create(), ['role' => TeamRole::SystemAnalyst->value]);
+        $newcomer = User::factory()->student()->create();
+        $team->members()->attach($newcomer, ['role' => TeamRole::SystemAnalyst->value]);
 
         $this->assertNull($memberThread->fresh()->student_team_id);
+        $this->assertSame(0, $memberThread->members()->count());
         $this->assertSame(
             [$member->id, $client->id],
             $memberThread->fresh()->participants()->pluck('id')->all(),
         );
         $this->assertFalse($memberThread->fresh()->isParticipant($leader));
 
-        // The team's own chat is untouched, and still five.
+        // The leaver's seat in the team's own chat is gone, and the newcomer
+        // is not in until the creator invites them.
         $this->assertSame($team->id, $leaderThread->fresh()->student_team_id);
+        $this->assertFalse($leaderThread->fresh()->isParticipant($member));
+        $this->assertFalse($leaderThread->fresh()->isParticipant($newcomer));
+        $this->assertSame(Team::MAX_MEMBERS, $leaderThread->fresh()->participants()->count());
+
+        $leaderThread->members()->attach($newcomer);
+
         $this->assertSame(Team::MAX_MEMBERS + 1, $leaderThread->fresh()->participants()->count());
     }
 

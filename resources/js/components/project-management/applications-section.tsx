@@ -135,21 +135,40 @@ export function ApplicationsSection({
                              */}
                             {application.awaitsMyDecision && (
                                 <>
-                                    <Btn
-                                        variant="primary"
-                                        onClick={() =>
-                                            router.post(
-                                                applicationAccept.url({
-                                                    current_team: teamSlug,
-                                                    application: application.id,
-                                                }),
-                                                {},
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                    >
-                                        Accept
-                                    </Btn>
+                                    {/*
+                                     * One project at a time. Accepting one
+                                     * closes the rest, so this only shows for
+                                     * an invitation that arrived afterwards.
+                                     */}
+                                    {application.canAccept ? (
+                                        <Btn
+                                            variant="primary"
+                                            onClick={() =>
+                                                router.post(
+                                                    applicationAccept.url({
+                                                        current_team: teamSlug,
+                                                        application:
+                                                            application.id,
+                                                    }),
+                                                    {},
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                        >
+                                            Accept
+                                        </Btn>
+                                    ) : (
+                                        <span
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: MUTED(65),
+                                                maxWidth: 220,
+                                            }}
+                                        >
+                                            You are already on a project, so
+                                            this one cannot be accepted.
+                                        </span>
+                                    )}
                                     <Btn
                                         variant="ghost"
                                         onClick={() =>

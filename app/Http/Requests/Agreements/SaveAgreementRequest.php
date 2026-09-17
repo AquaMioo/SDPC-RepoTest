@@ -35,9 +35,13 @@ class SaveAgreementRequest extends FormRequest
             'deliverables' => ['array', 'max:20'],
             'deliverables.*' => ['required', 'string', 'max:500'],
 
-            'intellectual_property_terms' => ['required', 'string', 'max:5000'],
-            'confidentiality_terms' => ['required', 'string', 'max:5000'],
-            'academic_terms' => ['required', 'string', 'max:5000'],
+            /*
+             * The earlier clauses. A Memorandum of Agreement does not show or
+             * edit them, so the form may leave them out.
+             */
+            'intellectual_property_terms' => ['nullable', 'string', 'max:5000'],
+            'confidentiality_terms' => ['nullable', 'string', 'max:5000'],
+            'academic_terms' => ['nullable', 'string', 'max:5000'],
 
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],

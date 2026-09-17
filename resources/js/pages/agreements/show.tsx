@@ -446,44 +446,75 @@ export default function AgreementShow({ agreement }: Props) {
                         style={{ padding: '22px 24px', marginBottom: 26 }}
                     >
                         <h6 style={{ margin: 0 }}>Contract terms</h6>
-                        <p
-                            style={{
-                                margin: 0,
-                                fontSize: 12,
-                                color: MUTED(65),
-                            }}
-                        >
-                            These are the clauses the student reads in full on
-                            the contract screen before signing.
-                        </p>
+                        {agreement.template === 'memorandum' ? (
+                            /*
+                             * The memorandum's wording is the school's and the
+                             * same for every project. What the client sets is
+                             * what it points at: the scope, the phases and the
+                             * dates above.
+                             */
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: 12,
+                                    color: MUTED(65),
+                                }}
+                            >
+                                This project uses the school's Memorandum of
+                                Agreement. Its wording is the same for every
+                                project; the scope, phases and dates you set
+                                here are what it refers to. The student reads it
+                                in full on the contract screen before signing.
+                            </p>
+                        ) : (
+                            <>
+                                <p
+                                    style={{
+                                        margin: 0,
+                                        fontSize: 12,
+                                        color: MUTED(65),
+                                    }}
+                                >
+                                    These are the clauses the student reads in
+                                    full on the contract screen before signing.
+                                </p>
 
-                        <TermField
-                            label="Intellectual property"
-                            value={form.data.intellectual_property_terms}
-                            error={form.errors.intellectual_property_terms}
-                            onChange={(value) =>
-                                form.setData(
-                                    'intellectual_property_terms',
-                                    value,
-                                )
-                            }
-                        />
-                        <TermField
-                            label="Confidentiality & data protection"
-                            value={form.data.confidentiality_terms}
-                            error={form.errors.confidentiality_terms}
-                            onChange={(value) =>
-                                form.setData('confidentiality_terms', value)
-                            }
-                        />
-                        <TermField
-                            label="Academic standards"
-                            value={form.data.academic_terms}
-                            error={form.errors.academic_terms}
-                            onChange={(value) =>
-                                form.setData('academic_terms', value)
-                            }
-                        />
+                                <TermField
+                                    label="Intellectual property"
+                                    value={
+                                        form.data.intellectual_property_terms
+                                    }
+                                    error={
+                                        form.errors.intellectual_property_terms
+                                    }
+                                    onChange={(value) =>
+                                        form.setData(
+                                            'intellectual_property_terms',
+                                            value,
+                                        )
+                                    }
+                                />
+                                <TermField
+                                    label="Confidentiality & data protection"
+                                    value={form.data.confidentiality_terms}
+                                    error={form.errors.confidentiality_terms}
+                                    onChange={(value) =>
+                                        form.setData(
+                                            'confidentiality_terms',
+                                            value,
+                                        )
+                                    }
+                                />
+                                <TermField
+                                    label="Academic standards"
+                                    value={form.data.academic_terms}
+                                    error={form.errors.academic_terms}
+                                    onChange={(value) =>
+                                        form.setData('academic_terms', value)
+                                    }
+                                />
+                            </>
+                        )}
 
                         <div
                             style={{

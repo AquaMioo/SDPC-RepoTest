@@ -12,11 +12,13 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A thread between one business and one student about one posting.
@@ -33,6 +35,8 @@ use Illuminate\Support\Collection as SupportCollection;
  * @property-read Project $project
  * @property-read User $student
  * @property-read Collection<int, Message> $messages
+ * @property-read Collection<int, User> $members
+ * @property-read Team|null $studentTeam
  * @property-read Message|null $latestMessage
  */
 #[Fillable([
@@ -77,6 +81,60 @@ class Conversation extends Model
     }
 
     /**
+     * Teammates the team's creator invited into this thread's group chat.
+     *
+     * Only half the rule: a row counts while the person is still on the
+     * thread's team — see groupMembers() and isParticipant().
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'conversation_members')
+            ->withPivot('invited_by')
+            ->withTimestamps();
+    }
+
+    /**
+     * The invited teammates who are still on the thread's team.
+     *
+     * @return Collection<int, User>
+     */
+    public function groupMembers(): Collection
+    {
+        if ($this->student_team_id === null || $this->studentTeam === null) {
+            return new Collection;
+        }
+
+        return $this->members()
+            ->whereHas('teams', fn (Builder $team) => $team->where('teams.id', $this->student_team_id))
+            ->orderBy('conversation_members.id')
+            ->get();
+    }
+
+    /**
+     * Whether this thread is a group chat: its team is attached and at least
+     * one teammate has been invited in.
+     */
+    public function isGroup(): bool
+    {
+        return $this->groupMembers()->isNotEmpty();
+    }
+
+    /**
+     * Whether the given user may invite teammates into this thread, or take
+     * them out: the creator of the thread's team, and only from inside it.
+     */
+    public function canManageGroup(User $user): bool
+    {
+        $team = $this->studentTeam;
+
+        return $team !== null
+            && $user->ownsTeam($team)
+            && $this->isParticipant($user);
+    }
+
+    /**
      * Get every message in order.
      *
      * @return HasMany<Message, $this>
@@ -110,14 +168,15 @@ class Conversation extends Model
      * Everyone who may read and write this thread, once each.
      *
      * The same set isParticipant() answers for: the student it belongs to,
-     * their team if the thread has one, and the business's team.
+     * the teammates invited into its group chat, and the business's team.
+     * At most five people — see Team::MAX_MEMBERS.
      *
      * @return SupportCollection<int, User>
      */
     public function participants(): SupportCollection
     {
         return collect([$this->student])
-            ->merge($this->studentTeam?->members()->get() ?? [])
+            ->merge($this->groupMembers())
             ->merge($this->project->team->members()->get())
             ->filter()
             ->unique('id')
@@ -127,9 +186,10 @@ class Conversation extends Model
     /**
      * Determine if the given user may read and write this thread.
      *
-     * The student it belongs to, or anyone on the business's team. An
-     * administrator is not a participant — support can read the database, but
-     * nobody silently joins a conversation between two other people.
+     * The student it belongs to, a teammate the team's creator invited in, or
+     * anyone on the business's team. An administrator is not a participant —
+     * support can read the database, but nobody silently joins a conversation
+     * between two other people.
      */
     public function isParticipant(User $user): bool
     {
@@ -137,15 +197,7 @@ class Conversation extends Model
             return true;
         }
 
-        /*
-         * The student's team, if the thread has one. Membership is read live
-         * rather than copied in, so somebody the leader invites tomorrow can
-         * read the thread tomorrow — the invitation is the existing team
-         * invitation, and this is all that has to notice it.
-         */
-        $studentTeam = $this->studentTeam;
-
-        if ($studentTeam !== null && $user->belongsToTeam($studentTeam)) {
+        if ($this->isGroupMember($user)) {
             return true;
         }
 
@@ -153,22 +205,43 @@ class Conversation extends Model
     }
 
     /**
-     * Attach the student's team to this thread, if they have one and it has
-     * none yet.
+     * Whether the user was invited into this thread's group chat and is still
+     * on its team.
      *
-     * Threads opened before the student formed a team would otherwise never
-     * gain one, and the leader would invite people into a group that could
-     * not see the conversation it was for. Adopting once, on open, fixes
-     * those without a backfill nobody would remember to run.
+     * Both halves, read live. Being on the team is no longer enough — the
+     * creator decides who is in — and an invitation stops counting the moment
+     * its holder leaves the team.
+     */
+    public function isGroupMember(User $user): bool
+    {
+        $studentTeam = $this->studentTeam;
+
+        if ($studentTeam === null) {
+            return false;
+        }
+
+        $invited = $this->relationLoaded('members')
+            ? $this->members->contains('id', $user->id)
+            : $this->members()->whereKey($user->id)->exists();
+
+        return $invited && $user->belongsToTeam($studentTeam);
+    }
+
+    /**
+     * Attach the student's team to this thread, so its creator can invite
+     * teammates in.
      *
-     * Only a team with somebody else in it: a team of one would say nothing
-     * user_id does not already say, while making the thread look like a group
-     * that it is not.
+     * Attaching lets nobody else in by itself — the creator still invites
+     * each person (see members()). Done on open, so a thread started before
+     * the team existed picks it up on the next visit.
      *
-     * Read off the membership rather than off is_personal. The team a student
-     * is handed at sign up is the team they build with — they are never asked
-     * to create a second one beside it — so it becomes a group as soon as
-     * somebody joins, whatever its origin says.
+     * Only for the team's creator. A member's own threads with clients stay
+     * between them and the client; a member does not hand their
+     * conversations to the team by joining it.
+     *
+     * Only a team with somebody else in it: there is nobody to invite from a
+     * team of one. Read off the membership rather than off is_personal — the
+     * team a student is handed at sign up is the team they build with.
      */
     public function adoptStudentTeam(): void
     {
@@ -176,9 +249,10 @@ class Conversation extends Model
             return;
         }
 
-        $team = $this->student?->currentTeam;
+        $student = $this->student;
+        $team = $student?->currentTeam;
 
-        if ($team === null || $team->isSolo()) {
+        if ($team === null || $team->isSolo() || ! $student->ownsTeam($team)) {
             return;
         }
 
@@ -186,32 +260,56 @@ class Conversation extends Model
     }
 
     /**
-     * Stop a student's own threads being a team's group chat, once they are no
-     * longer on that team.
+     * Take a student who is no longer on a team out of that team's group
+     * chats.
      *
-     * A group chat is the thread's student plus their team plus the client,
-     * and the team is capped at Team::MAX_MEMBERS — so at most five people,
-     * because the student is one of the four. A student who left while their
-     * thread still named the team would sit outside that count, and the chat
-     * would reach six as soon as the team filled their seat. The thread falls
-     * back to the student alone, the same as JoinTeam::dissolve() does.
+     * Their own threads fall back to them and the client, as
+     * JoinTeam::dissolve() does, and their invitations into other threads on
+     * the team are deleted. A group chat is the thread's student, invited
+     * teammates and the client — at most five people, because the team is
+     * capped at Team::MAX_MEMBERS — and a leaver left inside would push it
+     * past that as soon as the team filled their seat.
      */
     public static function releaseFromTeam(User $student, Team $team): void
     {
-        static::query()
+        $ownThreads = static::query()
             ->where('user_id', $student->id)
             ->where('student_team_id', $team->id)
-            ->update(['student_team_id' => null]);
+            ->pluck('id');
+
+        DB::table('conversation_members')->whereIn('conversation_id', $ownThreads)->delete();
+
+        static::query()->whereKey($ownThreads)->update(['student_team_id' => null]);
+
+        DB::table('conversation_members')
+            ->where('user_id', $student->id)
+            ->whereIn('conversation_id', static::query()->select('id')->where('student_team_id', $team->id))
+            ->delete();
     }
 
     /**
      * Get which side of the thread the given user is on.
+     *
+     * Invited teammates are on the student's side: they read the business's
+     * name as the thread's title, and share the student side's read marker.
+     * Treating them as the client used to clear the client's unread badge
+     * whenever a teammate opened the thread.
      */
     public function sideFor(User $user): UserRole
     {
-        return $this->user_id === $user->id
-            ? UserRole::Student
-            : UserRole::Client;
+        if ($this->user_id === $user->id) {
+            return UserRole::Student;
+        }
+
+        if ($this->student_team_id === null) {
+            return UserRole::Client;
+        }
+
+        $invited = $this->relationLoaded('members')
+            ? $this->members->contains('id', $user->id)
+            : $this->members()->whereKey($user->id)->exists();
+
+        return $invited ? UserRole::Student : UserRole::Client;
     }
 
     /**
@@ -279,8 +377,12 @@ class Conversation extends Model
     {
         $query->where(fn (Builder $inner) => $inner
             ->where('user_id', $user->id)
-            ->orWhereHas('studentTeam.members', fn (Builder $member) => $member
-                ->where('users.id', $user->id))
+            /* Invited into the group chat, and still on its team. */
+            ->orWhere(fn (Builder $group) => $group
+                ->whereHas('members', fn (Builder $member) => $member
+                    ->where('users.id', $user->id))
+                ->whereHas('studentTeam.members', fn (Builder $member) => $member
+                    ->where('users.id', $user->id)))
             ->orWhereHas('project.team.members', fn (Builder $member) => $member
                 ->where('users.id', $user->id)));
     }

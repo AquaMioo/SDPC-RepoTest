@@ -76,6 +76,8 @@ export type Application = {
     appliedAt: string | null;
     respondedAt: string | null;
     awaitsMyDecision: boolean;
+    /** False while the student is already on a project: one at a time. */
+    canAccept: boolean;
     canWithdraw: boolean;
     canMessage: boolean;
 };

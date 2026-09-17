@@ -17,7 +17,7 @@ use App\Models\MessageReaction;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
-use App\Notifications\Messaging\TeamJoinedConversation;
+use App\Notifications\Messaging\AddedToConversation;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Contracts\Broadcasting\Broadcaster;
 use Illuminate\Database\Events\QueryExecuted;
@@ -545,6 +545,14 @@ class MessagingTest extends TestCase
          */
         $conversation->adoptStudentTeam();
 
+        /* Being on the team is not enough: the creator invites them in. */
+        $this->actingAs($student)
+            ->post(route('messages.members.store', [
+                'current_team' => $team,
+                'conversation' => $conversation,
+            ]), ['user_id' => $teammate->id])
+            ->assertSessionHasNoErrors();
+
         $conversation->messages()->create([
             'user_id' => $student->id,
             'body' => 'Kicking off tomorrow',
@@ -583,6 +591,7 @@ class MessagingTest extends TestCase
 
         /* After the teammate joined — see the test above. */
         $conversation->adoptStudentTeam();
+        $conversation->members()->attach($teammate);
 
         $this->actingAs($teammate)
             ->get(route('messages.index', ['current_team' => $team]))
@@ -981,7 +990,9 @@ class MessagingTest extends TestCase
                 'conversation' => $thread,
                 'message' => $message,
             ]))
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasNoErrors()
+            /* The sender is told it worked, not left guessing. */
+            ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Message removed.']);
 
         $message->refresh();
 
@@ -1351,10 +1362,10 @@ class MessagingTest extends TestCase
     }
 
     /**
-     * Forming the group is what makes the leader's client the team's client:
-     * every member reads and writes the thread that already holds the history.
+     * The team's creator brings teammates into the thread one at a time. The
+     * thread picks up the team when it is opened; that alone lets nobody in.
      */
-    public function test_a_student_can_bring_their_team_into_a_thread(): void
+    public function test_the_team_creator_invites_a_teammate_into_the_thread(): void
     {
         [, $student, $project] = $this->pair(applied: true);
         $thread = $this->thread($project, $student);
@@ -1366,26 +1377,35 @@ class MessagingTest extends TestCase
         $mate = User::factory()->student()->approved()->create();
         $team->members()->attach($mate, ['role' => TeamRole::LeadProgrammer->value]);
 
-        $this->assertFalse($thread->isParticipant($mate));
-
         $this->actingAs($student)
-            ->post(route('messages.form-group', [
-                'current_team' => $team,
-                'conversation' => $thread,
-            ]))
-            ->assertSessionHasNoErrors();
+            ->get(route('messages.show', ['current_team' => $team, 'conversation' => $thread]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('group.canManage', true)
+                ->where('group.isGroup', false)
+                ->where('group.invitable.0.id', $mate->id));
 
         $this->assertSame($team->id, $thread->refresh()->student_team_id);
+        $this->assertFalse($thread->fresh()->isParticipant($mate));
 
-        /* The teammate now shares the leader's client. */
+        $this->actingAs($student)
+            ->post(route('messages.members.store', [
+                'current_team' => $team,
+                'conversation' => $thread,
+            ]), ['user_id' => $mate->id])
+            ->assertSessionHasNoErrors()
+            ->assertInertiaFlash('toast', ['type' => 'success', 'message' => $mate->name.' can now read and write this chat.']);
+
+        /* The teammate now shares the creator's client. */
         $this->assertTrue($thread->fresh()->isParticipant($mate));
+        $this->assertTrue($thread->fresh()->isGroup());
     }
 
     /**
-     * Both other sides hear about the group forming: the client, whose
-     * conversation became a group, and the teammates now in it.
+     * Both other sides hear about it: the teammate, who has a thread to read,
+     * and the client, whose conversation just gained a person.
      */
-    public function test_bringing_a_team_in_notifies_the_client_and_the_teammates(): void
+    public function test_inviting_a_teammate_notifies_them_and_the_client(): void
     {
         [$client, $student, $project] = $this->pair(applied: true);
         $thread = $this->thread($project, $student);
@@ -1397,67 +1417,113 @@ class MessagingTest extends TestCase
         $mate = User::factory()->student()->approved()->create();
         $team->members()->attach($mate, ['role' => TeamRole::LeadProgrammer->value]);
 
+        $thread->adoptStudentTeam();
+
         $this->actingAs($student)
-            ->post(route('messages.form-group', [
+            ->post(route('messages.members.store', [
                 'current_team' => $team,
                 'conversation' => $thread,
-            ]))
+            ]), ['user_id' => $mate->id])
             ->assertSessionHasNoErrors();
 
+        $forMate = $mate->notifications()->where('type', AddedToConversation::class)->sole();
+        $this->assertSame('conversation.member_added', $forMate->data['type']);
+        $this->assertSame('member', $forMate->data['audience']);
+        $this->assertSame($thread->id, $forMate->data['conversation_id']);
+
         // The client also has the notification for the application itself.
-        $forClient = $client->notifications()->where('type', TeamJoinedConversation::class)->sole();
-        $this->assertSame('conversation.team_joined', $forClient->data['type']);
+        $forClient = $client->notifications()->where('type', AddedToConversation::class)->sole();
         $this->assertSame('client', $forClient->data['audience']);
-        $this->assertSame('Byte Builders', $forClient->data['team_name']);
-        $this->assertSame($thread->id, $forClient->data['conversation_id']);
+        $this->assertSame($mate->name, $forClient->data['member_name']);
 
-        $forMate = $mate->notifications()->where('type', TeamJoinedConversation::class)->sole();
-        $this->assertSame('team', $forMate->data['audience']);
-        $this->assertSame($student->name, $forMate->data['student_name']);
-
-        // The student who pressed the button is told by the toast, not the bell.
+        // The creator who pressed the button is told by the toast, not the bell.
         $this->assertSame(0, $student->notifications()->count());
+
+        $row = app(PresentNotification::class)->handle($forMate, $mate->currentTeam);
+        $this->assertSame($student->name.' added you to a group chat', $row['title']);
+        $this->assertSame(route('messages.show', ['current_team' => $mate->currentTeam->slug, 'conversation' => $thread->id]), $row['url']);
 
         $clientTeam = $client->currentTeam;
         $row = app(PresentNotification::class)->handle($forClient, $clientTeam);
-        $this->assertSame('Byte Builders joined your conversation with '.$student->name, $row['title']);
-        $this->assertSame(route('messages.show', ['current_team' => $clientTeam->slug, 'conversation' => $thread->id]), $row['url']);
-
-        $row = app(PresentNotification::class)->handle($forMate, $team);
-        $this->assertSame($student->name.' added your team to a conversation', $row['title']);
+        $this->assertSame($mate->name.' joined your conversation', $row['title']);
+        $this->assertSame($student->name.' from Byte Builders added them to the chat about '.$project->title.'.', $row['body']);
     }
 
+    /**
+     * Rows written when a whole team joined a thread at once still read
+     * properly in the bell.
+     */
+    public function test_an_old_team_joined_notification_still_reads_properly(): void
+    {
+        [$client, $student, $project] = $this->pair(applied: true);
+        $thread = $this->thread($project, $student);
+
+        $row = $client->notifications()->create([
+            'id' => (string) str()->uuid(),
+            'type' => 'App\\Notifications\\Messaging\\TeamJoinedConversation',
+            'data' => [
+                'type' => 'conversation.team_joined',
+                'audience' => 'client',
+                'conversation_id' => $thread->id,
+                'student_name' => $student->name,
+                'team_name' => 'Byte Builders',
+                'project_title' => $project->title,
+            ],
+        ]);
+
+        $presented = app(PresentNotification::class)->handle($row, $client->currentTeam);
+
+        $this->assertSame('Byte Builders joined your conversation with '.$student->name, $presented['title']);
+    }
+
+    /**
+     * A student with no team is told why there is nobody to invite, and the
+     * server refuses an invitation from them anyway.
+     */
     public function test_a_student_without_a_real_team_is_told_to_form_one(): void
     {
         [, $student, $project] = $this->pair(applied: true);
         $thread = $this->thread($project, $student);
+        $classmate = User::factory()->student()->approved()->create();
 
         $this->actingAs($student)
-            ->post(route('messages.form-group', [
+            ->get(route('messages.show', ['current_team' => $student->currentTeam, 'conversation' => $thread]))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('group.needsTeam', true)
+                ->where('group.canManage', false));
+
+        $this->actingAs($student)
+            ->post(route('messages.members.store', [
                 'current_team' => $student->currentTeam,
                 'conversation' => $thread,
-            ]))
-            ->assertSessionHasErrors('team');
+            ]), ['user_id' => $classmate->id])
+            ->assertForbidden();
 
         $this->assertNull($thread->refresh()->student_team_id);
     }
 
     /**
-     * A client cannot pull somebody else's team into their own conversation.
+     * A client cannot pull anybody into the student side of the chat.
      */
-    public function test_a_client_cannot_form_the_group(): void
+    public function test_a_client_cannot_invite_anyone(): void
     {
         [$client, $student, $project] = $this->pair(applied: true);
         $thread = $this->thread($project, $student);
 
+        $team = Team::factory()->create(['is_personal' => false]);
+        $team->members()->attach($student, ['role' => TeamRole::Owner->value]);
+        $mate = User::factory()->student()->approved()->create();
+        $team->members()->attach($mate, ['role' => TeamRole::LeadProgrammer->value]);
+        $thread->forceFill(['student_team_id' => $team->id])->save();
+
         $this->actingAs($client)
-            ->post(route('messages.form-group', [
+            ->post(route('messages.members.store', [
                 'current_team' => $client->currentTeam,
                 'conversation' => $thread,
-            ]))
+            ]), ['user_id' => $mate->id])
             ->assertForbidden();
 
-        $this->assertNull($thread->refresh()->student_team_id);
+        $this->assertFalse($thread->fresh()->isParticipant($mate));
     }
 
     /**

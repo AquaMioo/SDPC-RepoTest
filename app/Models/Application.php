@@ -163,6 +163,19 @@ class Application extends Model
     }
 
     /**
+     * Scope the query to invitations the given student has not answered yet.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function openInvitationsFor(Builder $query, User $student): void
+    {
+        $query->where('user_id', $student->id)
+            ->where('source', ApplicationSource::Invited)
+            ->awaitingDecision();
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

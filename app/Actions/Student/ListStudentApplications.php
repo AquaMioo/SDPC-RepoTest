@@ -25,6 +25,9 @@ class ListStudentApplications
      */
     public function handle(User $student): array
     {
+        /* One project at a time: an invitation cannot be taken while one is in hand. */
+        $holdsProject = $student->holdsProjectInHand();
+
         return Application::query()
             ->where('user_id', $student->id)
             ->with(['project.team.clientProfile'])
@@ -59,6 +62,7 @@ class ListStudentApplications
                  * take back from a conversation the client opened.
                  */
                 'awaitsMyDecision' => $application->awaitsStudentDecision(),
+                'canAccept' => $application->awaitsStudentDecision() && ! $holdsProject,
                 /* Only an undecided application the student made can be taken back. */
                 'canWithdraw' => $application->status->isActionable()
                     && ! $application->awaitsStudentDecision(),

@@ -452,7 +452,7 @@ class MeetingTest extends TestCase
     public function test_everyone_in_a_full_group_chat_ends_up_in_the_same_call(): void
     {
         [$client, $student, $mate, $thread] = $this->groupThread();
-        $others = $this->fillTeam($thread->studentTeam);
+        $others = $this->fillTeam($thread);
 
         $this->assertSame(Team::MAX_MEMBERS + 1, $thread->participants()->count());
 
@@ -735,21 +735,27 @@ class MeetingTest extends TestCase
 
         $thread->forceFill(['student_team_id' => $team->id])->save();
 
+        /* Being on the team is not enough: the creator invites them in. */
+        $thread->members()->attach($mate);
+
         return [$client, $student, $mate->fresh(), $thread->fresh()];
     }
 
     /**
-     * Seat students on the team until it holds Team::MAX_MEMBERS.
+     * Seat students on the thread's team until it holds Team::MAX_MEMBERS,
+     * and invite each of them into the thread's group chat.
      *
      * @return list<User> the students added
      */
-    private function fillTeam(Team $team): array
+    private function fillTeam(Conversation $thread): array
     {
+        $team = $thread->studentTeam;
         $added = [];
 
         while ($team->members()->count() < Team::MAX_MEMBERS) {
             $student = User::factory()->student()->approved()->create();
             $team->members()->attach($student, ['role' => TeamRole::QualityAssurance->value]);
+            $thread->members()->attach($student);
             $added[] = $student->fresh();
         }
 

@@ -9,7 +9,9 @@ paths:
 ## A student builds one project at a time
 User::holdsProjectInHand() is the predicate: an Accepted application on a project whose status ProjectStatus::isUnfinished(). It mirrors the client's one-posting cap in ProjectPolicy::create() and shares the same isUnfinished() definition.
 
-Two doors into work, both guarded. ProjectBoardController::apply() blocks the student applying, and RespondToApplication::handle() blocks the client accepting — the second matters more, because acceptance is the moment work starts and a client could otherwise hire someone already busy. Shortlisting and inviting a busy student stay allowed on purpose; only acceptance is capped.
+Two doors into work, both guarded. ProjectBoardController::apply() blocks the student applying, and RespondToApplication::handle() blocks the client accepting — the second matters more, because acceptance is the moment work starts and a client could otherwise hire someone already busy. RespondToInvitation::accept() blocks the student accepting a second invitation.
+
+Once a student is taken on by either route, App\Actions\Student\CloseOtherInvitations closes (Withdrawn) every other invitation still open for them, and emails plus bell-notifies each business that sent one (Client\InvitationClosed, which is deliberately not queued). Inviting a student who is already taken is refused in InviteStudentRequest, and the student profile screen says so (`isTaken`). Testers asked for this: an invited student can accept only one, and the other inviters must be told. Shortlisting a busy applicant is still allowed.
 
 Screens with an apply affordance receive a `holdsProjectInHand` prop (student board, project detail) so the form is hidden with a reason rather than failing on submit.
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agreements;
 
 use App\Actions\Agreements\PresentAgreement;
 use App\Enums\AgreementParty;
+use App\Enums\AgreementTemplate;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Agreements\SaveAgreementRequest;
 use App\Models\Agreement;
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
  * The Terms & Agreement screen, shared by both sides.
@@ -119,6 +122,27 @@ class AgreementController extends Controller
                 $this->partyFor($request->user(), $agreement),
             ),
         ]);
+    }
+
+    /**
+     * Download the school's Memorandum of Agreement as a PDF.
+     *
+     * The blank paper form, exactly as the school issues it, for the two
+     * sides to print, fill in and sign by hand. Named after the agreement so
+     * the copy is easy to find later. Only for agreements written as a
+     * memorandum: one signed under the earlier clauses is not this document.
+     */
+    public function memorandum(Request $request, Team $currentTeam, Agreement $agreement): BinaryFileResponse
+    {
+        Gate::authorize('view', $agreement);
+
+        abort_unless($agreement->template === AgreementTemplate::Memorandum, HttpResponse::HTTP_NOT_FOUND);
+
+        return response()->download(
+            resource_path('documents/memorandum-of-agreement.pdf'),
+            "{$agreement->reference} Memorandum of Agreement.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     /**

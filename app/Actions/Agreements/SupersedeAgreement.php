@@ -3,6 +3,7 @@
 namespace App\Actions\Agreements;
 
 use App\Enums\AgreementStatus;
+use App\Enums\AgreementTemplate;
 use App\Enums\MilestoneStatus;
 use App\Models\Agreement;
 use App\Models\User;
@@ -39,6 +40,8 @@ class SupersedeAgreement
                 /* Same document, next revision — the reference does not change. */
                 'reference' => $agreement->reference,
                 'version' => $agreement->version + 1,
+                /* Nobody has signed the new version, so it is a memorandum. */
+                'template' => AgreementTemplate::Memorandum,
                 'status' => AgreementStatus::Draft,
                 'scope_summary' => $agreement->scope_summary,
                 'deliverables' => $agreement->deliverables,

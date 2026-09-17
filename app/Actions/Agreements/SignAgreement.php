@@ -42,7 +42,7 @@ class SignAgreement
         ?Request $request = null,
     ): Agreement {
         $this->assertTermsAreComplete($agreement);
-        $this->assertEveryAcknowledgementIsTicked($acknowledgements);
+        $this->assertEveryAcknowledgementIsTicked($agreement, $acknowledgements);
 
         return DB::transaction(function () use (
             $agreement, $signatory, $party, $signedName, $acknowledgements, $request
@@ -73,23 +73,26 @@ class SignAgreement
     }
 
     /**
-     * Refuse to sign terms nobody has actually settled.
+     * Refuse to sign a schedule nobody has actually settled.
      *
-     * A milestone with no price and no dates is a blank in a contract, and a
-     * signature against a blank is worth nothing. The client fills the figures
-     * in before either side can put their name to it.
+     * A milestone with no deadline is a blank in the "Deliverables & schedule"
+     * table, and a signature against a blank is worth nothing. The client sets
+     * the dates before either side can put their name to it.
+     *
+     * No amount is asked for. The Memorandum of Agreement leaves payment for
+     * the client and the team to agree between themselves, and the screens
+     * stopped asking for prices — requiring one here meant no agreement drawn
+     * up on the site could be signed at all.
      *
      * @throws ValidationException
      */
     protected function assertTermsAreComplete(Agreement $agreement): void
     {
-        $unpriced = $agreement->milestones()
-            ->where(fn ($query) => $query->where('amount', 0)->orWhereNull('ends_on'))
-            ->exists();
+        $undated = $agreement->milestones()->whereNull('ends_on')->exists();
 
-        if ($unpriced) {
+        if ($undated) {
             throw ValidationException::withMessages([
-                'signed_name' => __('Every milestone needs an amount and an end date before this agreement can be signed.'),
+                'signed_name' => __('Every milestone needs an end date before this agreement can be signed.'),
             ]);
         }
     }
@@ -101,10 +104,10 @@ class SignAgreement
      *
      * @throws ValidationException
      */
-    protected function assertEveryAcknowledgementIsTicked(array $acknowledgements): void
+    protected function assertEveryAcknowledgementIsTicked(Agreement $agreement, array $acknowledgements): void
     {
-        /** @var array<string, string> $required */
-        $required = config('agreements.acknowledgements', []);
+        /* The statements that go with the wording this agreement is in. */
+        $required = $agreement->template->acknowledgements();
 
         $missing = array_diff(array_keys($required), $acknowledgements);
 

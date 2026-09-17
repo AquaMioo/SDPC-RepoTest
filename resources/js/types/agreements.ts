@@ -29,6 +29,19 @@ export type AgreementSignature = {
     signedAt: string;
 };
 
+/** The Memorandum of Agreement with its blanks filled from the agreement. */
+export type Memorandum = {
+    title: string;
+    parties: { client: string; developer: string };
+    purpose: string;
+    commitments: string[];
+    /** `body` may carry **bold** runs, as the paper form prints them. */
+    sections: { heading: string; body: string | null; items: string[] }[];
+    closing: string;
+    /** "Signed this 16th day of …" once both parties have signed. */
+    signedOn: string | null;
+};
+
 export type Agreement = {
     id: number;
     reference: string;
@@ -56,6 +69,12 @@ export type Agreement = {
 
     scopeSummary: string | null;
     deliverables: string[];
+    /**
+     * The wording the contract is in. New agreements are the school's
+     * Memorandum of Agreement; ones somebody signed earlier keep `terms`.
+     */
+    template: 'memorandum' | 'clauses';
+    memorandum: Memorandum | null;
     terms: {
         intellectualProperty: string | null;
         confidentiality: string | null;

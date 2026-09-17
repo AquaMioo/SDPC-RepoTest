@@ -57,6 +57,8 @@ type Props = {
     }[];
     invitableProjects: { id: number; slug: string; title: string }[];
     canInvite: boolean;
+    /** Already taken on by a client: one project at a time. */
+    isTaken: boolean;
     reportCategories: { value: string; label: string }[];
 };
 
@@ -65,6 +67,7 @@ export default function StudentProfile({
     existingApplications,
     invitableProjects,
     canInvite,
+    isTaken,
     reportCategories,
 }: Props) {
     const team = useCurrentTeam();
@@ -302,6 +305,13 @@ export default function StudentProfile({
                             <p className="m-0 text-[12.5px] text-muted-foreground">
                                 Your business needs to be verified before you
                                 can invite students.
+                            </p>
+                        ) : isTaken ? (
+                            <p className="m-0 text-[12.5px] text-muted-foreground">
+                                {student.name} has already accepted an
+                                invitation from another client. A student works
+                                on one project at a time, so they can be invited
+                                again once that project is finished.
                             </p>
                         ) : invitableProjects.length === 0 ? (
                             <p className="m-0 text-[12.5px] text-muted-foreground">

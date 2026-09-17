@@ -25,7 +25,10 @@ class RespondToInvitation
     /**
      * Create a new action instance.
      */
-    public function __construct(private DraftAgreement $draftAgreement) {}
+    public function __construct(
+        private DraftAgreement $draftAgreement,
+        private CloseOtherInvitations $closeOtherInvitations,
+    ) {}
 
     /**
      * Take the invitation up.
@@ -40,7 +43,7 @@ class RespondToInvitation
          */
         if ($application->student->holdsProjectInHand()) {
             throw ValidationException::withMessages([
-                'application' => 'You have already been taken on for another project, so you cannot accept this one yet. The offer stays open on your workflow — finish that build and you can come back to it.',
+                'application' => 'You have already accepted another project, and a student works on one project at a time, so this invitation cannot be accepted.',
             ]);
         }
 
@@ -59,6 +62,12 @@ class RespondToInvitation
 
             /* Acceptance produces the contract, not the start of the work. */
             $this->draftAgreement->handle($application);
+
+            /*
+             * One project at a time: every other invitation is closed now, and
+             * the businesses that sent them are told rather than left waiting.
+             */
+            $this->closeOtherInvitations->handle($application);
 
             return $application->refresh();
         });

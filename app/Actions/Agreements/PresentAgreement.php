@@ -3,6 +3,7 @@
 namespace App\Actions\Agreements;
 
 use App\Enums\AgreementParty;
+use App\Enums\AgreementTemplate;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementSignature;
@@ -33,12 +34,15 @@ class PresentAgreement
             'signatures.signatory',
             'project.team.clientProfile',
             'student.studentProfile',
+            'student.currentTeam',
         ]);
 
         return [
             'id' => $agreement->id,
             'reference' => $agreement->reference,
             'version' => $agreement->version,
+            /* Which wording the contract screen shows — see AgreementTemplate. */
+            'template' => $agreement->template->value,
             'status' => $agreement->status->value,
             'statusLabel' => $agreement->status->label(),
             'statusVariant' => $agreement->status->tagVariant(),
@@ -68,6 +72,9 @@ class PresentAgreement
                 'confidentiality' => $agreement->confidentiality_terms,
                 'academic' => $agreement->academic_terms,
             ],
+            'memorandum' => $agreement->template === AgreementTemplate::Memorandum
+                ? $this->memorandum($agreement)
+                : null,
 
             'startsOn' => $agreement->starts_on?->toDateString(),
             'endsOn' => $agreement->ends_on?->toDateString(),
@@ -103,7 +110,7 @@ class PresentAgreement
                 ->values()
                 ->all(),
 
-            'acknowledgements' => collect((array) config('agreements.acknowledgements', []))
+            'acknowledgements' => collect($agreement->template->acknowledgements())
                 ->map(fn (string $label, string $key): array => ['key' => $key, 'label' => $label])
                 ->values()
                 ->all(),
@@ -117,6 +124,73 @@ class PresentAgreement
                 'canRequestChanges' => $viewer->can('requestChanges', $agreement),
             ],
         ];
+    }
+
+    /**
+     * The Memorandum of Agreement with its blanks filled in.
+     *
+     * @return array{title: string, parties: array{client: string, developer: string}, purpose: string, commitments: list<string>, sections: list<array{heading: string, body: string|null, items: list<string>}>, closing: string, signedOn: string|null}
+     */
+    protected function memorandum(Agreement $agreement): array
+    {
+        /** @var array<string, mixed> $template */
+        $template = config('agreements.memorandum');
+
+        $fill = fn (string $text): string => strtr($text, [
+            ':project' => $agreement->project->title,
+            ':starts' => $agreement->starts_on?->format('F j, Y') ?? __('the date both parties sign'),
+        ]);
+
+        return [
+            'title' => (string) $template['title'],
+            'parties' => [
+                'client' => $agreement->project->team->clientProfile?->business_name
+                    ?? $agreement->project->team->name,
+                'developer' => $this->developerName($agreement),
+            ],
+            'purpose' => $fill((string) $template['purpose']),
+            'commitments' => array_values(array_map($fill, (array) $template['commitments'])),
+            'sections' => array_values(array_map(fn (array $section): array => [
+                'heading' => (string) $section['heading'],
+                'body' => isset($section['body']) ? $fill((string) $section['body']) : null,
+                'items' => array_values(array_map($fill, (array) ($section['items'] ?? []))),
+            ], (array) $template['sections'])),
+            'closing' => $fill((string) $template['closing']),
+            'signedOn' => $this->signedOn($agreement),
+        ];
+    }
+
+    /**
+     * The student side as the memorandum names it: their team when they are
+     * on one with other people, otherwise the student themselves.
+     */
+    protected function developerName(Agreement $agreement): string
+    {
+        $student = $agreement->student;
+        $team = $student->currentTeam;
+
+        return $team !== null && ! $team->isSolo()
+            ? $team->name
+            : $student->name;
+    }
+
+    /**
+     * "Signed this 16th day of September, 2026" once both parties have signed,
+     * dated by the second signature.
+     */
+    protected function signedOn(Agreement $agreement): ?string
+    {
+        if (! $agreement->isFullySigned()) {
+            return null;
+        }
+
+        $last = $agreement->signatures->max('signed_at');
+
+        return __('Signed this :day day of :month, :year, on SDPC.', [
+            'day' => $last->format('jS'),
+            'month' => $last->format('F'),
+            'year' => $last->format('Y'),
+        ]);
     }
 
     /**

@@ -70,9 +70,10 @@ class NotifyOfMessage
     /**
      * Everyone on the opposite side of the thread from the sender.
      *
-     * A thread is a student and a business, and the business is a team — so
-     * writing to a client reaches whoever is on that team, the same set that
-     * ApplicationReceived goes to.
+     * A thread is a student side and a business, and the business is a team —
+     * so writing to a client reaches whoever is on that team, the same set
+     * that ApplicationReceived goes to. Writing to the students reaches the
+     * thread's student and every teammate invited into its group chat.
      *
      * @return Collection<int, User>
      */
@@ -82,6 +83,10 @@ class NotifyOfMessage
             return $conversation->project->team->members()->get();
         }
 
-        return Collection::make([$conversation->student]);
+        return Collection::make([$conversation->student])
+            ->merge($conversation->groupMembers())
+            ->filter()
+            ->unique('id')
+            ->values();
     }
 }

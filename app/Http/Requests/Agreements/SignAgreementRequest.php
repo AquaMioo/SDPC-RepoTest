@@ -27,6 +27,13 @@ class SignAgreementRequest extends FormRequest
      */
     public function rules(): array
     {
+        $agreement = $this->route('agreement');
+
+        /* The statements that go with the wording this agreement is in. */
+        $statements = $agreement instanceof Agreement
+            ? $agreement->template->acknowledgements()
+            : [];
+
         return [
             /*
              * Typed by the signatory rather than copied from their profile.
@@ -37,7 +44,7 @@ class SignAgreementRequest extends FormRequest
             'acknowledgements.*' => [
                 'required',
                 'string',
-                Rule::in(array_keys((array) config('agreements.acknowledgements', []))),
+                Rule::in(array_keys($statements)),
             ],
         ];
     }

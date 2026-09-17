@@ -38,6 +38,8 @@ Route::prefix('{current_team}')
         Route::get('agreements', [AgreementController::class, 'index'])->name('agreements.index');
         Route::get('agreements/{agreement}', [AgreementController::class, 'show'])->name('agreements.show');
         Route::get('agreements/{agreement}/contract', [AgreementController::class, 'contract'])->name('agreements.contract');
+        /* The school's blank Memorandum of Agreement, for printing and signing by hand. */
+        Route::get('agreements/{agreement}/memorandum', [AgreementController::class, 'memorandum'])->name('agreements.memorandum');
         Route::patch('agreements/{agreement}', [AgreementController::class, 'update'])->middleware($trusted)->name('agreements.update');
 
         Route::post('agreements/{agreement}/signatures', [AgreementSignatureController::class, 'store'])

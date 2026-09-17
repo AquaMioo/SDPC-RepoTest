@@ -124,7 +124,7 @@ class AgreementSigningTest extends TestCase
         $this->actingAs($student)
             ->post($this->signUrl($student, $agreement), [
                 'signed_name' => 'Jeremie Caasi',
-                'acknowledgements' => ['intellectual_property'],
+                'acknowledgements' => ['moa_responsibilities'],
             ])
             ->assertSessionHasErrors('acknowledgements');
 

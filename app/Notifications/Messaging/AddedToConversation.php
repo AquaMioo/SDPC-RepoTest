@@ -7,29 +7,28 @@ use App\Models\User;
 use Illuminate\Notifications\Notification;
 
 /**
- * A student brought their team into a conversation.
+ * The team's creator invited a teammate into a group chat.
  *
- * Sent to both sides of the thread that did not press the button: the
- * business, whose one-to-one conversation just became a group, and the
- * student's teammates, who can now read and write a thread they have never
- * seen. The payload says which of the two it is for, so the bell can word it
- * for the reader.
+ * Sent to the teammate, who can now read a thread they have never seen, and
+ * to the business, whose conversation just gained a person. The payload says
+ * which of the two it is for, so the bell can word it for the reader.
  *
- * Deliberately NOT ShouldQueue, like Messaging\NewMessage: the queue worker is
- * not reliably running, and a group forming silently is exactly what this is
- * meant to prevent.
+ * Deliberately NOT ShouldQueue, like Messaging\NewMessage: there is no queue
+ * worker on the live site, and a teammate who is never told they were added
+ * does not know the chat exists.
  */
-class TeamJoinedConversation extends Notification
+class AddedToConversation extends Notification
 {
+    /** The teammate who was invited. */
+    public const AUDIENCE_MEMBER = 'member';
+
     /** The business side of the thread. */
     public const AUDIENCE_CLIENT = 'client';
 
-    /** The student's teammates. */
-    public const AUDIENCE_TEAM = 'team';
-
     public function __construct(
         public readonly Conversation $conversation,
-        public readonly User $student,
+        public readonly User $member,
+        public readonly User $inviter,
         public readonly string $audience,
     ) {}
 
@@ -53,10 +52,11 @@ class TeamJoinedConversation extends Notification
         $project = $this->conversation->project;
 
         return [
-            'type' => 'conversation.team_joined',
+            'type' => 'conversation.member_added',
             'audience' => $this->audience,
             'conversation_id' => $this->conversation->id,
-            'student_name' => $this->student->name,
+            'inviter_name' => $this->inviter->name,
+            'member_name' => $this->member->name,
             'team_name' => $this->conversation->studentTeam?->name,
             'project_title' => $project->title,
             'business_name' => $project->team->clientProfile?->business_name ?? $project->team->name,

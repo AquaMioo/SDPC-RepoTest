@@ -5,9 +5,11 @@ namespace App\Http\Requests\Client;
 use App\Enums\TeamPermission;
 use App\Enums\UserRole;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class InviteStudentRequest extends FormRequest
 {
@@ -45,6 +47,31 @@ class InviteStudentRequest extends FormRequest
                     ->where('project_id', $project instanceof Project ? $project->id : null),
             ],
         ];
+    }
+
+    /**
+     * Refuse a student who has already been taken on elsewhere.
+     *
+     * A student works on one project at a time, so an invitation to somebody
+     * already taken on could never be accepted. Said now, to the business
+     * asking, rather than left open for them to wait on.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $student = User::query()->find($this->integer('user_id'));
+
+            if ($student?->holdsProjectInHand()) {
+                $validator->errors()->add(
+                    'user_id',
+                    __(':name has already accepted an invitation from another client, so they cannot be invited right now. They become available again once that project is finished.', ['name' => $student->name]),
+                );
+            }
+        });
     }
 
     /**

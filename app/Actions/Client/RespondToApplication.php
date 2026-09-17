@@ -3,6 +3,7 @@
 namespace App\Actions\Client;
 
 use App\Actions\Agreements\DraftAgreement;
+use App\Actions\Student\CloseOtherInvitations;
 use App\Enums\ApplicationStatus;
 use App\Models\Application;
 use App\Models\Conversation;
@@ -16,7 +17,10 @@ class RespondToApplication
     /**
      * Create a new action instance.
      */
-    public function __construct(private DraftAgreement $draftAgreement) {}
+    public function __construct(
+        private DraftAgreement $draftAgreement,
+        private CloseOtherInvitations $closeOtherInvitations,
+    ) {}
 
     /**
      * Move an application into the status the client chose.
@@ -86,6 +90,12 @@ class RespondToApplication
                  * begins, and this is that ordering made real.
                  */
                 $this->draftAgreement->handle($application);
+
+                /*
+                 * The student is spoken for, so the invitations other
+                 * businesses sent them are closed and those businesses told.
+                 */
+                $this->closeOtherInvitations->handle($application);
             }
 
             return $application->refresh();

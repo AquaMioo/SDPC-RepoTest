@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Messaging\ConversationController;
+use App\Http\Controllers\Messaging\ConversationMemberController;
 use App\Http\Controllers\Messaging\MeetingController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
@@ -21,11 +22,13 @@ Route::prefix('{current_team}')
         Route::post('messages/{conversation}', [ConversationController::class, 'send'])->name('messages.send');
 
         /*
-         * Bring the student's team into a thread, turning a one-to-one into a
-         * group chat with the client. Declared before the {message} routes
-         * below so the literal is not read as a message id.
+         * Who is in a thread's group chat. The team's creator invites
+         * teammates one by one and can take them out again. Declared before
+         * the {message} routes below so the literal is not read as a message
+         * id.
          */
-        Route::post('messages/{conversation}/team', [ConversationController::class, 'formGroup'])->name('messages.form-group');
+        Route::post('messages/{conversation}/members', [ConversationMemberController::class, 'store'])->name('messages.members.store');
+        Route::delete('messages/{conversation}/members/{member}', [ConversationMemberController::class, 'destroy'])->name('messages.members.destroy');
 
         /*
          * Acting on one message. Editing and removing belong to its sender;

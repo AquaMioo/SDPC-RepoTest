@@ -6,8 +6,11 @@ use App\Models\Conversation;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
+use App\Notifications\Teams\InviteeJoinedAnotherTeam;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Put a student on the team that invited them — and keep them on one team.
@@ -53,8 +56,40 @@ class JoinTeam
                 $this->dissolve($old);
             }
 
+            $this->cancelOtherInvitations($user, $invitation);
+
             return $team;
         });
+    }
+
+    /**
+     * Cancel the other team invitations waiting for this student, and tell
+     * whoever sent each one.
+     *
+     * Joining one team means none of the others can be accepted, and their
+     * senders were left waiting on an answer that could not come. A failed
+     * email never undoes the join.
+     */
+    protected function cancelOtherInvitations(User $user, TeamInvitation $accepted): void
+    {
+        $others = TeamInvitation::query()
+            ->pendingFor($user->email)
+            ->whereKeyNot($accepted->id)
+            ->with(['team', 'inviter'])
+            ->get();
+
+        foreach ($others as $other) {
+            try {
+                $other->inviter?->notify(new InviteeJoinedAnotherTeam($other, $user, $accepted->team));
+            } catch (Throwable $exception) {
+                Log::warning('A team invitation was cancelled but its sender could not be told.', [
+                    'team_invitation_id' => $other->id,
+                    'reason' => $exception->getMessage(),
+                ]);
+            }
+
+            $other->delete();
+        }
     }
 
     /**
@@ -122,9 +157,11 @@ class JoinTeam
      */
     protected function dissolve(Team $team): void
     {
-        Conversation::query()
-            ->where('student_team_id', $team->id)
-            ->update(['student_team_id' => null]);
+        $threads = Conversation::query()->where('student_team_id', $team->id);
+
+        DB::table('conversation_members')->whereIn('conversation_id', (clone $threads)->select('id'))->delete();
+
+        $threads->update(['student_team_id' => null]);
 
         $team->invitations()->delete();
         $team->removalVotes()->delete();

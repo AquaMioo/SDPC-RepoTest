@@ -3,6 +3,7 @@ paths:
   - 'app/Actions/Messaging/**'
   - app/Http/Controllers/Messaging/ConversationController.php
   - app/Http/Controllers/Messaging/MeetingController.php
+  - app/Http/Controllers/Messaging/ConversationMemberController.php
 ---
 
 # Messaging
@@ -27,3 +28,8 @@ The catch(Throwable) is the same posture as AnnounceMessage — a notification t
 Group threads put several people in one call, so a meeting's state comes from meeting_attendees: Meeting::inProgress() = started, not ended, and at least one attendee present (left_at null, last_seen_at within MeetingAttendee::PRESENCE_WINDOW). The call screen beats POST meetings.heartbeat every 20s and sends PATCH meetings.leave on Leave and on pagehide (keepalive fetch). Closed tabs never leave, so ended_at alone would offer dead calls forever.
 
 store() with no scheduled_at JOINS the thread's in-progress meeting (200, no ring) under a lockForUpdate on the conversation. Do not go back to always creating a row: two people pressing Call split the group into two Agora channels. leave() ends the call only when the last person goes (Meeting::markLeft, a conditional update so it ends once) and then sends CallEnded. end() still closes the call for everyone, but the UI never calls it. Every remote track plays into its own RemoteTile; a shared container shows only the first person.
+
+## Group chats are invite-only: being on the team is not enough
+conversations.student_team_id only says which team a thread belongs to. It lets nobody read the thread. Access is the thread's student, plus conversation_members rows (checked together with live membership of that team), plus the client's team. Only the team's creator (ownsTeam) may add or remove rows, through ConversationMemberController, and never the thread's student or themselves. adoptStudentTeam() attaches a team only to threads owned by its creator, so a member's own client threads stay private. Do not go back to "every team member shares the thread": testers asked for the creator to choose, and a latecomer to the team must not see earlier chats.
+
+Invited teammates are on the student side (Conversation::sideFor): they share student_read_message_id, see the business name as the title, and their messages notify the client. Treating them as the client used to clear the client's unread badge. Eager-load 'members' wherever sideFor/isUnreadFor runs over many threads (inbox list, HandleInertiaRequests unreadMessages). Migration 2026_09_16_180648 wrote everyone already on an attached team into conversation_members, so no one lost an existing chat. The old messages.form-group route and TeamJoinedConversation are gone; PresentNotification keeps the 'conversation.team_joined' arm so old rows still render.

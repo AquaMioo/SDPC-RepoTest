@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
+use App\Enums\AgreementTemplate;
 use App\Enums\TaskStatus;
 use Database\Factories\AgreementFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property int $student_id
  * @property string $reference
  * @property int $version
+ * @property AgreementTemplate $template
  * @property AgreementStatus $status
  * @property string|null $scope_summary
  * @property list<string>|null $deliverables
@@ -58,7 +60,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'project_id', 'application_id', 'team_id', 'student_id', 'reference',
-    'version', 'status', 'scope_summary', 'deliverables',
+    'version', 'template', 'status', 'scope_summary', 'deliverables',
     'intellectual_property_terms', 'confidentiality_terms', 'academic_terms',
     'starts_on', 'ends_on', 'total_amount', 'activated_at', 'superseded_by',
 ])]
@@ -66,6 +68,15 @@ class Agreement extends Model
 {
     /** @use HasFactory<AgreementFactory> */
     use HasFactory, SoftDeletes;
+
+    /**
+     * New agreements are written as the school's Memorandum of Agreement.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'template' => 'memorandum',
+    ];
 
     /**
      * Get the project the agreement covers.
@@ -259,6 +270,7 @@ class Agreement extends Model
     {
         return [
             'status' => AgreementStatus::class,
+            'template' => AgreementTemplate::class,
             'deliverables' => 'array',
             'starts_on' => 'date',
             'ends_on' => 'date',

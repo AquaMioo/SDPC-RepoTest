@@ -110,6 +110,12 @@ class StudentProfileController extends Controller
 
             'canInvite' => $request->user()->isVerifiedForOperating(),
 
+            /*
+             * Already taken on by a client, so an invitation could not be
+             * accepted. The screen says so instead of offering the form.
+             */
+            'isTaken' => $user->holdsProjectInHand(),
+
             'reportCategories' => IssueCategory::options(),
         ]);
     }

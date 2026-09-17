@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMessage;
 use App\Actions\Messaging\NotifyOfMessage;
-use App\Actions\Messaging\NotifyTeamJoined;
 use App\Enums\MilestoneStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -25,7 +24,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -44,7 +42,6 @@ class ConversationController extends Controller
     public function __construct(
         private readonly AnnounceMessage $announce,
         private readonly NotifyOfMessage $notify,
-        private readonly NotifyTeamJoined $notifyTeamJoined,
     ) {}
 
     /**
@@ -138,7 +135,8 @@ class ConversationController extends Controller
          */
         $threads = Conversation::query()
             ->visibleTo($user)
-            ->with(['project.team.clientProfile', 'student', 'latestMessage'])
+            // members: which side of each thread the viewer is on, without a query per row.
+            ->with(['project.team.clientProfile', 'student', 'latestMessage', 'members'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->get();
@@ -175,15 +173,15 @@ class ConversationController extends Controller
             }
 
             /*
-             * A thread opened before the student had a team would never gain
-             * one, and the leader would be inviting people into a group that
-             * could not see the conversation it was for.
+             * A thread opened before its student created a team picks the team
+             * up here, so the creator can invite teammates into it. Attaching
+             * lets nobody in by itself.
              */
             $active->adoptStudentTeam();
 
             // Reactions come with the messages: without this the summary runs
             // a query per bubble.
-            $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student', 'studentTeam']);
+            $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student', 'studentTeam', 'members']);
             $active->markReadFor($user);
         }
 
@@ -197,28 +195,11 @@ class ConversationController extends Controller
                 && filled(config('agora.app_id'))
                 && filled(config('agora.app_certificate')),
             /*
-             * The group-chat control at the foot of the thread list.
-             *
-             * Offered to the student a thread belongs to and to nobody else:
-             * the client cannot pull somebody else's team into it, and a team
-             * member reading a thread already brought in has none of their own
-             * to add. `hasTeam` is sent separately from `canFormGroup` so the
-             * button can say WHY it is unavailable rather than vanishing —
-             * "you have no team yet" is the answer somebody needs, and a
-             * missing button answers nothing.
+             * The group-chat panel at the foot of the thread list: who is in
+             * the open thread's group chat, and — for the team's creator —
+             * which teammates can still be invited. See groupState().
              */
-            'group' => [
-                'canFormGroup' => $active !== null
-                    && $active->user_id === $user->id
-                    && $active->student_team_id === null,
-                'hasTeam' => $user->currentTeam !== null
-                    && ! $user->currentTeam->isSolo(),
-                'teamName' => $user->currentTeam?->isSolo() === false
-                    ? $user->currentTeam->name
-                    : null,
-                'isGroup' => $active?->student_team_id !== null,
-                'groupName' => $active?->studentTeam?->name,
-            ],
+            'group' => $this->groupState($active, $user),
             'threads' => $threads->map(fn (Conversation $thread) => [
                 'id' => $thread->id,
                 'title' => $this->counterpartName($thread, $user),
@@ -283,52 +264,6 @@ class ConversationController extends Controller
      * Called from the applicants screen on the client side and from a posting
      * on the student side, so neither has to know whether a thread exists yet.
      */
-    /**
-     * Bring the student's team into a thread.
-     *
-     * This is the whole of "group chat" on this platform: a thread carrying a
-     * student_team_id is read and written by every member of that team exactly
-     * as the business's side already is — Conversation::isParticipant and the
-     * forParticipant scope both check it. So the client the leader was talking
-     * to becomes the team's client, in the thread that already holds the
-     * history, rather than a second thread being opened beside it.
-     *
-     * Only the student the thread belongs to may do it. A client cannot pull
-     * somebody else's team into their own conversation, and a team member who
-     * is not the thread's student has no team of their own to bring.
-     */
-    public function formGroup(Request $request, Team $currentTeam, Conversation $conversation): RedirectResponse
-    {
-        $user = $request->user();
-
-        abort_unless($conversation->user_id === $user->id, HttpResponse::HTTP_FORBIDDEN);
-
-        $team = $user->currentTeam;
-
-        /*
-         * A team of one is not a group. Read off the membership rather than
-         * is_personal — the team a student is handed at sign up is the team
-         * they build with, and it counts the moment somebody joins it.
-         */
-        if ($team === null || $team->isSolo()) {
-            throw ValidationException::withMessages([
-                'team' => 'Invite somebody to your team first — a group chat needs more than one person. You can invite from Team in the header.',
-            ]);
-        }
-
-        $conversation->forceFill(['student_team_id' => $team->id])->save();
-
-        /* Both other sides hear about it: the client, and the teammates now in the thread. */
-        $this->notifyTeamJoined->handle($conversation->fresh(['project.team', 'studentTeam']), $user);
-
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => __(':team can now read and write this thread.', ['team' => $team->name]),
-        ]);
-
-        return back();
-    }
-
     public function store(Request $request, Team $currentTeam): RedirectResponse
     {
         $user = $request->user();
@@ -491,6 +426,8 @@ class ConversationController extends Controller
 
         $this->announce->handle($message);
 
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Message removed.')]);
+
         return back();
     }
 
@@ -583,6 +520,80 @@ class ConversationController extends Controller
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * What the group-chat panel shows for the open thread.
+     *
+     * `people` is the student side of the chat: the thread's student first,
+     * then the teammates the creator invited. `invitable` is only filled for
+     * the creator, and lists the teammates not in yet. `needsTeam` tells the
+     * thread's student why there is nobody to invite — no team yet — rather
+     * than leaving an empty panel.
+     *
+     * @return array{isGroup: bool, teamName: string|null, canManage: bool, needsTeam: bool, isThreadOwner: bool, people: list<array{id: int, name: string, isCreator: bool, isThreadOwner: bool}>, invitable: list<array{id: int, name: string}>}
+     */
+    protected function groupState(?Conversation $active, User $user): array
+    {
+        $state = [
+            'isGroup' => false,
+            'teamName' => null,
+            'canManage' => false,
+            'needsTeam' => false,
+            'isThreadOwner' => false,
+            'people' => [],
+            'invitable' => [],
+        ];
+
+        if ($active === null) {
+            return $state;
+        }
+
+        $team = $active->studentTeam;
+        $members = $active->groupMembers();
+
+        $state['isThreadOwner'] = $active->user_id === $user->id;
+        $state['needsTeam'] = $state['isThreadOwner']
+            && $team === null
+            && ($user->currentTeam === null || $user->currentTeam->isSolo());
+
+        if ($team === null) {
+            return $state;
+        }
+
+        $owner = $team->owner();
+        $canManage = $active->canManageGroup($user);
+
+        $state['teamName'] = $team->name;
+        $state['isGroup'] = $members->isNotEmpty();
+        $state['canManage'] = $canManage;
+
+        $state['people'] = collect([$active->student])
+            ->merge($members)
+            ->filter()
+            ->unique('id')
+            ->map(fn (User $person): array => [
+                'id' => $person->id,
+                'name' => $person->name,
+                'isCreator' => $owner !== null && $owner->is($person),
+                'isThreadOwner' => $person->id === $active->user_id,
+            ])
+            ->values()
+            ->all();
+
+        if ($canManage) {
+            $inChat = collect($state['people'])->pluck('id');
+
+            $state['invitable'] = $team->members()
+                ->orderBy('users.name')
+                ->get()
+                ->reject(fn (User $teammate): bool => $inChat->contains($teammate->id))
+                ->map(fn (User $teammate): array => ['id' => $teammate->id, 'name' => $teammate->name])
+                ->values()
+                ->all();
+        }
+
+        return $state;
     }
 
     /**

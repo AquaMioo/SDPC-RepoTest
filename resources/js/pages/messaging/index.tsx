@@ -9,6 +9,7 @@ import {
     VideoCameraIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import VideoCall from '@/components/messaging/video-call';
 import type {
@@ -27,12 +28,15 @@ import {
 } from '@/routes/meetings';
 import {
     edit as editMessage,
-    formGroup,
     react as reactToMessage,
     remove as removeMessageRoute,
     send as sendMessage,
     show as showThread,
 } from '@/routes/messages';
+import {
+    destroy as removeFromChat,
+    store as inviteToChat,
+} from '@/routes/messages/members';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -47,15 +51,25 @@ type Thread = {
     isActive: boolean;
 };
 
-/** The group-chat control at the foot of the thread list. */
+/** The group-chat panel at the foot of the thread list. */
 type GroupState = {
-    /** The signed-in student owns the open thread and it is not a group yet. */
-    canFormGroup: boolean;
-    /** They belong to a real team — a personal one is not a group. */
-    hasTeam: boolean;
-    teamName: string | null;
+    /** At least one teammate has been invited into the open thread. */
     isGroup: boolean;
-    groupName: string | null;
+    teamName: string | null;
+    /** The viewer created the thread's team, so they choose who is in. */
+    canManage: boolean;
+    /** The viewer owns the thread and has no team to invite from yet. */
+    needsTeam: boolean;
+    isThreadOwner: boolean;
+    /** The student side of the chat: the thread's student, then invitees. */
+    people: {
+        id: number;
+        name: string;
+        isCreator: boolean;
+        isThreadOwner: boolean;
+    }[];
+    /** Teammates the creator can still invite. */
+    invitable: { id: number; name: string }[];
 };
 
 type Props = {
@@ -208,7 +222,12 @@ export default function Messages({
 }: Props) {
     /* Filters what is already on screen; it never asks the server. */
     const [find, setFind] = useState('');
-    const [formingGroup, setFormingGroup] = useState(false);
+    /* An invite or removal on its way to the server. */
+    const [groupBusy, setGroupBusy] = useState(false);
+    /* The message whose Remove is waiting for a yes. */
+    const [confirmingRemoval, setConfirmingRemoval] = useState<number | null>(
+        null,
+    );
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -630,13 +649,67 @@ export default function Messages({
             return;
         }
 
+        /*
+         * The server answers a removal with a "Message removed." toast; this
+         * only has to cover the case where it could not be done.
+         */
         router.delete(
             removeMessageRoute.url({
                 current_team: team.slug,
                 conversation: active.id,
                 message: messageId,
             }),
-            IN_PLACE,
+            {
+                ...IN_PLACE,
+                onError: () =>
+                    toast.error('That message could not be removed.'),
+            },
+        );
+    };
+
+    /*
+     * Group chat membership. Only the team's creator is offered these, and
+     * the server checks it again. The toast saying who was added or removed
+     * comes back with the response.
+     */
+    const GROUP_IN_PLACE = {
+        ...IN_PLACE,
+        only: ['threads', 'active', 'group'],
+        onStart: () => setGroupBusy(true),
+        onFinish: () => setGroupBusy(false),
+        onError: (errors: Record<string, string>) =>
+            toast.error(
+                Object.values(errors)[0] ?? 'That could not be changed.',
+            ),
+    };
+
+    const inviteMember = (memberId: number) => {
+        if (active === null || groupBusy) {
+            return;
+        }
+
+        router.post(
+            inviteToChat.url({
+                current_team: team.slug,
+                conversation: active.id,
+            }),
+            { user_id: memberId },
+            GROUP_IN_PLACE,
+        );
+    };
+
+    const removeMember = (memberId: number) => {
+        if (active === null || groupBusy) {
+            return;
+        }
+
+        router.delete(
+            removeFromChat.url({
+                current_team: team.slug,
+                conversation: active.id,
+                member: memberId,
+            }),
+            GROUP_IN_PLACE,
         );
     };
 
@@ -920,73 +993,15 @@ export default function Messages({
                                 </button>
                             ))}
 
-                            {/*
-                             * The foot of the list, under the last thread.
-                             * Only the student a thread belongs to sees it —
-                             * see the `group` prop in ConversationController.
-                             */}
-                            {group.canFormGroup && active !== null && (
-                                <div style={{ padding: '12px 14px' }}>
-                                    <Btn
-                                        variant="secondary"
-                                        style={{ width: '100%' }}
-                                        disabled={
-                                            !group.hasTeam || formingGroup
-                                        }
-                                        onClick={() =>
-                                            router.post(
-                                                formGroup.url({
-                                                    current_team: team.slug,
-                                                    conversation: active.id,
-                                                }),
-                                                {},
-                                                {
-                                                    preserveScroll: true,
-                                                    onStart: () =>
-                                                        setFormingGroup(true),
-                                                    onFinish: () =>
-                                                        setFormingGroup(false),
-                                                },
-                                            )
-                                        }
-                                    >
-                                        <UsersThreeIcon size={15} />
-                                        Create A Group Chat With Team And Client
-                                    </Btn>
-
-                                    {/*
-                                     * Says why rather than hiding: somebody
-                                     * without a team needs to be told that is
-                                     * the missing piece, and where to fix it.
-                                     */}
-                                    <div
-                                        style={{
-                                            fontSize: 11.5,
-                                            color: MUTED(60),
-                                            marginTop: 6,
-                                            lineHeight: 1.45,
-                                        }}
-                                    >
-                                        {group.hasTeam
-                                            ? `Brings ${group.teamName} into this thread. Everyone on the team reads and writes here, with the same client.`
-                                            : 'You need a team before you can start a group chat. Create one from Team in the header, then come back.'}
-                                    </div>
-                                </div>
-                            )}
-
-                            {group.isGroup && group.groupName && (
-                                <div
-                                    style={{
-                                        padding: '12px 14px',
-                                        fontSize: 11.5,
-                                        color: MUTED(60),
-                                        lineHeight: 1.45,
-                                    }}
-                                >
-                                    <UsersThreeIcon size={14} />{' '}
-                                    {group.groupName} is on this thread — every
-                                    member shares this client.
-                                </div>
+                            {/* The foot of the list, under the last thread. */}
+                            {active !== null && (
+                                <GroupChatPanel
+                                    key={active.id}
+                                    group={group}
+                                    busy={groupBusy}
+                                    onInvite={inviteMember}
+                                    onRemove={removeMember}
+                                />
                             )}
                         </Panel>
 
@@ -1545,7 +1560,63 @@ export default function Messages({
                                                     not once it is removed. */}
                                                 {message.isMine &&
                                                     !message.isRemoved &&
-                                                    editing !== message.id && (
+                                                    editing !== message.id &&
+                                                    confirmingRemoval ===
+                                                        message.id && (
+                                                        <>
+                                                            {/*
+                                                             * Asked first: a
+                                                             * removed message
+                                                             * cannot be brought
+                                                             * back.
+                                                             */}
+                                                            <span>
+                                                                Remove this
+                                                                message?
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setConfirmingRemoval(
+                                                                        null,
+                                                                    );
+                                                                    removeMessage(
+                                                                        message.id,
+                                                                    );
+                                                                }}
+                                                                style={{
+                                                                    color: 'var(--color-text)',
+                                                                    textDecoration:
+                                                                        'underline',
+                                                                }}
+                                                            >
+                                                                Yes, remove
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setConfirmingRemoval(
+                                                                        null,
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    color: MUTED(
+                                                                        60,
+                                                                    ),
+                                                                    textDecoration:
+                                                                        'underline',
+                                                                }}
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </>
+                                                    )}
+
+                                                {message.isMine &&
+                                                    !message.isRemoved &&
+                                                    editing !== message.id &&
+                                                    confirmingRemoval !==
+                                                        message.id && (
                                                         <>
                                                             {/*
                                                              * Editing closes
@@ -1589,7 +1660,7 @@ export default function Messages({
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
-                                                                    removeMessage(
+                                                                    setConfirmingRemoval(
                                                                         message.id,
                                                                     )
                                                                 }
@@ -1884,6 +1955,206 @@ export default function Messages({
                 )}
             </div>
         </>
+    );
+}
+
+/**
+ * Who is in the open thread's group chat.
+ *
+ * Being on the student's team is not enough to read a thread: the team's
+ * creator invites teammates one by one, and can take them out again. Everyone
+ * else sees the list. The thread's student and the creator have no Remove.
+ */
+function GroupChatPanel({
+    group,
+    busy,
+    onInvite,
+    onRemove,
+}: {
+    group: GroupState;
+    busy: boolean;
+    onInvite: (memberId: number) => void;
+    onRemove: (memberId: number) => void;
+}) {
+    /* The person whose Remove is waiting for a yes. */
+    const [confirming, setConfirming] = useState<number | null>(null);
+
+    const note: React.CSSProperties = {
+        fontSize: 11.5,
+        color: MUTED(60),
+        lineHeight: 1.45,
+    };
+
+    if (group.teamName === null) {
+        if (group.needsTeam) {
+            return (
+                <div style={{ padding: '12px 14px', ...note }}>
+                    <UsersThreeIcon size={14} /> You need a team before you can
+                    start a group chat. Create one from Team in the header, then
+                    invite teammates here.
+                </div>
+            );
+        }
+
+        return null;
+    }
+
+    const creator = group.people.find((person) => person.isCreator);
+
+    return (
+        <div
+            data-test="group-chat-panel"
+            style={{
+                padding: '12px 14px',
+                display: 'grid',
+                gap: 8,
+                borderTop: '1px solid var(--color-divider)',
+            }}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12.5,
+                }}
+            >
+                <UsersThreeIcon size={15} />
+                Group chat · {group.teamName}
+            </div>
+
+            <div style={note}>
+                {group.canManage
+                    ? 'You created this team, so you choose which teammates join this chat with the client.'
+                    : `${creator?.name ?? 'The team creator'} chooses which teammates join this chat.`}
+            </div>
+
+            <ul
+                style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'grid',
+                    gap: 4,
+                }}
+            >
+                {group.people.map((person) => {
+                    const removable =
+                        group.canManage &&
+                        !person.isCreator &&
+                        !person.isThreadOwner;
+
+                    return (
+                        <li
+                            key={person.id}
+                            style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                alignItems: 'center',
+                                gap: 6,
+                                fontSize: 12.5,
+                            }}
+                        >
+                            <span style={{ marginRight: 'auto', minWidth: 0 }}>
+                                {person.name}
+                                {person.isCreator && (
+                                    <span style={note}> · team creator</span>
+                                )}
+                                {!person.isCreator && person.isThreadOwner && (
+                                    <span style={note}>
+                                        {' '}
+                                        · started the chat
+                                    </span>
+                                )}
+                            </span>
+
+                            {removable && confirming !== person.id && (
+                                <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setConfirming(person.id)}
+                                    style={{
+                                        ...note,
+                                        textDecoration: 'underline',
+                                    }}
+                                >
+                                    Remove
+                                </button>
+                            )}
+
+                            {removable && confirming === person.id && (
+                                <span
+                                    style={{
+                                        display: 'inline-flex',
+                                        gap: 6,
+                                        ...note,
+                                    }}
+                                >
+                                    Remove from chat?
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => {
+                                            setConfirming(null);
+                                            onRemove(person.id);
+                                        }}
+                                        style={{
+                                            color: 'var(--color-text)',
+                                            textDecoration: 'underline',
+                                        }}
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setConfirming(null)}
+                                        style={{ textDecoration: 'underline' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </span>
+                            )}
+                        </li>
+                    );
+                })}
+            </ul>
+
+            {group.canManage &&
+                (group.invitable.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 4 }}>
+                        <div style={note}>Invite teammates</div>
+                        {group.invitable.map((teammate) => (
+                            <div
+                                key={teammate.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    fontSize: 12.5,
+                                }}
+                            >
+                                <span
+                                    style={{ marginRight: 'auto', minWidth: 0 }}
+                                >
+                                    {teammate.name}
+                                </span>
+                                <Btn
+                                    variant="secondary"
+                                    disabled={busy}
+                                    onClick={() => onInvite(teammate.id)}
+                                    style={{ minHeight: 28, paddingInline: 10 }}
+                                >
+                                    Invite
+                                </Btn>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={note}>
+                        Everyone on {group.teamName} is in this chat.
+                    </div>
+                ))}
+        </div>
     );
 }
 

@@ -75,7 +75,8 @@ class HandleInertiaRequests extends Middleware
                      * closed off — a number the screen could not account for.
                      */
                     ->visibleTo($user)
-                    ->with('latestMessage')
+                    // members: which side of a group chat the user is on, without a query per thread.
+                    ->with(['latestMessage', 'members'])
                     ->get()
                     ->filter(fn (Conversation $thread) => $thread->isUnreadFor($user))
                     ->count(),
