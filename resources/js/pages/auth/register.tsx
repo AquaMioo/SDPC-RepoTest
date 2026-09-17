@@ -726,6 +726,10 @@ export default function Register({
                                                 marginTop: 1,
                                             }}
                                         />
+                                        {/* Colour is deliberately absent from
+                                            the three links below: it lives on
+                                            a[data-legal] in nocturne.css, where
+                                            :hover can reach it. */}
                                         <span>
                                             Yes, I understand and agree to the
                                             SDPC{' '}
@@ -735,9 +739,7 @@ export default function Register({
                                                 )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                style={{
-                                                    color: 'var(--color-accent)',
-                                                }}
+                                                data-legal=""
                                             >
                                                 Terms of Service
                                             </a>
@@ -748,9 +750,7 @@ export default function Register({
                                                 )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                style={{
-                                                    color: 'var(--color-accent)',
-                                                }}
+                                                data-legal=""
                                             >
                                                 User Agreement
                                             </a>{' '}
@@ -761,9 +761,7 @@ export default function Register({
                                                 )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                style={{
-                                                    color: 'var(--color-accent)',
-                                                }}
+                                                data-legal=""
                                             >
                                                 Privacy Policy
                                             </a>
