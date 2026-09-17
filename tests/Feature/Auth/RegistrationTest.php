@@ -84,7 +84,6 @@ class RegistrationTest extends TestCase
         $this->completeRegistration([
             'first_name' => 'Kristiane',
             'last_name' => 'Dela Pena',
-            'email' => 'student@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
             'role' => UserRole::Student->value,
@@ -94,9 +93,12 @@ class RegistrationTest extends TestCase
 
         $this->assertAuthenticated();
 
-        $user = User::where('email', 'student@example.com')->firstOrFail();
+        // The school address is the account's address; there is no other.
+        $user = User::where('email', '02000123456@sti.edu.ph')->firstOrFail();
 
         $this->assertSame(UserRole::Student, $user->role);
+        $this->assertNotNull($user->password);
+        $this->assertNull($user->microsoft_id);
         $this->assertTrue($user->refresh()->currentTeam?->is_personal);
     }
 

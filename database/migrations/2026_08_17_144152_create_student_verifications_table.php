@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\VerificationProvider;
 use App\Enums\VerificationStatus;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
@@ -8,14 +7,14 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * A third party's answer to "is this person really a student?".
+ * An automated answer to "is this person really a student?".
  *
  * Deliberately separate from `student_credentials`, which is the document an
- * administrator reads and the only thing that actually grants a verified
- * account. This table is additive: a verified row earns a badge and gives a
- * reviewer supporting evidence, and nothing on the platform is gated on it.
+ * administrator reads. Kept provider-agnostic: the provider is a column, not
+ * the schema.
  *
- * Kept provider-agnostic — SheerID is the first integration, not the schema.
+ * The provider-specific columns this first shipped with (`external_id`,
+ * `redirect_url`) are dropped again by a later migration.
  */
 return new class extends Migration
 {
@@ -28,7 +27,7 @@ return new class extends Migration
             $table->id();
             $table->foreignIdFor(User::class)->constrained()->cascadeOnDelete();
 
-            $table->string('provider')->default(VerificationProvider::SheerId->value);
+            $table->string('provider')->default('school_email');
             $table->string('status')->default(VerificationStatus::Pending->value)->index();
 
             /* The provider's own identifier for the verification attempt. */

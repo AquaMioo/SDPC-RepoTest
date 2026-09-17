@@ -22,8 +22,8 @@ use Throwable;
  * So the live update is treated as what it is: a courtesy on top of a write
  * that already succeeded. If it cannot be delivered the failure is logged and
  * the request carries on, and the thread's 30-second poll backstop picks the
- * message up instead. Same reasoning as SheerIdStudentVerifier — a service
- * being down must never stop somebody using the platform.
+ * message up instead. A service being down must never stop somebody using
+ * the platform.
  */
 class AnnounceMessage
 {

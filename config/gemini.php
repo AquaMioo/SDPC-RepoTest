@@ -16,7 +16,7 @@ return [
     | reply that is not the shape we asked for — falls through to the computed
     | scorer rather than showing anybody an error. Matching is on the critical
     | path of the whole product, so it must never be able to go dark because a
-    | Google service is having an afternoon. Same reasoning as SheerID.
+    | Google service is having an afternoon.
     |
     */
 

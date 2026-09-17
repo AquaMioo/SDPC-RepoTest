@@ -170,11 +170,8 @@ class SeededAccountsCanSignInTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        config([
-            'sheerid.enabled' => true,
-            'sheerid.program_id' => 'prog_test',
-            'sheerid.access_token' => 'token_test',
-        ]);
+        // The seeded STI row carries a domain, so this is all it takes.
+        config(['verification.school_email.enabled' => true]);
 
         $pending = User::firstWhere('email', 'pending.student@sdpc.test');
 

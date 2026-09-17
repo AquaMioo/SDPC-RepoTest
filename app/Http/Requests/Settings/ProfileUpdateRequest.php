@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Settings;
 
 use App\Concerns\ProfileValidationRules;
+use App\Enums\UserRole;
+use App\Rules\SchoolEmailAddress;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -17,10 +19,31 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             ...$this->profileRules($this->user()->id),
             'avatar' => $this->avatarRules(),
         ];
+
+        /*
+         * A student signs in with their school address, so a new address has
+         * to be one too. Only a CHANGE is checked: students who registered
+         * before sign up asked for a school address keep saving their profile
+         * with the personal one they already have.
+         */
+        if ($this->user()->hasRole(UserRole::Student) && $this->changesEmail()) {
+            $rules['email'][] = new SchoolEmailAddress;
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Determine if the form is replacing the account's address.
+     */
+    private function changesEmail(): bool
+    {
+        return mb_strtolower(trim((string) $this->input('email')))
+            !== mb_strtolower((string) $this->user()->email);
     }
 
     /**

@@ -94,6 +94,8 @@ class FortifyServiceProvider extends ServiceProvider
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'canLoginWithGoogle' => (bool) config('services.google.enabled'),
             'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
+            'canLoginWithMicrosoft' => (bool) config('services.microsoft.enabled'),
+            'microsoftSetupHint' => ! config('services.microsoft.enabled') && ! $this->app->isProduction(),
             'status' => $request->session()->get('status'),
             // Why this device was just signed out or refused. See App\Support\AccountSession.
             'warning' => $request->session()->get('warning'),

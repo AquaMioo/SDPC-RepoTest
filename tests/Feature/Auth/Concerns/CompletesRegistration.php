@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth\Concerns;
 
+use App\Enums\UserRole;
 use App\Notifications\Auth\EmailOneTimePassword;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
@@ -20,21 +21,28 @@ trait CompletesRegistration
     /**
      * Submit the sign up form and confirm the code it triggers.
      *
+     * A student has no separate email: the code goes to the school address,
+     * which becomes the account's address.
+     *
      * @param  array<string, mixed>  $payload
      */
     protected function completeRegistration(array $payload): TestResponse
     {
         Notification::fake();
 
+        $email = ($payload['role'] ?? null) === UserRole::Student->value
+            ? mb_strtolower(trim($payload['school_email']))
+            : $payload['email'];
+
         $this->post(route('register.store'), $payload)
             ->assertRedirect(route('register.verify'));
 
         // Nothing exists yet. That is the whole point of the extra step.
         $this->assertGuest();
-        $this->assertDatabaseMissing('users', ['email' => $payload['email']]);
+        $this->assertDatabaseMissing('users', ['email' => $email]);
 
         return $this->post(route('register.verify.store'), [
-            'code' => $this->lastCodeSentTo($payload['email']),
+            'code' => $this->lastCodeSentTo($email),
         ]);
     }
 

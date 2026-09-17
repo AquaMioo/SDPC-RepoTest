@@ -9,6 +9,9 @@ import GoogleAuthButton from '@/components/sdpc/google-auth-button';
 import GoogleAuthError from '@/components/sdpc/google-auth-error';
 import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
+import MicrosoftAuthButton from '@/components/sdpc/microsoft-auth-button';
+import OAuthError from '@/components/sdpc/oauth-error';
+import OAuthSetupHint from '@/components/sdpc/oauth-setup-hint';
 import RoleTransition, {
     useRoleTransition,
 } from '@/components/sdpc/role-transition';
@@ -16,7 +19,9 @@ import TeamInvitationAlert from '@/components/team-invitation-alert';
 import { Spinner } from '@/components/ui/spinner';
 import { legal, login } from '@/routes';
 import { redirect as googleRedirect } from '@/routes/google';
+import { redirect as microsoftRedirect } from '@/routes/microsoft';
 import { store } from '@/routes/register';
+import { forget as forgetIdentity } from '@/routes/register/identity';
 import type { TeamInvitationContext } from '@/types';
 
 type Role = { value: string; label: string };
@@ -29,18 +34,44 @@ type GoogleProfile = {
     avatar: string | null;
 };
 
+/** Set once a student has come back from their school Microsoft account. */
+type MicrosoftProfile = {
+    email: string;
+    first_name: string;
+    last_name: string;
+};
+
 type Props = {
     passwordRules: string;
     roles?: Role[];
     canLoginWithGoogle?: boolean;
     googleSetupHint?: boolean;
+    canLoginWithMicrosoft?: boolean;
+    microsoftSetupHint?: boolean;
     teamInvitation?: TeamInvitationContext | null;
     googleProfile?: GoogleProfile | null;
+    microsoftProfile?: MicrosoftProfile | null;
     /** Domains schools actually issue addresses on. */
     schoolDomains?: string[];
 };
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
+
+/*
+ * The same format check as App\Rules\SchoolEmailAddress: a mailbox, one or
+ * more hostname labels, then `.edu.ph` and nothing after it. So `x@edu.ph`,
+ * `x@stiedu.ph` and `x@sti.edu.ph.example.com` all fail, as they do on the
+ * server. A format check only — it says nothing about which schools are real.
+ */
+const SCHOOL_EMAIL =
+    /^[^@\s]+@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+edu\.ph$/i;
+const SCHOOL_EMAIL_MESSAGE = 'Use your school email. It must end in .edu.ph.';
+
+/** The format problem with a typed school email, or '' when there is none. */
+const schoolEmailProblem = (value: string): string =>
+    value.trim() === '' || SCHOOL_EMAIL.test(value.trim())
+        ? ''
+        : SCHOOL_EMAIL_MESSAGE;
 /*
  * Last/First and Password/Confirm sit side by side, which is the design.
  *
@@ -68,14 +99,41 @@ export default function Register({
     ],
     canLoginWithGoogle = false,
     googleSetupHint = false,
+    canLoginWithMicrosoft = false,
+    microsoftSetupHint = false,
     teamInvitation,
     googleProfile,
+    microsoftProfile,
     schoolDomains = [],
 }: Props) {
-    const [role, setRole] = useState<string>(roles[0]?.value ?? 'client');
+    /*
+     * An identity waiting on the server decides the role: a Google address is
+     * not a school address, so it can only become a client, and a school
+     * Microsoft account can only become a student. The server enforces the
+     * same thing; this just keeps the other option from being picked.
+     */
+    const lockedRole = microsoftProfile
+        ? 'student'
+        : googleProfile
+          ? 'client'
+          : null;
+    const pendingIdentity = microsoftProfile
+        ? { provider: 'microsoft', email: microsoftProfile.email }
+        : googleProfile
+          ? { provider: 'google', email: googleProfile.email }
+          : null;
+    const prefill = microsoftProfile ?? googleProfile;
+
+    const [role, setRole] = useState<string>(
+        lockedRole ?? roles[0]?.value ?? 'client',
+    );
     const isStudent = role === 'student';
 
-    const [schoolEmail, setSchoolEmail] = useState('');
+    const [schoolEmail, setSchoolEmail] = useState(
+        microsoftProfile?.email ?? '',
+    );
+    const [schoolEmailTouched, setSchoolEmailTouched] = useState(false);
+    const schoolEmailFormatError = schoolEmailProblem(schoolEmail);
 
     /*
      * Whether what has been typed is on a domain a school actually issues.
@@ -117,7 +175,7 @@ export default function Register({
     });
 
     const changeRole = (next: string) => {
-        if (next === role || busy) {
+        if (next === role || busy || lockedRole) {
             return;
         }
 
@@ -227,10 +285,11 @@ export default function Register({
                         </h4>
 
                         <GoogleAuthError />
+                        <OAuthError provider="microsoft" />
 
-                        {googleProfile && (
+                        {pendingIdentity && (
                             <div
-                                data-test="google-continuing-as"
+                                data-test={`${pendingIdentity.provider}-continuing-as`}
                                 className="border border-green-600/40 bg-green-600/10 px-3 py-2 text-center dark:border-green-400/40 dark:bg-green-400/10"
                                 style={{
                                     borderRadius: 'var(--radius-md)',
@@ -241,10 +300,25 @@ export default function Register({
                             >
                                 Continuing as{' '}
                                 <b style={{ color: 'var(--color-text)' }}>
-                                    {googleProfile.email}
+                                    {pendingIdentity.email}
                                 </b>
-                                . Pick your role and finish the details below —
-                                no password needed.
+                                . Finish the details below — no password needed.{' '}
+                                <Link
+                                    href={forgetIdentity.url()}
+                                    method="delete"
+                                    as="button"
+                                    data-test="forget-identity"
+                                    style={{
+                                        color: 'var(--color-accent)',
+                                        background: 'none',
+                                        border: 0,
+                                        padding: 0,
+                                        cursor: 'pointer',
+                                        font: 'inherit',
+                                    }}
+                                >
+                                    Not you? Start over
+                                </Link>
                             </div>
                         )}
 
@@ -259,20 +333,38 @@ export default function Register({
                             className="seg seg-pill"
                             style={{ alignSelf: 'center' }}
                         >
-                            {roles.map((option) => (
-                                <label className="seg-opt" key={option.value}>
-                                    <input
-                                        type="radio"
-                                        name="role-picker"
-                                        value={option.value}
-                                        checked={role === option.value}
-                                        onChange={() =>
-                                            changeRole(option.value)
+                            {roles.map((option) => {
+                                const unavailable =
+                                    lockedRole !== null &&
+                                    option.value !== lockedRole;
+
+                                return (
+                                    <label
+                                        className="seg-opt"
+                                        key={option.value}
+                                        style={
+                                            unavailable
+                                                ? {
+                                                      opacity: 0.45,
+                                                      cursor: 'not-allowed',
+                                                  }
+                                                : undefined
                                         }
-                                    />
-                                    {option.label}
-                                </label>
-                            ))}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="role-picker"
+                                            value={option.value}
+                                            checked={role === option.value}
+                                            disabled={unavailable}
+                                            onChange={() =>
+                                                changeRole(option.value)
+                                            }
+                                        />
+                                        {option.label}
+                                    </label>
+                                );
+                            })}
                         </div>
 
                         <Form
@@ -294,6 +386,10 @@ export default function Register({
                                         name="role"
                                         value={role}
                                     />
+                                    <InputError
+                                        message={errors.role}
+                                        className="text-center text-[11px]"
+                                    />
 
                                     <div style={TWO_UP}>
                                         <div className="field">
@@ -308,7 +404,7 @@ export default function Register({
                                                 autoComplete="family-name"
                                                 placeholder="Clemens"
                                                 defaultValue={
-                                                    googleProfile?.last_name
+                                                    prefill?.last_name
                                                 }
                                             />
                                             <InputError
@@ -330,7 +426,7 @@ export default function Register({
                                                 autoComplete="given-name"
                                                 placeholder="Samuel"
                                                 defaultValue={
-                                                    googleProfile?.first_name
+                                                    prefill?.first_name
                                                 }
                                             />
                                             <InputError
@@ -340,35 +436,46 @@ export default function Register({
                                         </div>
                                     </div>
 
-                                    <div className="field">
-                                        <label htmlFor="email">Email</label>
-                                        <Input
-                                            id="email"
-                                            type="email"
-                                            name="email"
-                                            required={!googleProfile}
-                                            tabIndex={3}
-                                            autoComplete="email"
-                                            placeholder="you@email.com"
-                                            // Google vouched for this address, so it is
-                                            // shown but not editable. The server reads
-                                            // it from the session either way.
-                                            defaultValue={googleProfile?.email}
-                                            readOnly={Boolean(googleProfile)}
-                                            style={
-                                                googleProfile
-                                                    ? {
-                                                          opacity: 0.75,
-                                                          cursor: 'not-allowed',
-                                                      }
-                                                    : undefined
-                                            }
-                                        />
-                                        <InputError
-                                            message={errors.email}
-                                            className="mt-1 text-[11px]"
-                                        />
-                                    </div>
+                                    {/*
+                                     * Students have no separate email: the
+                                     * school address below is the one they
+                                     * sign in with.
+                                     */}
+                                    {!isStudent && (
+                                        <div className="field">
+                                            <label htmlFor="email">Email</label>
+                                            <Input
+                                                id="email"
+                                                type="email"
+                                                name="email"
+                                                required={!googleProfile}
+                                                tabIndex={3}
+                                                autoComplete="email"
+                                                placeholder="you@email.com"
+                                                // Google vouched for this address, so it is
+                                                // shown but not editable. The server reads
+                                                // it from the session either way.
+                                                defaultValue={
+                                                    googleProfile?.email
+                                                }
+                                                readOnly={Boolean(
+                                                    googleProfile,
+                                                )}
+                                                style={
+                                                    googleProfile
+                                                        ? {
+                                                              opacity: 0.75,
+                                                              cursor: 'not-allowed',
+                                                          }
+                                                        : undefined
+                                                }
+                                            />
+                                            <InputError
+                                                message={errors.email}
+                                                className="mt-1 text-[11px]"
+                                            />
+                                        </div>
+                                    )}
 
                                     {isStudent ? (
                                         <div className="field">
@@ -379,26 +486,63 @@ export default function Register({
                                                 <Input
                                                     id="school_email"
                                                     name="school_email"
+                                                    type="email"
                                                     required
                                                     tabIndex={4}
+                                                    autoComplete="email"
                                                     placeholder="02000xxxxxx@sti.edu.ph"
                                                     value={schoolEmail}
-                                                    onChange={(event) =>
+                                                    onChange={(event) => {
                                                         setSchoolEmail(
                                                             event.target.value,
+                                                        );
+                                                        /*
+                                                         * The browser refuses
+                                                         * to submit while this
+                                                         * is set, with the same
+                                                         * words the server
+                                                         * would use.
+                                                         */
+                                                        event.target.setCustomValidity(
+                                                            schoolEmailProblem(
+                                                                event.target
+                                                                    .value,
+                                                            ),
+                                                        );
+                                                    }}
+                                                    onBlur={() =>
+                                                        setSchoolEmailTouched(
+                                                            true,
                                                         )
                                                     }
+                                                    aria-invalid={Boolean(
+                                                        (schoolEmailTouched &&
+                                                            schoolEmailFormatError) ||
+                                                        errors.school_email,
+                                                    )}
+                                                    // The school's own Microsoft
+                                                    // sign-in vouched for this
+                                                    // address, so it is shown but
+                                                    // not editable. The server
+                                                    // reads it from the session.
+                                                    readOnly={Boolean(
+                                                        microsoftProfile,
+                                                    )}
                                                     style={{
                                                         paddingRight: 32,
+                                                        ...(microsoftProfile
+                                                            ? {
+                                                                  opacity: 0.75,
+                                                                  cursor: 'not-allowed',
+                                                              }
+                                                            : {}),
                                                     }}
                                                 />
                                                 {/*
                                                  * The tick is a courtesy, not
-                                                 * the check. SchoolEmailVerifier
-                                                 * matches the same list on the
-                                                 * server before a code is ever
-                                                 * sent, so nothing is decided
-                                                 * here.
+                                                 * the check. It lights for a
+                                                 * domain on the schools list;
+                                                 * the server decides the rest.
                                                  */}
                                                 {isSchoolEmail && (
                                                     <CheckCircleIcon
@@ -418,7 +562,11 @@ export default function Register({
                                                 )}
                                             </div>
                                             <InputError
-                                                message={errors.school_email}
+                                                message={
+                                                    (schoolEmailTouched &&
+                                                        schoolEmailFormatError) ||
+                                                    errors.school_email
+                                                }
                                                 className="mt-1 text-[11px]"
                                             />
                                         </div>
@@ -442,10 +590,11 @@ export default function Register({
                                         </div>
                                     )}
 
-                                    {/* A Google account never gets a password: Google
-                                is how they sign in. They can still set one
-                                later through the password reset flow. */}
-                                    {!googleProfile && (
+                                    {/* A Google or Microsoft account never gets a
+                                password: the provider is how they sign in. They
+                                can still set one later through the password
+                                reset flow. */}
+                                    {!pendingIdentity && (
                                         <div style={TWO_UP}>
                                             <div className="field">
                                                 <label htmlFor="password">
@@ -497,16 +646,58 @@ export default function Register({
                                         </div>
                                     )}
 
-                                    {canLoginWithGoogle && !googleProfile && (
-                                        <GoogleAuthButton
-                                            href={googleRedirect.url({
-                                                query: { intent: 'register' },
-                                            })}
-                                            tabIndex={7}
-                                        />
-                                    )}
-                                    {googleSetupHint && !googleProfile && (
-                                        <GoogleSetupHint />
+                                    {/*
+                                     * Students sign up with their school
+                                     * Microsoft account, which proves the
+                                     * address without mailing a code to it.
+                                     * Clients keep Google.
+                                     */}
+                                    {isStudent ? (
+                                        <>
+                                            {canLoginWithMicrosoft &&
+                                                !microsoftProfile && (
+                                                    <MicrosoftAuthButton
+                                                        href={microsoftRedirect.url(
+                                                            {
+                                                                query: {
+                                                                    intent: 'register',
+                                                                },
+                                                            },
+                                                        )}
+                                                        tabIndex={7}
+                                                    />
+                                                )}
+                                            {microsoftSetupHint &&
+                                                !microsoftProfile && (
+                                                    <OAuthSetupHint
+                                                        provider="Microsoft"
+                                                        variables={[
+                                                            'MICROSOFT_CLIENT_ID',
+                                                            'MICROSOFT_CLIENT_SECRET',
+                                                        ]}
+                                                    />
+                                                )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {canLoginWithGoogle &&
+                                                !googleProfile && (
+                                                    <GoogleAuthButton
+                                                        href={googleRedirect.url(
+                                                            {
+                                                                query: {
+                                                                    intent: 'register',
+                                                                },
+                                                            },
+                                                        )}
+                                                        tabIndex={7}
+                                                    />
+                                                )}
+                                            {googleSetupHint &&
+                                                !googleProfile && (
+                                                    <GoogleSetupHint />
+                                                )}
+                                        </>
                                     )}
 
                                     <label

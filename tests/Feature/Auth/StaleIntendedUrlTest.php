@@ -33,7 +33,6 @@ class StaleIntendedUrlTest extends TestCase
         $response = $this->completeRegistration([
             'first_name' => 'New',
             'last_name' => 'Student',
-            'email' => 'new.student@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
             'role' => UserRole::Student->value,

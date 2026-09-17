@@ -6,23 +6,21 @@ use App\Contracts\StudentVerifier;
 use App\Enums\CredentialStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\VerificationProvider;
-use App\Enums\VerificationStatus;
 use App\Models\Project;
+use App\Models\School;
 use App\Models\StudentCredential;
 use App\Models\StudentVerification;
 use App\Models\User;
 use App\Services\Verification\NullStudentVerifier;
-use App\Services\Verification\SheerIdStudentVerifier;
+use App\Services\Verification\SchoolEmailVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
-use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 /**
- * The optional third-party enrolment check.
+ * The automated enrolment check, and what it gates.
  *
- * The point of most of these is what does NOT happen: a verified student gains
- * a badge and nothing else, and an unverified one loses nothing.
+ * With no verifier available nothing is gated at all; with one available, a
+ * confirmed row is what opens the account.
  */
 class StudentVerificationTest extends TestCase
 {
@@ -30,102 +28,9 @@ class StudentVerificationTest extends TestCase
 
     public function test_the_null_verifier_is_the_shipped_default(): void
     {
-        $this->assertFalse(config('sheerid.enabled'));
+        $this->assertFalse(config('verification.school_email.enabled'));
         $this->assertInstanceOf(NullStudentVerifier::class, app(StudentVerifier::class));
         $this->assertFalse(app(StudentVerifier::class)->isAvailable());
-    }
-
-    public function test_the_routes_are_closed_while_it_is_switched_off(): void
-    {
-        $student = User::factory()->student()->approved()->create();
-
-        $this->actingAs($student)
-            ->post(route('student.verification.store'))
-            ->assertNotFound();
-
-        $this->actingAs($student)
-            ->get(route('student.verification.return'))
-            ->assertNotFound();
-    }
-
-    public function test_settings_does_not_advertise_it_while_it_is_switched_off(): void
-    {
-        $student = User::factory()->student()->approved()->create();
-
-        $this->actingAs($student)
-            ->get(route('profile.edit'))
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('studentVerification', null));
-    }
-
-    public function test_a_student_is_sent_to_the_providers_own_form(): void
-    {
-        $this->enableSheerId();
-
-        Http::fake([
-            '*/verification' => Http::response([
-                'verificationId' => 'ver_123',
-                'currentStep' => 'collectStudentPersonalInfo',
-            ]),
-        ]);
-
-        $student = User::factory()->student()->approved()->create();
-
-        $this->actingAs($student)
-            ->post(route('student.verification.store'))
-            ->assertRedirect();
-
-        $verification = StudentVerification::query()
-            ->where('user_id', $student->id)
-            ->firstOrFail();
-
-        $this->assertSame('ver_123', $verification->external_id);
-        $this->assertSame(VerificationStatus::Pending, $verification->status);
-        $this->assertStringContainsString('ver_123', $verification->redirect_url);
-    }
-
-    public function test_a_provider_that_is_down_does_not_break_the_student(): void
-    {
-        $this->enableSheerId();
-
-        Http::fake(['*' => Http::response([], 503)]);
-
-        $student = User::factory()->student()->approved()->create();
-
-        $this->actingAs($student)
-            ->post(route('student.verification.store'))
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame(0, StudentVerification::query()->count());
-    }
-
-    public function test_the_answer_is_read_back_from_the_provider(): void
-    {
-        $this->enableSheerId();
-
-        $student = User::factory()->student()->approved()->create();
-
-        $verification = StudentVerification::factory()->create([
-            'user_id' => $student->id,
-            'provider' => VerificationProvider::SheerId,
-            'status' => VerificationStatus::Pending,
-            'external_id' => 'ver_123',
-        ]);
-
-        Http::fake([
-            '*/verification/ver_123' => Http::response(['currentStep' => 'success']),
-        ]);
-
-        $this->actingAs($student)
-            ->get(route('student.verification.return'))
-            ->assertRedirect(route('profile.edit'));
-
-        $verification->refresh();
-
-        $this->assertSame(VerificationStatus::Verified, $verification->status);
-        $this->assertNotNull($verification->verified_at);
     }
 
     /**
@@ -135,7 +40,7 @@ class StudentVerificationTest extends TestCase
      */
     public function test_a_pass_opens_the_account(): void
     {
-        $this->enableSheerId();
+        $this->enableSchoolEmailCheck();
 
         $student = User::factory()->student()->create();
 
@@ -144,7 +49,7 @@ class StudentVerificationTest extends TestCase
 
         StudentVerification::factory()->verified()->create([
             'user_id' => $student->id,
-            'provider' => VerificationProvider::SheerId,
+            'provider' => VerificationProvider::SchoolEmail,
         ]);
 
         $student->refresh();
@@ -216,16 +121,13 @@ class StudentVerificationTest extends TestCase
     }
 
     /**
-     * Switch the provider on with credentials the fake will answer for.
+     * Switch the school-email check on, with a school it can be used for.
      */
-    private function enableSheerId(): void
+    private function enableSchoolEmailCheck(): void
     {
-        config([
-            'sheerid.enabled' => true,
-            'sheerid.program_id' => 'prog_test',
-            'sheerid.access_token' => 'token_test',
-        ]);
+        config(['verification.school_email.enabled' => true]);
+        School::factory()->create(['domain' => 'sti.edu.ph']);
 
-        $this->assertInstanceOf(SheerIdStudentVerifier::class, app(StudentVerifier::class));
+        $this->assertInstanceOf(SchoolEmailVerifier::class, app(StudentVerifier::class));
     }
 }

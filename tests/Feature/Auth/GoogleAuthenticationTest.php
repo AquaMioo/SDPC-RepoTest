@@ -113,8 +113,8 @@ class GoogleAuthenticationTest extends TestCase
         $response = $this->post(route('register.store'), [
             'first_name' => 'Ada',
             'last_name' => 'Lovelace',
-            'role' => 'student',
-            'school_email' => '02000123456@sti.edu.ph',
+            'role' => 'client',
+            'business_name' => 'Analytical Engines',
             'terms' => 'on',
         ]);
 
@@ -123,19 +123,43 @@ class GoogleAuthenticationTest extends TestCase
         $user = User::firstWhere('email', 'ada@example.com');
 
         $this->assertNotNull($user);
-        $this->assertSame(UserRole::Student, $user->role);
+        $this->assertSame(UserRole::Client, $user->role);
         $this->assertSame('1234567890', $user->google_id);
+        $this->assertSame('ada@example.com', $user->google_email);
 
         // Google is how they sign in, so there is no password, and the address
         // needs no verification email.
         $this->assertNull($user->password);
         $this->assertNotNull($user->email_verified_at);
 
-        // Still unverified as an account: the credential document decides that.
         $this->assertSame(UserStatus::Pending, $user->status);
         $this->assertNotNull($user->currentTeam);
 
         $this->assertAuthenticatedAs($user);
+    }
+
+    /**
+     * A Google address is not a school address, and a student signs in with
+     * their school address — so Google can only start a client's sign up.
+     */
+    public function test_a_google_identity_can_not_register_a_student(): void
+    {
+        $this->startFlowFrom(route('google.redirect', ['intent' => 'register']));
+        $this->mockGoogleReturns($this->googleUser());
+        $this->get(route('google.callback'));
+
+        $this->from(route('register'))->post(route('register.store'), [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'role' => 'student',
+            'school_email' => '02000123456@sti.edu.ph',
+            'terms' => 'on',
+        ])->assertSessionHasErrors([
+            'role' => 'A Google account can only register a client. Students sign up with their school email.',
+        ]);
+
+        $this->assertSame(0, User::count());
+        $this->assertGuest();
     }
 
     public function test_the_address_comes_from_google_rather_than_the_form(): void

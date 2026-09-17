@@ -23,10 +23,9 @@ use Symfony\Component\Mime\MessageConverter;
  * has none of its own; Brevo verifies a single sender address, so mail can go
  * out as the project's own Gmail without buying a domain first.
  *
- * Written against Laravel's Http client rather than pulling in an SDK, the
- * same choice config/sheerid.php documents for its provider: one fewer
- * dependency to install on a deploy host, and the payload below is the whole
- * of the API surface this application uses.
+ * Written against Laravel's Http client rather than pulling in an SDK: one
+ * fewer dependency to install on a deploy host, and the payload below is the
+ * whole of the API surface this application uses.
  */
 class BrevoTransport extends AbstractTransport
 {

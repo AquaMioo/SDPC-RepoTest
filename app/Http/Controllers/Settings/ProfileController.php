@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers\Settings;
 
-use App\Contracts\StudentVerifier;
+use App\Actions\Auth\LinkGoogleAccount;
 use App\Enums\AppealStatus;
 use App\Enums\UserRole;
-use App\Enums\VerificationProvider;
-use App\Enums\VerificationStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
@@ -24,7 +22,7 @@ class ProfileController extends Controller
     /**
      * Show the user's profile settings page.
      */
-    public function edit(Request $request, StudentVerifier $verifier): Response
+    public function edit(Request $request, LinkGoogleAccount $linkGoogleAccount): Response
     {
         $user = $request->user();
 
@@ -32,12 +30,11 @@ class ProfileController extends Controller
             'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => $request->session()->get('status'),
             /*
-             * The optional third-party enrolment check. Absent unless SheerID
-             * is configured, and never a gate: what a student may actually do
-             * still answers to User::isVerifiedForOperating().
+             * Students only: how they get in now, and the personal Google
+             * account that gets them in once the school address is gone.
              */
-            'studentVerification' => $user?->hasRole(UserRole::Student) && $verifier->isAvailable()
-                ? $this->verificationState($user)
+            'signInMethods' => $user->hasRole(UserRole::Student)
+                ? $this->signInMethods($user, $linkGoogleAccount)
                 : null,
             /*
              * Account Information → Review Appeal. Only an account with a
@@ -77,25 +74,19 @@ class ProfileController extends Controller
     }
 
     /**
-     * Describe where the student's optional verification has got to.
+     * Describe the ways a student can sign in.
      *
-     * @return array<string, mixed>
+     * @return array{hasPassword: bool, microsoftLinked: bool, googleAvailable: bool, googleEmail: string|null, googleLinked: bool, canUnlinkGoogle: bool}
      */
-    protected function verificationState(User $student): array
+    protected function signInMethods(User $student, LinkGoogleAccount $linkGoogleAccount): array
     {
-        $verification = $student->studentVerifications
-            ->firstWhere('provider', VerificationProvider::SheerId);
-
-        $status = $verification === null
-            ? VerificationStatus::Unverified
-            : $verification->status;
-
         return [
-            'status' => $status->value,
-            'statusLabel' => $status->label(),
-            'verifiedAt' => $verification?->verified_at?->toFormattedDateString(),
-            'failureReason' => $verification?->failure_reason,
-            'hasStarted' => $verification !== null,
+            'hasPassword' => $student->password !== null,
+            'microsoftLinked' => $student->microsoft_id !== null,
+            'googleAvailable' => (bool) config('services.google.enabled'),
+            'googleLinked' => $student->google_id !== null,
+            'googleEmail' => $student->google_id !== null ? $student->google_email : null,
+            'canUnlinkGoogle' => $linkGoogleAccount->canUnlink($student),
         ];
     }
 

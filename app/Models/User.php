@@ -39,6 +39,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $email_verified_at
  * @property string|null $password
  * @property string|null $google_id
+ * @property string|null $google_email
+ * @property string|null $microsoft_id
  * @property string|null $avatar
  * @property string|null $avatar_path
  * @property string|null $two_factor_secret
@@ -61,7 +63,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Appeal|null $latestAppeal
  */
 #[Fillable(['name', 'first_name', 'last_name', 'email', 'password', 'google_id', 'avatar', 'current_team_id'])]
-#[Hidden(['password', 'google_id', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'active_session_token'])]
+#[Hidden(['password', 'google_id', 'google_email', 'microsoft_id', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'active_session_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */

@@ -25,6 +25,25 @@ return [
     ],
 
     /*
+     * Students' school Microsoft 365 accounts, through the
+     * socialiteproviders/microsoft driver (registered in AppServiceProvider).
+     */
+    'microsoft' => [
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'redirect' => env('MICROSOFT_REDIRECT_URI', '/auth/microsoft/callback'),
+
+        // "organizations" admits school and work accounts from any tenant and
+        // turns personal Outlook/Hotmail accounts away at Microsoft's end.
+        // A tenant id here would admit that one school only.
+        'tenant' => env('MICROSOFT_TENANT_ID', 'organizations'),
+
+        // Drives whether the "Continue with Microsoft" button is rendered and
+        // whether the OAuth routes respond at all.
+        'enabled' => filled(env('MICROSOFT_CLIENT_ID')) && filled(env('MICROSOFT_CLIENT_SECRET')),
+    ],
+
+    /*
      * Brevo, over its HTTP API rather than SMTP — the deploy host blocks
      * outbound 587/465/2525, so SMTP cannot leave the container at all.
      * See App\Mail\Transport\BrevoTransport.

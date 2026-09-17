@@ -8,7 +8,7 @@ use InvalidArgumentException;
  * Builds an Agora AccessToken2 ("007") for joining an RTC channel.
  *
  * Hand-written rather than pulled from a package, the same call this project
- * makes for SheerID and for Brevo: the format is small, stable and published,
+ * makes for Brevo: the format is small, stable and published,
  * and one less dependency is one less thing to install cleanly during a
  * Railway build.
  *

@@ -136,7 +136,7 @@ class SchoolEmailVerificationController extends Controller
      *
      * A 404 rather than a redirect: while the verifier is unavailable this
      * feature does not exist, and the settings screen does not offer it
-     * either. Same posture as the SheerID routes.
+     * either.
      */
     protected function ensureAvailable(): void
     {

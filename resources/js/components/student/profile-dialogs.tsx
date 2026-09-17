@@ -872,7 +872,7 @@ export function AccountDialog({
                         </div>
 
                         <div className="field" style={{ marginTop: 12 }}>
-                            <label htmlFor="account-email">Email</label>
+                            <label htmlFor="account-email">School email</label>
                             <Input
                                 id="account-email"
                                 name="email"
@@ -893,8 +893,8 @@ export function AccountDialog({
                                     color: MUTED(55),
                                 }}
                             >
-                                Changing this asks you to confirm the new
-                                address before it is trusted again.
+                                A new address must end in .edu.ph, and you
+                                confirm it before it is trusted again.
                             </p>
                         </div>
 

@@ -50,8 +50,8 @@ return [
     'token_ttl' => (int) env('AGORA_TOKEN_TTL', 3600),
 
     /*
-    | Seconds to wait on Agora's REST API. Short on purpose, for the same
-    | reason config/sheerid.php is: nobody waits on a courtesy.
+    | Seconds to wait on Agora's REST API. Short on purpose: nobody waits on
+    | a courtesy.
     */
     'timeout' => (int) env('AGORA_TIMEOUT', 5),
 

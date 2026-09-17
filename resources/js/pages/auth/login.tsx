@@ -10,12 +10,16 @@ import GoogleAuthButton from '@/components/sdpc/google-auth-button';
 import GoogleAuthError from '@/components/sdpc/google-auth-error';
 import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
 import { Input } from '@/components/sdpc/input';
+import MicrosoftAuthButton from '@/components/sdpc/microsoft-auth-button';
+import OAuthError from '@/components/sdpc/oauth-error';
+import OAuthSetupHint from '@/components/sdpc/oauth-setup-hint';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
 import { Spinner } from '@/components/ui/spinner';
 import { useMod } from '@/hooks/use-mod';
 import { appeal, register } from '@/routes';
 import { redirect as googleRedirect } from '@/routes/google';
 import { store } from '@/routes/login';
+import { redirect as microsoftRedirect } from '@/routes/microsoft';
 import { request } from '@/routes/password';
 import type { TeamInvitationContext } from '@/types';
 
@@ -26,6 +30,9 @@ type Props = {
     canResetPassword: boolean;
     canLoginWithGoogle?: boolean;
     googleSetupHint?: boolean;
+    /** Students' school Microsoft 365 accounts. */
+    canLoginWithMicrosoft?: boolean;
+    microsoftSetupHint?: boolean;
     teamInvitation?: TeamInvitationContext | null;
     /** Counted, not claimed — see FortifyServiceProvider::configureViews(). */
 };
@@ -50,6 +57,8 @@ export default function Login({
     canResetPassword,
     canLoginWithGoogle = false,
     googleSetupHint = false,
+    canLoginWithMicrosoft = false,
+    microsoftSetupHint = false,
     teamInvitation,
 }: Props) {
     const [revealed, setRevealed] = useState(false);
@@ -123,6 +132,7 @@ export default function Login({
                         </h4>
 
                         <GoogleAuthError />
+                        <OAuthError provider="microsoft" />
 
                         <AccountSessionWarning message={warning} />
 
@@ -225,6 +235,29 @@ export default function Login({
                                         />
                                     )}
                                     {googleSetupHint && <GoogleSetupHint />}
+
+                                    {/*
+                                     * Students who signed up with their school
+                                     * Microsoft account have no password, so
+                                     * this is their way in. A student whose
+                                     * school address has closed signs in with
+                                     * the Google account bound in settings.
+                                     */}
+                                    {canLoginWithMicrosoft && (
+                                        <MicrosoftAuthButton
+                                            href={microsoftRedirect.url()}
+                                            tabIndex={6}
+                                        />
+                                    )}
+                                    {microsoftSetupHint && (
+                                        <OAuthSetupHint
+                                            provider="Microsoft"
+                                            variables={[
+                                                'MICROSOFT_CLIENT_ID',
+                                                'MICROSOFT_CLIENT_SECRET',
+                                            ]}
+                                        />
+                                    )}
 
                                     <div
                                         style={{

@@ -8,7 +8,9 @@ use App\Enums\UserRole;
 use App\Enums\VerificationStatus;
 use App\Models\ClientProfile;
 use App\Models\User;
+use App\Services\Verification\SchoolEmailVerifier;
 use App\Support\PendingGoogleRegistration;
+use App\Support\PendingMicrosoftRegistration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -18,7 +20,10 @@ class CreateNewUser implements CreatesNewUsers
 {
     use RegistrationValidationRules;
 
-    public function __construct(private CreateTeam $createTeam) {}
+    public function __construct(
+        private CreateTeam $createTeam,
+        private SchoolEmailVerifier $schoolEmailVerifier,
+    ) {}
 
     /**
      * Validate and create a newly registered user.
@@ -31,20 +36,22 @@ class CreateNewUser implements CreatesNewUsers
      * one. For a client the team is their business and is named accordingly;
      * for a student it is a personal team they never see.
      *
-     * By the time this runs the address has already been proved — either by
-     * Google, or by the code RegistrationController made them type. It
-     * validates anyway: this is the Fortify contract and may be called with an
-     * array nobody checked.
+     * A student's account address is their school address. By the time this
+     * runs the address has already been proved — by Google or the school's
+     * Microsoft sign-in, or by the code RegistrationController made them type.
+     * It validates anyway: this is the Fortify contract and may be called with
+     * an array nobody checked.
      *
      * @param  array<string, string>  $input
      */
     public function create(array $input): User
     {
-        // A Google identity waiting in the session supplies the address and
-        // stands in for the password. It is read from the session rather than
-        // the form because it is the one thing on that page nobody may edit —
-        // an email posted from the browser could be anyone's.
-        $pending = PendingGoogleRegistration::get();
+        // An identity waiting in the session supplies the address and stands
+        // in for the password. It is read from the session rather than the
+        // form because it is the one thing on that page nobody may edit — an
+        // email posted from the browser could be anyone's.
+        $google = PendingGoogleRegistration::get();
+        $microsoft = PendingMicrosoftRegistration::get();
 
         Validator::make(
             $input,
@@ -52,13 +59,21 @@ class CreateNewUser implements CreatesNewUsers
             $this->registrationMessages(),
         )->validate();
 
-        $email = $pending['email'] ?? $input['email'];
+        $role = UserRole::from($input['role']);
+
+        $email = $microsoft['email']
+            ?? $google['email']
+            ?? ($role === UserRole::Student
+                ? mb_strtolower(trim($input['school_email']))
+                : $input['email']);
 
         // The address is unique either way. Checking it here as well covers the
-        // window between Google vouching for it and this form being submitted —
-        // and, for the code path, the window while the code was in the post.
+        // window between Google or Microsoft vouching for it and this form being
+        // submitted — and, for the code path, the window while the code was in
+        // the post.
         if (User::where('email', $email)->exists()) {
             PendingGoogleRegistration::forget();
+            PendingMicrosoftRegistration::forget();
 
             throw ValidationException::withMessages([
                 'email' => [__('An account already exists for :email. Please log in instead.', ['email' => $email])],
@@ -67,10 +82,9 @@ class CreateNewUser implements CreatesNewUsers
 
         $firstName = trim($input['first_name']);
         $lastName = trim($input['last_name']);
-        $role = UserRole::from($input['role']);
         $name = trim($firstName.' '.$lastName);
 
-        return DB::transaction(function () use ($input, $firstName, $lastName, $role, $name, $email, $pending) {
+        return DB::transaction(function () use ($input, $firstName, $lastName, $role, $name, $email, $google, $microsoft) {
             $user = new User;
 
             $user->forceFill([
@@ -78,21 +92,25 @@ class CreateNewUser implements CreatesNewUsers
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'email' => $email,
-                // A Google account never gets a password. They may still set
-                // one later through the password reset flow.
-                'password' => $pending !== null ? null : $input['password'],
+                // An account made through Google or Microsoft never gets a
+                // password. They may still set one later through the password
+                // reset flow.
+                'password' => $google !== null || $microsoft !== null ? null : $input['password'],
                 'role' => $role,
-                'google_id' => $pending['google_id'] ?? null,
-                'avatar' => $pending['avatar'] ?? null,
+                'google_id' => $google['google_id'] ?? null,
+                'google_email' => $google['email'] ?? null,
+                'microsoft_id' => $microsoft['microsoft_id'] ?? null,
+                'avatar' => $google['avatar'] ?? null,
                 /*
-                 * Nothing reaches this line with an unproved address: Google
-                 * vouched for it, or a code sent to it came back. There is no
-                 * verification email left to send.
+                 * Nothing reaches this line with an unproved address: Google or
+                 * Microsoft vouched for it, or a code sent to it came back.
+                 * There is no verification email left to send.
                  */
                 'email_verified_at' => now(),
             ])->save();
 
             PendingGoogleRegistration::forget();
+            PendingMicrosoftRegistration::forget();
 
             $team = $this->createTeam->handle(
                 $user,
@@ -117,10 +135,16 @@ class CreateNewUser implements CreatesNewUsers
                 ]);
             }
 
-            // Students verify with a document after signing up. What they typed
-            // here seeds that form so they do not retype it.
             if ($role === UserRole::Student) {
-                session()->put('credentials.school', trim($input['school_email']));
+                // Seeds the credential form so the school is not retyped.
+                session()->put('credentials.school', $email);
+
+                /*
+                 * The address was just proved, so a student on a listed school
+                 * domain is recorded as verified now — switching the
+                 * school-email check on later must not lock them out.
+                 */
+                $this->schoolEmailVerifier->confirmAtSignUp($user, $email);
             }
 
             return $user;

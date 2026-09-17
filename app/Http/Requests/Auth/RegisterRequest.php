@@ -18,6 +18,20 @@ class RegisterRequest extends FormRequest
     use RegistrationValidationRules;
 
     /**
+     * Prepare the data for validation.
+     *
+     * The school address becomes the account's sign-in address, so it is
+     * compared and stored the one way — trimmed and lowercased — whatever the
+     * database's collation thinks of case.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('school_email'))) {
+            $this->merge(['school_email' => mb_strtolower(trim($this->input('school_email')))]);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, array<int, ValidationRule|string>>

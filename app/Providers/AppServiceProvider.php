@@ -13,7 +13,6 @@ use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\StoredRecommendationService;
 use App\Services\Verification\NullStudentVerifier;
 use App\Services\Verification\SchoolEmailVerifier;
-use App\Services\Verification\SheerIdStudentVerifier;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +23,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\Microsoft\Provider as MicrosoftProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -49,10 +50,8 @@ class AppServiceProvider extends ServiceProvider
         /*
          * How a student proves they are a student.
          *
-         * School email first: it is the only one of the three that both works
-         * and can be switched on without a vendor agreement. SheerID stays
-         * reachable for whenever that account arrives, and Null is the
-         * shipped default.
+         * The school-email check when it is switched on, and Null — the
+         * shipped default — otherwise.
          *
          * AVAILABILITY IS THE SWITCH. Whichever of these is bound,
          * User::hasPassedStudentVerification() returns true for EVERYONE while
@@ -64,12 +63,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(StudentVerifier::class, function () {
             $schoolEmail = $this->app->make(SchoolEmailVerifier::class);
 
-            if ($schoolEmail->isAvailable()) {
-                return $schoolEmail;
-            }
-
-            return config('sheerid.enabled')
-                ? $this->app->make(SheerIdStudentVerifier::class)
+            return $schoolEmail->isAvailable()
+                ? $schoolEmail
                 : $this->app->make(NullStudentVerifier::class);
         });
     }
@@ -82,6 +77,21 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->registerBrevoTransport();
         $this->registerPresenceListeners();
+        $this->registerSocialiteProviders();
+    }
+
+    /**
+     * Teach Socialite the `microsoft` driver.
+     *
+     * Socialite ships no Microsoft driver of its own. SocialiteProviders'
+     * driver is added through the manager's SocialiteWasCalled event, which
+     * fires the first time any Socialite driver is resolved.
+     */
+    protected function registerSocialiteProviders(): void
+    {
+        Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('microsoft', MicrosoftProvider::class);
+        });
     }
 
     /**

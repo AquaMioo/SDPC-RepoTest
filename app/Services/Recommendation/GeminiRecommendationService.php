@@ -31,7 +31,7 @@ use Throwable;
  * the computed scorer rather than at an error page or an empty screen. Nobody
  * on this platform is ever blocked because Google is slow. Matching is on the
  * critical path of the entire product, which makes that non-negotiable, and it
- * is the same posture as SheerIdStudentVerifier and AnnounceMessage.
+ * is the same posture as AnnounceMessage.
  *
  * @see .ai/rules/services-matching.md for the computed scorer this falls back to
  */

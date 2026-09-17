@@ -9,6 +9,7 @@ use App\Enums\ProjectStatus;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\Recommendation;
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -124,11 +125,8 @@ class ProjectBoardTest extends TestCase
      */
     public function test_an_unverified_student_can_browse_but_not_apply(): void
     {
-        config([
-            'sheerid.enabled' => true,
-            'sheerid.program_id' => 'prog_test',
-            'sheerid.access_token' => 'token_test',
-        ]);
+        config(['verification.school_email.enabled' => true]);
+        School::factory()->create(['domain' => 'sti.edu.ph']);
 
         $student = $this->student();
         $project = $this->posting();

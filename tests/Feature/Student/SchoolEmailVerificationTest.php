@@ -16,9 +16,8 @@ use Tests\TestCase;
 /**
  * Proving a student is a student with a code mailed to their school address.
  *
- * The free stand-in for SheerID, and weaker than it on purpose: this proves
- * somebody can open mail at a domain an administrator put on the list, not
- * that they are enrolled this term. The tests that matter most here are the
+ * This proves somebody can open mail at a domain an administrator put on the
+ * list, not that they are enrolled this term. The tests that matter most here are the
  * ones about what it REFUSES — a lookalike domain, somebody else's address, a
  * code borrowed from another flow.
  */

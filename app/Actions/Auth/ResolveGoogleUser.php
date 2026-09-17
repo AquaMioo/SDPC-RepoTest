@@ -43,14 +43,17 @@ class ResolveGoogleUser
      * registered with a password is recognised the first time they use the
      * button, rather than being told to register all over again.
      *
+     * The id is asked first and wins. A student signs in with a school
+     * address and binds a personal Google account on top, so the account a
+     * Google id is bound to must never lose to some other account that
+     * happens to share the Google address.
+     *
      * @throws ValidationException
      */
     public function findExisting(SocialiteUser $googleUser): ?User
     {
-        return User::query()
-            ->where('google_id', (string) $googleUser->getId())
-            ->orWhere('email', $this->email($googleUser))
-            ->first();
+        return User::query()->where('google_id', (string) $googleUser->getId())->first()
+            ?? User::query()->where('email', $this->email($googleUser))->first();
     }
 
     /**
@@ -92,11 +95,25 @@ class ResolveGoogleUser
      *
      * An account that already exists keeps its current role, so a student who
      * has since been upgraded to a client is never duplicated or reset.
+     *
+     * An account matched on its address that already has a different Google
+     * account bound is refused rather than switched over: the bound one is
+     * the student's way back in after graduation, and only the student may
+     * replace it, from settings.
+     *
+     * @throws ValidationException
      */
     private function link(User $user, SocialiteUser $googleUser, string $googleId): User
     {
+        if ($user->google_id !== null && $user->google_id !== $googleId) {
+            throw ValidationException::withMessages([
+                'email' => [__('This SDPC account is linked to a different Google account. Sign in with that one instead.')],
+            ]);
+        }
+
         $user->forceFill([
             'google_id' => $googleId,
+            'google_email' => $user->google_email ?? $this->email($googleUser),
             'avatar' => $user->avatar ?? $googleUser->getAvatar(),
             'email_verified_at' => $user->email_verified_at ?? now(),
         ])->save();

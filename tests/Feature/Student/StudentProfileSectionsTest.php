@@ -427,16 +427,57 @@ class StudentProfileSectionsTest extends TestCase
         $this->actingAs($student)
             ->patch(route('profile.update'), [
                 'name' => 'Jeremie G. Caasi',
-                'email' => 'jeremie@sdpc.test',
+                'email' => 'jeremie@sti.edu.ph',
             ])
             ->assertSessionHasNoErrors();
 
         $fresh = $student->fresh();
 
         $this->assertSame('Jeremie G. Caasi', $fresh->name);
-        $this->assertSame('jeremie@sdpc.test', $fresh->email);
+        $this->assertSame('jeremie@sti.edu.ph', $fresh->email);
         // A new address is not a proved one.
         $this->assertNull($fresh->email_verified_at);
+    }
+
+    /**
+     * A student signs in with their school address, so they cannot swap it
+     * for a personal one here.
+     */
+    public function test_a_student_can_not_change_to_a_non_school_address(): void
+    {
+        $student = $this->student();
+        $original = $student->email;
+
+        $this->actingAs($student)
+            ->from($this->route('student.profile.edit', $student))
+            ->patch(route('profile.update'), [
+                'name' => $student->name,
+                'email' => 'jeremie@gmail.com',
+            ])
+            ->assertSessionHasErrors([
+                'email' => 'Use your school email. It must end in .edu.ph.',
+            ]);
+
+        $this->assertSame($original, $student->fresh()->email);
+    }
+
+    /**
+     * Students who registered before sign up asked for a school address keep
+     * the personal one they have, and can still save the rest of the form.
+     */
+    public function test_an_unchanged_personal_address_still_saves(): void
+    {
+        $student = $this->student();
+        $student->forceFill(['email' => 'jeremie@gmail.com'])->save();
+
+        $this->actingAs($student)
+            ->patch(route('profile.update'), [
+                'name' => 'Jeremie G. Caasi',
+                'email' => 'jeremie@gmail.com',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Jeremie G. Caasi', $student->fresh()->name);
     }
 
     public function test_an_address_somebody_else_holds_is_refused(): void

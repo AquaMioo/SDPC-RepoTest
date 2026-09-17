@@ -8,6 +8,7 @@ use App\Enums\GoogleAuthIntent;
 use App\Http\Controllers\Controller;
 use App\Support\AuthHome;
 use App\Support\PendingGoogleRegistration;
+use App\Support\PendingMicrosoftRegistration;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -119,6 +120,8 @@ class GoogleAuthController extends Controller
             ]));
         }
 
+        // One pending identity at a time, as in MicrosoftAuthController.
+        PendingMicrosoftRegistration::forget();
         PendingGoogleRegistration::put($googleUser, $email);
 
         return redirect()->route('register');

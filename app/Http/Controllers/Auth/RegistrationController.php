@@ -11,6 +11,7 @@ use App\Models\School;
 use App\Models\TeamInvitation;
 use App\Services\Verification\OneTimePasswordService;
 use App\Support\PendingGoogleRegistration;
+use App\Support\PendingMicrosoftRegistration;
 use App\Support\PendingRegistration;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -56,11 +57,16 @@ class RegistrationController extends Controller
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
             'canLoginWithGoogle' => (bool) config('services.google.enabled'),
             'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
+            'canLoginWithMicrosoft' => (bool) config('services.microsoft.enabled'),
+            'microsoftSetupHint' => $this->shouldHintAtMicrosoftSetup(),
             'roles' => UserRole::selfAssignable(),
             'teamInvitation' => $this->teamInvitation($request),
             // Set once someone has come back from Google without an account
             // yet: the form prefills from it and drops the password fields.
             'googleProfile' => PendingGoogleRegistration::get(),
+            // The student counterpart: a school Microsoft account, which locks
+            // the form to Student and fills in the school email.
+            'microsoftProfile' => $this->microsoftProfile(),
             /*
              * The domains a school actually issues addresses on, so the field
              * can tick the moment a real one is typed instead of waiting for a
@@ -82,12 +88,23 @@ class RegistrationController extends Controller
     /**
      * Take the sign up and send a code to the address on it.
      *
-     * A Google identity skips the code outright — Google has already proved
-     * the address, and asking somebody to check the inbox we were just handed
-     * proof of is theatre.
+     * A Google or Microsoft identity skips the code outright — the provider has
+     * already proved the address, and asking somebody to check the inbox we
+     * were just handed proof of is theatre.
+     *
+     * A student's code goes to their school address, which is the account's
+     * address; a client's goes to the email they typed.
      */
     public function store(RegisterRequest $request): RedirectResponse
     {
+        if (PendingMicrosoftRegistration::exists()) {
+            try {
+                return $this->completeRegistration($request->validated());
+            } catch (ValidationException $exception) {
+                return $this->abandonRegistration($exception);
+            }
+        }
+
         if (PendingGoogleRegistration::exists()) {
             return $this->completeRegistration($request->validated());
         }
@@ -103,7 +120,9 @@ class RegistrationController extends Controller
          */
         $payload['password_confirmation'] = $request->input('password_confirmation');
 
-        $email = mb_strtolower(trim($payload['email']));
+        $email = mb_strtolower(trim((string) ($payload['role'] === UserRole::Student->value
+            ? $payload['school_email']
+            : $payload['email'])));
 
         /*
          * A different address than last time means the earlier code is now
@@ -201,6 +220,7 @@ class RegistrationController extends Controller
         }
 
         PendingRegistration::forget();
+        PendingMicrosoftRegistration::forget();
 
         /*
          * Written here rather than forwarded from the exception. Whichever of
@@ -252,6 +272,21 @@ class RegistrationController extends Controller
         }
 
         PendingRegistration::forget();
+
+        return to_route('register');
+    }
+
+    /**
+     * Drop a Google or Microsoft identity and show a blank form again.
+     *
+     * The identity locks both the role and the address, so without this
+     * somebody who pressed the wrong button would be stuck with it until the
+     * session expired.
+     */
+    public function forgetIdentity(): RedirectResponse
+    {
+        PendingGoogleRegistration::forget();
+        PendingMicrosoftRegistration::forget();
 
         return to_route('register');
     }
@@ -313,6 +348,34 @@ class RegistrationController extends Controller
             'code' => $invitation->code,
             'teamName' => $invitation->team->name,
         ];
+    }
+
+    /**
+     * Get the school Microsoft identity waiting to become an account.
+     *
+     * The Microsoft id stays on the server: the form only needs what it shows.
+     *
+     * @return array{email: string, first_name: string, last_name: string}|null
+     */
+    private function microsoftProfile(): ?array
+    {
+        $pending = PendingMicrosoftRegistration::get();
+
+        return $pending === null ? null : [
+            'email' => $pending['email'],
+            'first_name' => $pending['first_name'],
+            'last_name' => $pending['last_name'],
+        ];
+    }
+
+    /**
+     * Determine if the sign up screen should explain why Microsoft is missing.
+     *
+     * Only ever true outside production, like the Google hint.
+     */
+    private function shouldHintAtMicrosoftSetup(): bool
+    {
+        return ! config('services.microsoft.enabled') && ! app()->isProduction();
     }
 
     /**

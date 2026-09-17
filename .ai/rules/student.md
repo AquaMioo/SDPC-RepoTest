@@ -2,6 +2,7 @@
 paths:
   - 'app/Http/Controllers/Student/**'
   - app/Http/Controllers/Student/StudentEducationController.php
+  - app/Http/Controllers/Student/LinkedGoogleAccountController.php
 ---
 
 # Student
@@ -31,3 +32,6 @@ So the two are edited in different dialogs on purpose. The education dialog writ
 StudentEducationController resolves `school_id` on each save by matching the typed name case-insensitively against the schools table, so an unlisted school is still accepted as plain text while a listed one stays filterable. Do not make `school` a required FK — plenty of schools here are on no list.
 
 StudentEducation must declare `protected $table = 'student_educations'` — the inflector treats "education" as uncountable and otherwise looks for `student_education`.
+
+## Google binding needs its own callback URI registered in Google Cloud
+auth/google/callback is guest-only (a signed-in student is bounced before it runs), so binding uses settings/google/callback via Socialite redirectUrl(). Both URIs must be on the Google OAuth client, or linking fails with redirect_uri_mismatch. Unlinking is refused when Google is the only way in (no password, no microsoft_id); passwordless users cannot set a password from settings (current_password is required), only through Forgot password.

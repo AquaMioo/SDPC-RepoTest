@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AccountAppealController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\SessionHeartbeatController;
 use App\Http\Controllers\Auth\StudentCredentialController;
@@ -62,6 +63,14 @@ Route::middleware(['guest:'.$guard])->group(function () {
 
     Route::delete('register/verify', [RegistrationController::class, 'cancel'])
         ->name('register.verify.cancel');
+
+    /*
+     * "Not you?" on a form prefilled from Google or Microsoft. The identity
+     * locks the role and the address, so this is the only way to start over
+     * with a different one before the session expires.
+     */
+    Route::delete('register/identity', [RegistrationController::class, 'forgetIdentity'])
+        ->name('register.identity.forget');
 });
 
 /*
@@ -102,4 +111,11 @@ Route::middleware(['guest:'.$guard, 'throttle:10,1'])->group(function () {
     // session inside the controller.
     Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])
         ->name('google.callback');
+
+    // Students' school Microsoft accounts. Public portal only.
+    Route::get('auth/microsoft/redirect', [MicrosoftAuthController::class, 'redirect'])
+        ->name('microsoft.redirect');
+
+    Route::get('auth/microsoft/callback', [MicrosoftAuthController::class, 'callback'])
+        ->name('microsoft.callback');
 });

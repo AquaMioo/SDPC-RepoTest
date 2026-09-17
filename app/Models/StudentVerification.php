@@ -12,19 +12,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * A third party's answer about a student's enrolment.
+ * An automated answer about a student's enrolment.
  *
- * Optional throughout. Nothing reads this to decide whether a student may
- * apply, message or sign — App\Http\Middleware\EnsureAccountIsVerified still
- * answers to the administrator-reviewed credential alone. A verified row adds
- * a badge and gives a reviewer evidence, and that is the whole of its power.
+ * It only gates while a verifier is available — see
+ * User::hasPassedStudentVerification(). Otherwise a verified row adds a badge
+ * and gives a reviewer evidence, and that is the whole of its power.
  *
  * @property int $id
  * @property int $user_id
  * @property VerificationProvider $provider
  * @property VerificationStatus $status
- * @property string|null $external_id
- * @property string|null $redirect_url
  * @property Carbon|null $verified_at
  * @property string|null $failure_reason
  * @property array<string, mixed>|null $payload
@@ -33,8 +30,7 @@ use Illuminate\Support\Carbon;
  * @property-read User $user
  */
 #[Fillable([
-    'user_id', 'provider', 'status', 'external_id', 'redirect_url',
-    'verified_at', 'failure_reason', 'payload',
+    'user_id', 'provider', 'status', 'verified_at', 'failure_reason', 'payload',
 ])]
 class StudentVerification extends Model
 {

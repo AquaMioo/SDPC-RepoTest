@@ -22,10 +22,8 @@ class StudentVerificationFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'provider' => VerificationProvider::SheerId,
+            'provider' => VerificationProvider::SchoolEmail,
             'status' => VerificationStatus::Pending,
-            'external_id' => fake()->uuid(),
-            'redirect_url' => fake()->url(),
         ];
     }
 

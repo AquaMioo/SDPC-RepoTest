@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Student\ClientDirectoryController;
+use App\Http\Controllers\Student\LinkedGoogleAccountController;
 use App\Http\Controllers\Student\PortfolioItemController;
 use App\Http\Controllers\Student\ProjectBoardController;
 use App\Http\Controllers\Student\ProjectProcessController;
@@ -9,7 +10,6 @@ use App\Http\Controllers\Student\StudentEducationController;
 use App\Http\Controllers\Student\StudentLanguageController;
 use App\Http\Controllers\Student\StudentPhotoController;
 use App\Http\Controllers\Student\StudentProfileController;
-use App\Http\Controllers\Student\StudentVerificationController;
 use App\Http\Controllers\Student\WorkflowController;
 use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureAccountIsVerified;
@@ -26,33 +26,41 @@ use Illuminate\Support\Facades\Route;
  * registration order and silently 403 whichever role lost.
  */
 /*
- * The optional third-party enrolment check.
+ * Student account settings.
  *
- * Off the `{current_team}` prefix because the button that reaches it lives in
- * settings, which is not team-scoped either. Both routes 404 unless SheerID is
- * actually configured — see config/sheerid.php — and nothing anywhere on the
- * platform gates on the answer.
+ * Off the `{current_team}` prefix because the screens that reach these live in
+ * settings, which is not team-scoped either.
  */
 Route::prefix('settings')
     ->middleware(['auth', 'verified', EnsureUserIsStudent::class])
     ->group(function () {
-        Route::post('student-verification', [StudentVerificationController::class, 'store'])
-            ->name('student.verification.store');
-        Route::get('student-verification/return', [StudentVerificationController::class, 'update'])
-            ->name('student.verification.return');
-
         /*
          * Proving enrolment with a code mailed to a school-issued address.
          *
          * Both 404 while config('verification.school_email.enabled') is false
-         * or no school carries a domain — see config/verification.php. Unlike
-         * the two routes above, this one DOES gate: while it is available,
-         * User::hasPassedStudentVerification() waits on a confirmed row.
+         * or no school carries a domain — see config/verification.php. While it
+         * is available, User::hasPassedStudentVerification() waits on a
+         * confirmed row.
          */
         Route::post('school-email', [SchoolEmailVerificationController::class, 'store'])
             ->name('student.school-email.store');
         Route::post('school-email/confirm', [SchoolEmailVerificationController::class, 'update'])
             ->name('student.school-email.confirm');
+
+        /*
+         * A personal Google account to sign in with once the school address
+         * is gone. Its own callback rather than auth/google/callback, which is
+         * guest-only and would bounce a signed-in student straight back out.
+         * Both 404 while Google sign-in is not configured.
+         */
+        Route::middleware('throttle:10,1')->group(function () {
+            Route::get('google', [LinkedGoogleAccountController::class, 'redirect'])
+                ->name('student.google.link');
+            Route::get('google/callback', [LinkedGoogleAccountController::class, 'callback'])
+                ->name('student.google.callback');
+            Route::delete('google', [LinkedGoogleAccountController::class, 'destroy'])
+                ->name('student.google.unlink');
+        });
     });
 
 Route::prefix('{current_team}')
