@@ -1,9 +1,10 @@
 # The three processes SDPCC needs running at once.
 #
 # Railway runs ONE process per service, so this file is a menu rather than a
-# recipe: create three services in the Railway project, all pointed at this
-# same GitHub repo, and set each one's Start Command to the matching line
-# below. Deploying once does not give you all three.
+# recipe: Railway does not read it. The three services in the Railway project
+# each have their Start Command set to `sh railway-start.sh`, which picks the
+# matching line below by service name. Deploying once does not give you all
+# three.
 #
 #   web     — the site itself. Binds $PORT, which Railway assigns and routes
 #             the public domain to.

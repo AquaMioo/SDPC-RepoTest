@@ -3,10 +3,17 @@
 # One start command, three services.
 #
 # Railway runs a single process per service, and every service in this project
-# deploys this same repository — so the start command in railway.json is shared
-# whether you want it to be or not. Without this dispatch a Reverb or queue
-# service would boot `artisan serve` instead of its own process, and would
-# re-run migrations and the seeder on top of the web service's.
+# deploys this same repository. Each service's Start Command is saved in
+# Railway's own service settings (not in the repo) as `sh railway-start.sh`,
+# with the Nixpacks builder, and this script picks the process by service
+# name. Without this dispatch a Reverb or queue service would boot
+# `artisan serve` instead of its own process, and would re-run migrations and
+# the seeder on top of the web service's.
+#
+# The web service also has a health check on /up (300 s), so Railway keeps the
+# old deployment serving until the new one answers. The worker's restart
+# policy is ALWAYS: queue:work exits cleanly after --max-time, and an
+# ON_FAILURE policy would leave it stopped.
 #
 # RAILWAY_SERVICE_NAME is injected by Railway. The fallback is the web branch,
 # so an unnamed or locally-run container still behaves the way it always did.
