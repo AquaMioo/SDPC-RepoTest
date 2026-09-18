@@ -117,7 +117,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                          * space, so on a single character it all lands to the
                          * right and the separator reads off-centre.
                          */}
-                        <span aria-hidden="true" style={{ fontSize: 20, color: MUTED }}>
+                        <span
+                            aria-hidden="true"
+                            style={{ fontSize: 20, color: MUTED }}
+                        >
                             -
                         </span>
                         <span

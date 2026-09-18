@@ -41,6 +41,10 @@ export default [
             'react/react-in-jsx-scope': 'off',
             'react/prop-types': 'off',
             'react/no-unescaped-entities': 'off',
+            // Grouped cases carry the reason for the grouping between them
+            // (app.tsx's layout switch). An empty case has nothing to fall
+            // through from, so it cannot be the bug this rule exists for.
+            'no-fallthrough': ['error', { allowEmptyCase: true }],
         },
         settings: {
             react: {

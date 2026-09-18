@@ -1,7 +1,6 @@
 import Field from '@/components/sdpc/field';
 import { Panel } from '@/components/sdpc/panel';
 import { Input } from '@/components/ui/input';
-import type { ProjectFormOptions } from '@/types/client';
 import { CATEGORIES, INDUSTRIES } from '@/types/client';
 
 export type ProjectFormValues = {
