@@ -59,6 +59,15 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            /*
+             * Talk to the server in UTC, the same as config('app.timezone'),
+             * whatever its own clock says. TIMESTAMP columns are converted
+             * through the session time zone, so on a server left at local
+             * time (the self-hosted MySQL on Philippine time) every value
+             * written in UTC elsewhere read back eight hours in the future —
+             * the moved last_seen_at stamps locked accounts as "in use".
+             */
+            'timezone' => env('DB_TIMEZONE', '+00:00'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
@@ -79,6 +88,8 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // UTC for the same reason as the mysql connection above.
+            'timezone' => env('DB_TIMEZONE', '+00:00'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
