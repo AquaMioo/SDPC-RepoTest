@@ -365,6 +365,98 @@ class SingleSessionTest extends TestCase
         );
     }
 
+    public function test_coming_back_to_the_login_screen_does_not_lock_you_out_of_your_own_account(): void
+    {
+        $user = User::factory()->create();
+
+        $this->signIn($user);
+        $this->get(route('dashboard'));
+
+        // The tab was closed; later the same browser opens the login screen,
+        // which ends the visit, and the person signs in again.
+        $this->get(route('login'))->assertOk();
+        $this->assertGuest();
+
+        $this->signIn($user)->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_an_administrator_coming_back_to_the_admin_login_is_not_locked_out(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->post(route('admin.login.store'), ['email' => $admin->email, 'password' => 'password']);
+        $this->get(route('admin.dashboard'));
+
+        $this->get(route('admin.login'))->assertOk();
+        $this->assertGuest();
+
+        $this->post(route('admin.login.store'), ['email' => $admin->email, 'password' => 'password'])
+            ->assertSessionMissing('warning');
+        $this->assertAuthenticatedAs($admin);
+    }
+
+    public function test_closing_the_last_tab_frees_the_account_straight_away(): void
+    {
+        $user = User::factory()->create();
+
+        $this->signIn($user);
+        $this->get(route('dashboard'));
+
+        $this->post(route('session.leave'))->assertNoContent();
+        $this->assertFalse($user->refresh()->isOnline());
+
+        // No five-minute wait for the next device.
+        $this->onDevice('phone');
+
+        $this->signIn($user)->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_the_browser_that_left_is_still_signed_in_when_it_comes_back(): void
+    {
+        $user = User::factory()->create();
+
+        $this->signIn($user);
+        $this->post(route('session.leave'));
+
+        $this->get(route('profile.edit'))->assertOk();
+        $this->assertAuthenticatedAs($user);
+
+        // Back in use: a second device is refused again.
+        $this->assertTrue($user->refresh()->isOnline());
+
+        $this->onDevice('phone');
+
+        $this->signIn($user)->assertSessionHas('warning', AccountSession::IN_USE);
+    }
+
+    public function test_a_replaced_device_cannot_free_the_account_by_leaving(): void
+    {
+        $user = User::factory()->create();
+
+        $this->signIn($user);
+        $this->travel(User::PRESENCE_WINDOW_MINUTES + 1)->minutes();
+
+        $this->onDevice('phone');
+        $this->signIn($user)->assertRedirect(route('dashboard'));
+
+        // The laptop was replaced; its "I've left" must not free the phone's hold.
+        $this->onDevice('laptop');
+        $this->postJson(route('session.leave'))->assertConflict();
+
+        $this->assertTrue($user->refresh()->isOnline());
+
+        $this->onDevice('tablet');
+
+        $this->signIn($user)->assertSessionHas('warning', AccountSession::IN_USE);
+    }
+
+    public function test_leaving_needs_a_signed_in_session(): void
+    {
+        $this->postJson(route('session.leave'))->assertUnauthorized();
+    }
+
     public function test_one_browser_can_still_sign_in_as_two_different_people_in_turn(): void
     {
         $client = User::factory()->client()->create();

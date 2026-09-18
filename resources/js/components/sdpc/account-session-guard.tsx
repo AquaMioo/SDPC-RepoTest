@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 import { isAccountHeldInUse } from '@/lib/account-session';
 import { edit as securityEdit } from '@/routes/security';
-import { heartbeat } from '@/routes/session';
+import { heartbeat, leave } from '@/routes/session';
 
 type SharedProps = {
     auth?: { user?: { id: number } | null };
@@ -42,6 +42,71 @@ const ACTIVITY_EVENTS = [
  */
 const ACCESS_BLOCKED_TOAST = 'account-access-blocked';
 const ACCESS_BLOCKED_SHOWN_FOR_MS = 2_000;
+
+/*
+ * Every open tab of the account writes itself into localStorage, so the one
+ * closing can tell whether it is the last. A tab refreshes its entry on a
+ * timer, and a browser may slow a background tab's timers to once a minute,
+ * so an entry only counts as gone well after that.
+ */
+const OPEN_TABS_KEY = 'sdpc.open-tabs';
+const TAB_ALIVE_EVERY_MS = 20_000;
+const TAB_GONE_AFTER_MS = 90_000;
+
+type OpenTabs = Record<string, number>;
+
+/**
+ * Read, change and write back this account's open-tab list.
+ *
+ * Returns null when storage is unavailable (a private window, blocked site
+ * data) — the caller then cannot see other tabs and treats itself as alone.
+ */
+function updateOpenTabs(
+    key: string,
+    change: (tabs: OpenTabs) => OpenTabs,
+): OpenTabs | null {
+    try {
+        const stored = JSON.parse(
+            window.localStorage.getItem(key) ?? '{}',
+        ) as OpenTabs;
+        const alive = Object.fromEntries(
+            Object.entries(stored).filter(
+                ([, seen]) => Date.now() - seen < TAB_GONE_AFTER_MS,
+            ),
+        );
+        const next = change(alive);
+
+        window.localStorage.setItem(key, JSON.stringify(next));
+
+        return next;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Tell the server this browser has gone, as the page unloads.
+ *
+ * keepalive lets the request outlive the tab. If it never arrives, the
+ * server's presence window frees the account a few minutes later anyway.
+ */
+function sendLeave(): void {
+    const xsrf = document.cookie
+        .split('; ')
+        .find((entry) => entry.startsWith('XSRF-TOKEN='))
+        ?.split('=')[1];
+
+    void fetch(leave.url(), {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': decodeURIComponent(xsrf ?? ''),
+        },
+    }).catch(() => undefined);
+}
 
 /**
  * Keeps this device's hold on the account, and warns when somebody else tries.
@@ -141,6 +206,51 @@ function Guard({ userId }: { userId: number }) {
             window.clearInterval(timer);
         };
     }, []);
+
+    /*
+     * Closing the last tab frees the account at once. Without this the server
+     * only notices the person has gone when the presence window runs out, and
+     * for those minutes a second browser — often the same person's — is told
+     * the account is in use. Closing one of several tabs frees nothing.
+     */
+    useEffect(() => {
+        const key = `${OPEN_TABS_KEY}.${userId}`;
+        const tabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        const register = (): void => {
+            updateOpenTabs(key, (tabs) => ({ ...tabs, [tabId]: Date.now() }));
+        };
+
+        const forget = (): OpenTabs | null =>
+            updateOpenTabs(key, (tabs) =>
+                Object.fromEntries(
+                    Object.entries(tabs).filter(([id]) => id !== tabId),
+                ),
+            );
+
+        const onPageHide = (): void => {
+            const others = forget();
+
+            if (others === null || Object.keys(others).length === 0) {
+                sendLeave();
+            }
+        };
+
+        register();
+
+        const timer = window.setInterval(register, TAB_ALIVE_EVERY_MS);
+
+        window.addEventListener('pagehide', onPageHide);
+        /* Restored from the back/forward cache: open again. */
+        window.addEventListener('pageshow', register);
+
+        return () => {
+            window.clearInterval(timer);
+            window.removeEventListener('pagehide', onPageHide);
+            window.removeEventListener('pageshow', register);
+            forget();
+        };
+    }, [userId]);
 
     /*
      * The alert belongs to the signed-in account. The guard unmounts when the

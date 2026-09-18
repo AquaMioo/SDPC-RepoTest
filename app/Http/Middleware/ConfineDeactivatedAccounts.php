@@ -32,11 +32,12 @@ class ConfineDeactivatedAccounts
         'legal',
         // Signing in and out. A login screen ends the session on its own
         // (EndSessionOnLoginScreen), and the heartbeat keeps one device per
-        // account while settings is open.
+        // account while settings is open; leave frees it when the tab closes.
         'login',
         'admin.login',
         'logout',
         'session.heartbeat',
+        'session.leave',
         // Settings → Account, the appeal, and deleting the account.
         'profile.edit',
         'profile.appeal.store',

@@ -54,14 +54,11 @@ final class AccountSession
      */
     public function admit(Request $request, User $user): ?string
     {
-        $mine = $request->session()->get($this->sessionKey($user));
-        $held = $user->active_session_token;
-
-        if (is_string($mine) && is_string($held) && hash_equals($held, $mine)) {
+        if ($this->holds($request, $user)) {
             return null;
         }
 
-        if (is_string($mine)) {
+        if (is_string($request->session()->get($this->sessionKey($user)))) {
             return self::REPLACED;
         }
 
@@ -85,6 +82,41 @@ final class AccountSession
             'active_session_token' => null,
             'last_seen_at' => null,
         ])->saveQuietly());
+    }
+
+    /**
+     * Say this device has gone, without giving up its hold.
+     *
+     * Sent by the page when the last tab on it closes. "In use" is read off
+     * the presence stamp, so nulling it lets another device sign in straight
+     * away rather than wait out the presence window — which is what left a
+     * closed tab locking its own owner out of a second browser for minutes.
+     *
+     * The token stays. If nobody else signs in, this browser comes back to the
+     * same session, is admitted as the holder, and its next request stamps it
+     * present again. Only the holder may say it has left: a replaced session
+     * must never free an account somebody else is using.
+     */
+    public function leave(Request $request, User $user): void
+    {
+        if (! $this->holds($request, $user)) {
+            return;
+        }
+
+        User::withoutTimestamps(
+            fn () => $user->forceFill(['last_seen_at' => null])->saveQuietly(),
+        );
+    }
+
+    /**
+     * Whether this request's session is the one holding the account.
+     */
+    private function holds(Request $request, User $user): bool
+    {
+        $mine = $request->session()->get($this->sessionKey($user));
+        $held = $user->active_session_token;
+
+        return is_string($mine) && is_string($held) && hash_equals($held, $mine);
     }
 
     /**

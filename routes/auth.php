@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\SessionHeartbeatController;
+use App\Http\Controllers\Auth\SessionLeaveController;
 use App\Http\Controllers\Auth\StudentCredentialController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,13 @@ Route::middleware(['auth:'.$guard])->group(function () {
      * it needs no CSRF token; all it changes is the presence stamp.
      */
     Route::get('session/heartbeat', SessionHeartbeatController::class)->name('session.heartbeat');
+
+    /*
+     * Sent when the last tab closes, so another device can sign in at once
+     * instead of waiting out the presence window. A POST because it is sent
+     * as the page unloads, with the XSRF header, and it changes state.
+     */
+    Route::post('session/leave', SessionLeaveController::class)->name('session.leave');
 
     Route::get('credentials', [StudentCredentialController::class, 'create'])->name('credentials.create');
 
