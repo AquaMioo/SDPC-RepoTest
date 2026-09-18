@@ -25,9 +25,9 @@ class AdminMonitoringController extends Controller
      * and now that the status actually costs the account something, this is
      * also where they get to answer it.
      *
-     * Deactivated accounts are listed alongside. They cannot sign in to appeal
-     * from their settings, so the guest page at /appeal is their only door —
-     * and this is where what they wrote arrives.
+     * Deactivated accounts are listed alongside. They sign in only to Settings
+     * (ConfineDeactivatedAccounts), where they write their appeal — or use
+     * the guest page at /appeal — and this is where what they wrote arrives.
      */
     public function index(): Response
     {

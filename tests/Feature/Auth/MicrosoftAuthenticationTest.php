@@ -342,19 +342,19 @@ class MicrosoftAuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_a_deactivated_account_can_not_sign_in_with_microsoft(): void
+    public function test_a_deactivated_account_signs_in_with_microsoft_to_its_settings(): void
     {
-        User::factory()->student()->create([
+        $student = User::factory()->student()->create([
             'email' => '02000123456@sti.edu.ph',
             'status' => UserStatus::Deactivated,
         ]);
 
         $this->startLogin();
 
-        $this->get(route('microsoft.callback'))->assertSessionHasErrors([
-            'microsoft' => 'This account has been deactivated. Please contact an administrator.',
-        ]);
-        $this->assertGuest();
+        $this->get(route('microsoft.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false));
+
+        $this->assertAuthenticatedAs($student);
     }
 
     public function test_an_administrator_can_not_sign_in_through_microsoft(): void

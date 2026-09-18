@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AddSecurityHeaders;
+use App\Http\Middleware\ConfineDeactivatedAccounts;
 use App\Http\Middleware\EndSessionOnLoginScreen;
 use App\Http\Middleware\EnforceSingleSession;
 use App\Http\Middleware\EnsureUserHasRole;
@@ -35,6 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // First: nothing after it may act for a device that does not hold the account.
             EnforceSingleSession::class,
             EndSessionOnLoginScreen::class,
+            // A deactivated account signs in to Settings and its appeal, and nowhere else.
+            ConfineDeactivatedAccounts::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SetTeamUrlDefaults::class,

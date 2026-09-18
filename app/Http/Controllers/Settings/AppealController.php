@@ -9,7 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
 /**
- * The appeal a monitored account writes about itself.
+ * The appeal a monitored or deactivated account writes about itself.
  *
  * Reached from Account Information, which is why it lives in settings: the
  * account can still sign in, so the place to answer a decision about it is the

@@ -48,6 +48,7 @@ export default function AccountAppealCard({
         <div
             className="card elev-sm"
             style={{ marginTop: 24, padding: 20, gap: 12 }}
+            id="appeal"
             data-test="appeal-card"
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -67,7 +68,7 @@ export default function AccountAppealCard({
             >
                 {accountStatus.restricted
                     ? 'Your account is under review. You can still sign in, look around and talk to the people you are working with, but posting, applying, hiring and signing are on hold until an administrator decides.'
-                    : 'Your account has been deactivated by an administrator.'}
+                    : 'Your account has been deactivated by an administrator. Until it is restored you can only open Settings, and send an appeal here.'}
             </p>
 
             {appeal && (

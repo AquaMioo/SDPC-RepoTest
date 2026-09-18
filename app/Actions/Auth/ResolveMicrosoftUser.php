@@ -106,10 +106,8 @@ class ResolveMicrosoftUser
             ]));
         }
 
-        if (! $user->status->canAuthenticate()) {
-            $this->refuse('deactivated', __('This account has been deactivated. Please contact an administrator.'));
-        }
-
+        // A deactivated account signs in too; ConfineDeactivatedAccounts keeps
+        // it inside Settings.
         if (! AuthPortal::Public->allows($user->role)) {
             $this->refuse('wrong_portal', AuthPortal::Public->rejectionMessage());
         }

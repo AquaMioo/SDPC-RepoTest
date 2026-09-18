@@ -178,7 +178,7 @@ class AdminUserManagementTest extends TestCase
         $this->assertSame(UserStatus::Pending, $student->refresh()->status);
     }
 
-    public function test_a_deactivated_account_can_no_longer_sign_in(): void
+    public function test_a_deactivated_account_signs_in_to_its_settings_only(): void
     {
         $admin = User::factory()->admin()->create();
         $student = User::factory()->student()->create();
@@ -194,9 +194,12 @@ class AdminUserManagementTest extends TestCase
         $this->post(route('login.store'), [
             'email' => $student->email,
             'password' => 'password',
-        ]);
+        ])->assertRedirect(route('profile.edit', absolute: false));
 
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($student);
+
+        $this->get(route('dashboard', ['current_team' => $student->currentTeam]))
+            ->assertRedirect(route('profile.edit'));
     }
 
     /**

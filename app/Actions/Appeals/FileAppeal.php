@@ -9,10 +9,11 @@ use App\Models\User;
 /**
  * Records an account's answer to a decision taken about it.
  *
- * Two screens reach this: a monitored account writes its appeal from settings,
- * and a deactivated one from the guest page — it cannot sign in to reach
- * settings at all. Both file the same row, which is why the rule about how
- * many may be open lives here rather than in either controller.
+ * Two screens reach this: monitored and deactivated accounts write their
+ * appeal from settings once signed in, and the guest page at /appeal takes one
+ * from an account that cannot sign in (a forgotten password, say). Both file
+ * the same row, which is why the rule about how many may be open lives here
+ * rather than in either controller.
  */
 class FileAppeal
 {

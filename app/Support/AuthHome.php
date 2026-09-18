@@ -29,6 +29,12 @@ final class AuthHome
             return '/';
         }
 
+        // Settings is all a deactivated account can reach, so it lands there
+        // instead of bouncing off ConfineDeactivatedAccounts.
+        if ($user->isDeactivated()) {
+            return route('profile.edit', absolute: false);
+        }
+
         if ($user->isAdmin()) {
             return route('admin.dashboard', absolute: false);
         }

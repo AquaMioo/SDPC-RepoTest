@@ -49,8 +49,8 @@ const MUTED = (pct: number) =>
  * arrives: an account that thinks the decision is wrong writes an appeal, and
  * it is granted or denied here.
  *
- * Deactivated accounts are listed alongside. They cannot reach their own
- * settings to appeal, so the guest page at /appeal is their only door.
+ * Deactivated accounts are listed alongside. They sign in only to Settings,
+ * where they appeal — or use the guest page at /appeal if they cannot sign in.
  */
 export default function AdminMonitoring({ accounts }: Props) {
     const [pending, setPending] = useState<{

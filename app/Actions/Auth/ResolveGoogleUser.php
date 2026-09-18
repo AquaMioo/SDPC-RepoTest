@@ -30,7 +30,8 @@ class ResolveGoogleUser
             ]);
         }
 
-        $this->ensureAccountIsActive($user);
+        // A deactivated account signs in too; ConfineDeactivatedAccounts keeps
+        // it inside Settings.
         $this->ensureUserMayUsePortal($user, $portal);
 
         return $this->link($user, $googleUser, (string) $googleUser->getId());
@@ -72,22 +73,6 @@ class ResolveGoogleUser
         }
 
         return mb_strtolower($email);
-    }
-
-    /**
-     * Ensure the account has not been deactivated by an administrator.
-     *
-     * @throws ValidationException
-     */
-    private function ensureAccountIsActive(User $user): void
-    {
-        if ($user->status->canAuthenticate()) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            'email' => [__('This account has been deactivated. Please contact an administrator.')],
-        ]);
     }
 
     /**

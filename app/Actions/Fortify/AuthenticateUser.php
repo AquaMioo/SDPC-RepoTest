@@ -30,26 +30,11 @@ class AuthenticateUser
             return null;
         }
 
-        $this->ensureAccountIsActive($user);
+        // A deactivated account signs in too: ConfineDeactivatedAccounts keeps
+        // it inside Settings, where its appeal is written.
         $this->ensureUserMayUsePortal($request, $user);
 
         return $user;
-    }
-
-    /**
-     * Ensure the account has not been deactivated by an administrator.
-     *
-     * @throws ValidationException
-     */
-    private function ensureAccountIsActive(User $user): void
-    {
-        if ($user->status->canAuthenticate()) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            Fortify::username() => [__('This account has been deactivated. Please contact an administrator.')],
-        ]);
     }
 
     /**

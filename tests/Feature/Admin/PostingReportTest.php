@@ -235,8 +235,9 @@ class PostingReportTest extends TestCase
         $this->assertSame(UserStatus::Monitored, $reported->status);
         $this->assertSame('Placed under monitoring', $issue->fresh()->resolution);
 
-        // Monitoring is not deactivation: they must still be able to appeal.
-        $this->assertTrue($reported->status->canAuthenticate());
+        // Monitoring is not deactivation: the rest of the platform stays open.
+        $this->assertFalse($reported->status->confinesToSettings());
+        $this->assertTrue($reported->mayAppeal());
     }
 
     public function test_deleting_the_posting_removes_the_report(): void

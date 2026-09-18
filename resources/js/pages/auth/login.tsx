@@ -344,9 +344,10 @@ export default function Login({
                             </Btn>
                         </div>
 
-                        {/* A deactivated account is turned away by
-                            AuthenticateUser with a message and nowhere to go.
-                            This is where it goes. */}
+                        {/* A restricted or deactivated account can sign in and
+                            appeal from Settings. This is the door for anyone
+                            who cannot sign in at all — a forgotten password, a
+                            closed school mailbox. */}
                         <div
                             style={{
                                 textAlign: 'center',

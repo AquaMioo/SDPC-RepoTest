@@ -172,7 +172,11 @@ class AdminAuthenticationTest extends TestCase
         $response->assertSessionHasErrors('email');
     }
 
-    public function test_deactivated_accounts_can_not_authenticate(): void
+    /**
+     * A deactivated account still signs in, but lands on its settings — the
+     * only place left open to it, where its appeal is written.
+     */
+    public function test_deactivated_accounts_sign_in_to_their_settings(): void
     {
         $client = User::factory()->client()->deactivated()->create();
 
@@ -181,8 +185,8 @@ class AdminAuthenticationTest extends TestCase
             'password' => 'password',
         ]);
 
-        $this->assertGuest();
-        $response->assertSessionHasErrors('email');
+        $this->assertAuthenticatedAs($client);
+        $response->assertRedirect(route('profile.edit', absolute: false));
     }
 
     public function test_accounts_without_a_password_can_not_use_the_password_form(): void

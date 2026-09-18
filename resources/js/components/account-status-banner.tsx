@@ -9,22 +9,26 @@ type SharedProps = {
 /**
  * Says out loud that an account is being held back, and where to answer it.
  *
- * Only monitored accounts see this: a deactivated one never gets far enough to
- * render a layout, and pending is the ordinary state of a new account. Without
- * it, a monitored client clicking "Post a project" would be bounced by
- * EnsureAccountIsNotMonitored with no standing explanation of why.
+ * Monitored and deactivated accounts see this; pending is the ordinary state
+ * of a new account. Without it, a monitored client clicking "Post a project"
+ * would be bounced by EnsureAccountIsNotMonitored with no standing
+ * explanation of why, and a deactivated one would only see a greyed-out
+ * header.
  */
 export default function AccountStatusBanner() {
     const { props } = usePage<SharedProps>();
+    const status = props.auth?.status;
 
-    if (props.auth?.status !== 'monitored') {
+    if (status !== 'monitored' && status !== 'deactivated') {
         return null;
     }
+
+    const deactivated = status === 'deactivated';
 
     return (
         <div
             role="status"
-            data-test="monitoring-banner"
+            data-test={deactivated ? 'deactivated-banner' : 'monitoring-banner'}
             className="page-shell"
             style={{
                 maxWidth: 1180,
@@ -42,14 +46,22 @@ export default function AccountStatusBanner() {
                 flexWrap: 'wrap',
             }}
         >
-            <span style={{ marginRight: 'auto' }}>
-                <b>Your account is under review.</b> You can still look around
-                and talk to the people you are working with, but posting,
-                applying, hiring and signing are on hold.
-            </span>
+            {deactivated ? (
+                <span style={{ marginRight: 'auto' }}>
+                    <b>Your account has been deactivated.</b> Only Settings is
+                    open until an administrator restores it. You can send an
+                    appeal from Account.
+                </span>
+            ) : (
+                <span style={{ marginRight: 'auto' }}>
+                    <b>Your account is under review.</b> You can still look
+                    around and talk to the people you are working with, but
+                    posting, applying, hiring and signing are on hold.
+                </span>
+            )}
 
             <Link
-                href={profileEdit.url()}
+                href={`${profileEdit.url()}#appeal`}
                 style={{ textDecoration: 'underline' }}
             >
                 Review appeal

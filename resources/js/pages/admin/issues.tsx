@@ -286,7 +286,7 @@ function consequenceOf(action: IssueAction, issue: Issue): string {
         case 'monitor':
             return `This puts ${issue.reportedUser} under monitoring and closes the report. They can still sign in and look around, but cannot post, apply, hire or sign until an administrator restores them on the Users page. They may appeal.`;
         case 'remove_access':
-            return `This deactivates ${issue.reportedUser} and closes the report. They cannot sign in until an administrator restores them on the Users page.`;
+            return `This deactivates ${issue.reportedUser} and closes the report. They can only sign in to Settings, to appeal, until an administrator restores them on the Users page.`;
         case 'close_posting':
             return `This takes "${issue.reportedPosting?.title}" off the student board and closes the report. ${issue.reportedUser} keeps their access — close the report against them separately if that is warranted.`;
     }

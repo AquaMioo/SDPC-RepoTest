@@ -144,10 +144,12 @@ class User extends Authenticatable implements PasskeyUser
 
     /**
      * Determine if the account has been deactivated by an administrator.
+     *
+     * It can still sign in, but only Settings and the appeal are open to it.
      */
     public function isDeactivated(): bool
     {
-        return ! $this->status->canAuthenticate();
+        return $this->status->confinesToSettings();
     }
 
     /**

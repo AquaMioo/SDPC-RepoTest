@@ -14,11 +14,12 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The appeal page for accounts that can no longer sign in.
+ * The appeal page for accounts that cannot sign in right now.
  *
- * A deactivated account cannot reach settings, so it cannot use the appeal
- * that lives there — and it is the account most likely to want one. This is
- * that door, and it is open to guests by necessity.
+ * A deactivated account can sign in to Settings and appeal from there, but not
+ * everyone who wants to appeal can sign in — a forgotten password, a closed
+ * school mailbox. This is the door for them, and it is open to guests by
+ * necessity.
  *
  * Identity is proved with an emailed code rather than a password, for a reason
  * that is easy to miss: accounts created through Google have no password at

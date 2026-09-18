@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    BellIcon,
     ChatCircleIcon,
     GearSixIcon,
     UserCircleIcon,
@@ -35,6 +36,8 @@ type SharedProps = {
     auth?: {
         user?: { name: string; role: string } | null;
         role?: string | null;
+        /** UserStatus value; "deactivated" confines the account to settings. */
+        status?: string | null;
     };
     unreadMessages?: number;
     unreadNotifications?: number;
@@ -103,6 +106,10 @@ const NAV_LINK: CSSProperties = {
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 45%, transparent)';
 
+/** Why every destination is greyed out for a deactivated account. */
+const DEACTIVATED =
+    'Unavailable while your account is deactivated. Settings is still open.';
+
 /**
  * The signed-in shell for clients and students.
  *
@@ -118,12 +125,22 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
     const isStudent = (page.props.auth?.role ?? user?.role) === 'student';
     const billingEnabled = page.props.billingEnabled ?? false;
 
+    /*
+     * A deactivated account signs in only to reach Settings and its appeal
+     * (ConfineDeactivatedAccounts on the server). Every destination here is
+     * still drawn, greyed out with the reason, so the account can see what it
+     * has lost rather than wonder where the navigation went.
+     */
+    const isDeactivated = page.props.auth?.status === 'deactivated';
+
     useMod('user');
 
     /** Each role's own front door — the client module 403s a student. */
-    const home = isStudent
-        ? dashboard.url(team.slug)
-        : clientDashboard.url(team.slug);
+    const home = isDeactivated
+        ? profileEdit.url()
+        : isStudent
+          ? dashboard.url(team.slug)
+          : clientDashboard.url(team.slug);
 
     /*
      * The student links point at routes/student.php, never at the client
@@ -187,7 +204,11 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                   { label: 'Agreement', href: agreementsIndex.url(team.slug) },
                   { label: 'Team', href: teamsIndex.url() },
               ]
-    ).filter((item): item is NavItem => item !== null);
+    )
+        .filter((item): item is NavItem => item !== null)
+        .map((item) =>
+            isDeactivated ? { label: item.label, pending: DEACTIVATED } : item,
+        );
 
     return (
         <div
@@ -258,8 +279,17 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                     <div className="app-bar-actions" style={{ fontSize: 18 }}>
                         <IconAction
                             label="Messages"
-                            href={messagesIndex.url(team.slug)}
-                            badge={page.props.unreadMessages ?? 0}
+                            href={
+                                isDeactivated
+                                    ? undefined
+                                    : messagesIndex.url(team.slug)
+                            }
+                            pending={DEACTIVATED}
+                            badge={
+                                isDeactivated
+                                    ? 0
+                                    : (page.props.unreadMessages ?? 0)
+                            }
                         >
                             <ChatCircleIcon size={NAV_ICON} />
                         </IconAction>
@@ -267,22 +297,41 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                          * The bell opens its own menu rather than navigating.
                          * Everything else on this row is still a plain link.
                          */}
-                        <NotificationMenu
-                            rows={page.props.recentNotifications ?? []}
-                            unread={page.props.unreadNotifications ?? 0}
-                            teamSlug={team.slug}
-                        />
+                        {isDeactivated ? (
+                            <IconAction
+                                label="Notifications"
+                                pending={DEACTIVATED}
+                            >
+                                <BellIcon size={NAV_ICON} />
+                            </IconAction>
+                        ) : (
+                            <NotificationMenu
+                                rows={page.props.recentNotifications ?? []}
+                                unread={page.props.unreadNotifications ?? 0}
+                                teamSlug={team.slug}
+                            />
+                        )}
                         {isStudent ? (
                             <IconAction
                                 label="Your profile"
-                                href={studentProfileEdit.url(team.slug)}
+                                href={
+                                    isDeactivated
+                                        ? undefined
+                                        : studentProfileEdit.url(team.slug)
+                                }
+                                pending={DEACTIVATED}
                             >
                                 <UserCircleIcon size={NAV_ICON} />
                             </IconAction>
                         ) : (
                             <IconAction
                                 label="Business profile"
-                                href={clientProfileEdit.url(team.slug)}
+                                href={
+                                    isDeactivated
+                                        ? undefined
+                                        : clientProfileEdit.url(team.slug)
+                                }
+                                pending={DEACTIVATED}
                             >
                                 <UserCircleIcon size={NAV_ICON} />
                             </IconAction>
@@ -304,7 +353,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
 
             <AccountStatusBanner />
             <AccountSessionGuard />
-            <IncomingCallAlert />
+            {/* Calls happen in messages, which a deactivated account cannot open. */}
+            {!isDeactivated && <IncomingCallAlert />}
 
             <main>{children}</main>
         </div>

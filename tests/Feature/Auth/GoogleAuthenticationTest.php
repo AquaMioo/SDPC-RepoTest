@@ -268,7 +268,7 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertSame(1, User::count());
     }
 
-    public function test_a_deactivated_account_can_not_sign_in_with_google(): void
+    public function test_a_deactivated_account_signs_in_with_google_to_its_settings(): void
     {
         $user = User::factory()->client()->deactivated()->create(['email' => 'ada@example.com']);
 
@@ -277,12 +277,8 @@ class GoogleAuthenticationTest extends TestCase
 
         $response = $this->get(route('google.callback'));
 
-        $response->assertRedirect(route('login'));
-        $response->assertSessionHasErrors('google');
-        $this->assertGuest();
-
-        // The identity is not attached to an account that can not use it.
-        $this->assertNull($user->refresh()->google_id);
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('profile.edit', absolute: false));
     }
 
     public function test_an_administrator_can_not_sign_in_through_the_public_portal(): void
