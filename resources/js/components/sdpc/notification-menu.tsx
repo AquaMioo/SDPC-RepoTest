@@ -159,9 +159,9 @@ export function NotificationMenu({
                         <Link
                             href={notificationsIndex.url(teamSlug)}
                             onClick={() => setOpen(false)}
+                            data-quiet=""
                             style={{
                                 fontSize: 13,
-                                color: 'var(--color-text)',
                                 textDecoration: 'none',
                             }}
                         >

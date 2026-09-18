@@ -120,14 +120,7 @@ export default function Profile({
                             }}
                         >
                             Your email address is unverified.{' '}
-                            <Link
-                                href={send()}
-                                as="button"
-                                style={{
-                                    color: 'var(--color-accent)',
-                                    textDecoration: 'underline',
-                                }}
-                            >
+                            <Link href={send()} as="button" data-inline-link="">
                                 Re-send the verification email.
                             </Link>
                             {status === 'verification-link-sent' && (

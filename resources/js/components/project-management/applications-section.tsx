@@ -92,9 +92,9 @@ export function ApplicationsSection({
                                         current_team: teamSlug,
                                         project: application.projectSlug,
                                     })}
+                                    data-quiet=""
                                     style={{
                                         fontSize: 13.5,
-                                        color: 'var(--color-text)',
                                         textDecoration: 'none',
                                     }}
                                 >

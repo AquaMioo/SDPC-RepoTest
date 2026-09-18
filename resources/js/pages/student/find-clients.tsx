@@ -586,11 +586,11 @@ function BriefRow({
 
             <Link
                 href={href}
+                data-quiet=""
                 style={{
                     fontFamily: 'var(--font-heading)',
                     fontSize: 19,
                     lineHeight: 1.25,
-                    color: 'var(--color-text)',
                     textDecoration: 'none',
                 }}
             >

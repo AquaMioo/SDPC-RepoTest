@@ -661,6 +661,16 @@ textarea.input { min-height: 90px; resize: vertical; }
 body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
 a:not([data-slot='button']) { color: var(--color-accent); }
 a:not([data-slot='button']):hover { color: var(--color-accent-300); }
+/* Under [data-mod="user"] the accent ramp runs the other way and
+   --color-accent-300 IS --color-accent, so the hover above resolves to the
+   colour the link already has: every plain link on the student and client side
+   sat dead under the pointer. Leaning on the page's own foreground deepens the
+   olive instead. :where() keeps this at the same weight as the rule above, so
+   the header, fine-print and quiet links further down still win. A Btn
+   rendered as a link (data-slot="btn") already answers with its own tint. */
+:where([data-mod='user']) a:not([data-slot='button'], [data-slot='btn']):hover {
+  color: color-mix(in srgb, var(--color-accent) 70%, var(--color-text));
+}
 /* The header links carry their colour here rather than inline.
    An inline colour outranks every selector, so while it sat in the component
    the current-page rule below could never fire and hover could not exist at
@@ -720,27 +730,27 @@ a[data-nav][aria-current="page"]::after { transform: scaleY(1); }
   a[data-nav]:hover { transform: none; }
 }
 
-/* The fine-print links — Terms of Service, User Agreement, Privacy Policy in
-   the sign-up consent line — answer the pointer in the same language as the
-   header: the accent brightens and a bar grows upward out of the bottom edge.
-   It is painted as a background rather than the ::after the header uses,
+/* Text links — the legal links in the sign-up consent line and the footer, a
+   task's proof, "Not you? Start over" — answer the pointer in the same language
+   as the header: the accent deepens and a bar grows upward out of the bottom
+   edge. It is painted as a background rather than the ::after the header uses,
    because these sit mid-sentence: an inline box takes no transform, and a
    pseudo-element on a link that wraps is stranded on the last line.
    box-decoration-break gives every line fragment its own bar.
 
+   The button form is for a Link rendered as="button" that reads as a link;
+   the anchor-only rules above never reach it.
+
    Their colour lives here and not inline for the same reason a[data-nav]'s
    does: an inline colour outranks every selector, so hover could not exist at
-   all — which is exactly what these three were, unreactive, before this.
-
-   The hover colour is a mix toward --color-text rather than --color-accent-300,
-   which is what a generic link hover uses: under [data-mod="user"] the accent
-   ramp runs the other way and --color-accent-300 IS --color-accent, so that
-   hover is a no-op on the light side. Leaning on the page's own foreground
-   brightens the green on the dark ground and deepens the olive on the light one
-   from a single declaration. */
-a[data-legal] {
+   all — which is exactly what these were, unreactive, before this. The hover
+   colour is the same mix toward --color-text as the user-palette link hover
+   above, which brightens the green on the dark ground as well. */
+a[data-inline-link],
+button[data-inline-link] {
   color: var(--color-accent);
   padding-bottom: 2px;
+  cursor: pointer;
   background-image: linear-gradient(currentColor, currentColor);
   background-repeat: no-repeat;
   background-position: 0 100%;
@@ -752,15 +762,32 @@ a[data-legal] {
 
 /* Keyboard reaches it too: the focus ring says where you are, the bar says
    what it is. */
-a[data-legal]:hover,
-a[data-legal]:focus-visible {
+a[data-inline-link]:hover,
+a[data-inline-link]:focus-visible,
+button[data-inline-link]:hover,
+button[data-inline-link]:focus-visible {
   color: color-mix(in srgb, var(--color-accent) 70%, var(--color-text));
   background-size: 100% 2px;
 }
 
+/* A link that reads as text until pointed at — a project title in a list, the
+   notification menu's "See all". It turns the accent the way a header link
+   does, without the bar, which would underline a heading. */
+a[data-quiet] {
+  color: var(--color-text);
+  transition: color 140ms ease;
+}
+
+a[data-quiet]:hover,
+a[data-quiet]:focus-visible {
+  color: var(--color-accent);
+}
+
 /* The bar stays, the growth goes — the same trade the header makes. */
 @media (prefers-reduced-motion: reduce) {
-  a[data-legal] { transition: none; }
+  a[data-inline-link],
+  button[data-inline-link],
+  a[data-quiet] { transition: none; }
 }
 
 /* The icons beside them answer with a tint rather than a colour: their colour

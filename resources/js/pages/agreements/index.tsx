@@ -83,9 +83,9 @@ export default function AgreementIndex({ agreements }: Props) {
                                             current_team: team.slug,
                                             agreement: agreement.id,
                                         })}
+                                        data-quiet=""
                                         style={{
                                             fontSize: 13.5,
-                                            color: 'var(--color-text)',
                                             textDecoration: 'none',
                                         }}
                                     >

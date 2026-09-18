@@ -308,9 +308,8 @@ export default function Register({
                                     method="delete"
                                     as="button"
                                     data-test="forget-identity"
+                                    data-inline-link=""
                                     style={{
-                                        color: 'var(--color-accent)',
-                                        background: 'none',
                                         border: 0,
                                         padding: 0,
                                         cursor: 'pointer',
@@ -728,7 +727,7 @@ export default function Register({
                                         />
                                         {/* Colour is deliberately absent from
                                             the three links below: it lives on
-                                            a[data-legal] in nocturne.css, where
+                                            a[data-inline-link] in nocturne.css, where
                                             :hover can reach it. */}
                                         <span>
                                             Yes, I understand and agree to the
@@ -739,7 +738,7 @@ export default function Register({
                                                 )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                data-legal=""
+                                                data-inline-link=""
                                             >
                                                 Terms of Service
                                             </a>
@@ -750,7 +749,7 @@ export default function Register({
                                                 )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                data-legal=""
+                                                data-inline-link=""
                                             >
                                                 User Agreement
                                             </a>{' '}
@@ -761,7 +760,7 @@ export default function Register({
                                                 )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                data-legal=""
+                                                data-inline-link=""
                                             >
                                                 Privacy Policy
                                             </a>

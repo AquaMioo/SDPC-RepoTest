@@ -180,10 +180,8 @@ export default function Legal({ document, documents }: Props) {
                                     <Link
                                         key={entry.slug}
                                         href={legal.url(entry.slug)}
-                                        style={{
-                                            fontSize: 13.5,
-                                            color: 'var(--color-accent)',
-                                        }}
+                                        data-inline-link=""
+                                        style={{ fontSize: 13.5 }}
                                     >
                                         {entry.title}
                                     </Link>

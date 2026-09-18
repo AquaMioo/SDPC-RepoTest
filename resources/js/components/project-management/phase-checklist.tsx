@@ -475,11 +475,11 @@ function TaskRow({
                             href={task.proofUrl}
                             target="_blank"
                             rel="noopener noreferrer nofollow"
+                            data-inline-link=""
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 4,
-                                color: 'var(--color-accent)',
                             }}
                         >
                             <LinkSimpleIcon />
@@ -492,11 +492,11 @@ function TaskRow({
                             href={task.proofHref}
                             target="_blank"
                             rel="noopener noreferrer"
+                            data-inline-link=""
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 4,
-                                color: 'var(--color-accent)',
                             }}
                         >
                             <PaperclipIcon />

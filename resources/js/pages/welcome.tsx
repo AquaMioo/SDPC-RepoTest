@@ -106,15 +106,17 @@ export default function Welcome({
                         SDPC
                     </span>
 
+                    {/* Colour lives on a[data-nav] in nocturne.css, as in the
+                        signed-in header, where :hover can reach it. */}
                     {['About Us', "What's New", 'For Business'].map((label) => (
                         <a
                             key={label}
                             href="#"
+                            data-nav=""
                             style={{
+                                padding: '4px 0',
                                 fontSize: 14,
                                 textDecoration: 'none',
-                                color: 'var(--color-text)',
-                                opacity: 0.75,
                                 cursor: 'pointer',
                             }}
                         >
@@ -500,6 +502,7 @@ export default function Welcome({
                             href={legal.url('terms-of-service')}
                             target="_blank"
                             rel="noopener noreferrer"
+                            data-inline-link=""
                         >
                             Terms of Service
                         </a>
@@ -508,6 +511,7 @@ export default function Welcome({
                             href={legal.url('privacy-policy')}
                             target="_blank"
                             rel="noopener noreferrer"
+                            data-inline-link=""
                         >
                             Privacy
                         </a>
