@@ -8,6 +8,7 @@ use App\Notifications\Auth\AccountAccessBlocked;
 use App\Support\AccountSession;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -413,7 +414,85 @@ class SingleSessionTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
-    public function test_the_browser_that_left_is_still_signed_in_when_it_comes_back(): void
+    public function test_closing_the_tab_signs_out_a_browser_that_was_not_remembered(): void
+    {
+        $user = User::factory()->create();
+
+        $this->signIn($user);
+        $this->get(route('dashboard'));
+        $this->post(route('session.leave'));
+
+        $this->travel(AccountSession::LEAVE_GRACE_SECONDS + 1)->seconds();
+
+        $this->get(route('dashboard'))
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('warning', AccountSession::CLOSED);
+
+        $this->assertGuest();
+
+        // Signing in again works at once — the account was freed on the way out.
+        $this->signIn($user)->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_a_refresh_sends_the_same_signal_and_keeps_you_signed_in(): void
+    {
+        $user = User::factory()->create();
+
+        $this->signIn($user);
+        $this->post(route('session.leave'));
+
+        // The reloaded page reports in within seconds.
+        $this->travel(3)->seconds();
+        $this->get(route('session.heartbeat'))->assertNoContent();
+
+        // The mark is used up, so a long read afterwards is not a late return.
+        $this->travel(AccountSession::LEAVE_GRACE_SECONDS + 60)->seconds();
+
+        $this->get(route('profile.edit'))->assertOk();
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_a_browser_kept_logged_in_stays_signed_in_after_closing_the_tab(): void
+    {
+        $user = User::factory()->create();
+
+        $recaller = Auth::guard((string) config('fortify.guard'))->getRecallerName();
+
+        $response = $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+            'remember' => 'on',
+        ]);
+
+        $cookie = $response->getCookie($recaller)?->getValue();
+        $this->assertIsString($cookie);
+
+        $this->withCookie($recaller, $cookie)->post(route('session.leave'));
+
+        $this->travel(10)->minutes();
+
+        $this->withCookie($recaller, $cookie)->get(route('profile.edit'))->assertOk();
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_an_administrator_who_closes_the_tab_is_sent_back_to_the_admin_login(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->post(route('admin.login.store'), ['email' => $admin->email, 'password' => 'password']);
+        $this->post(route('session.leave'));
+
+        $this->travel(AccountSession::LEAVE_GRACE_SECONDS + 1)->seconds();
+
+        $this->get(route('admin.dashboard'))
+            ->assertRedirect(route('admin.login'))
+            ->assertSessionHas('warning', AccountSession::CLOSED);
+
+        $this->assertGuest();
+    }
+
+    public function test_a_browser_that_comes_straight_back_is_still_signed_in(): void
     {
         $user = User::factory()->create();
 

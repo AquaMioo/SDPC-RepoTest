@@ -53,6 +53,20 @@ const OPEN_TABS_KEY = 'sdpc.open-tabs';
 const TAB_ALIVE_EVERY_MS = 20_000;
 const TAB_GONE_AFTER_MS = 90_000;
 
+/*
+ * How long after a click on a plain link or form an unload still counts as
+ * the page navigating, not the tab closing. The new page starts loading as
+ * soon as the click lands; this only covers a slow server answering it.
+ */
+const NAVIGATION_COUNTS_FOR_MS = 10_000;
+
+/*
+ * When a freshly loaded page reports in. Well inside the server's grace for
+ * a refresh (AccountSession::LEAVE_GRACE_SECONDS, 30 s), and late enough that
+ * the "last tab closed" signal from the page it replaced has landed first.
+ */
+const REPORT_IN_AFTER_LOAD_MS = 3_000;
+
 type OpenTabs = Record<string, number>;
 
 /**
@@ -136,12 +150,12 @@ function Guard({ userId }: { userId: number }) {
         let lastActivity = Date.now();
         let inFlight = false;
 
-        const beat = async (): Promise<void> => {
+        const beat = async (always = false): Promise<void> => {
             const held = isAccountHeldInUse();
             const visible = document.visibilityState === 'visible';
             const recentlyUsed = Date.now() - lastActivity < ACTIVE_WITHIN_MS;
 
-            if (inFlight || (!held && !(visible && recentlyUsed))) {
+            if (inFlight || (!always && !held && !(visible && recentlyUsed))) {
                 return;
             }
 
@@ -194,6 +208,18 @@ function Guard({ userId }: { userId: number }) {
 
         const timer = window.setInterval(() => void beat(), BEAT_EVERY_MS);
 
+        /*
+         * A refresh sends the same "last tab closed" signal as closing does,
+         * and the server signs a browser that was not kept logged in out if
+         * it has not heard back within AccountSession::LEAVE_GRACE_SECONDS.
+         * So a freshly loaded page reports in once, whatever its state — late
+         * enough that the signal from the page it replaced has arrived first.
+         */
+        const arrival = window.setTimeout(
+            () => void beat(true),
+            REPORT_IN_AFTER_LOAD_MS,
+        );
+
         return () => {
             for (const event of ACTIVITY_EVENTS) {
                 window.removeEventListener(event, markActive);
@@ -204,6 +230,7 @@ function Guard({ userId }: { userId: number }) {
                 onVisibilityChange,
             );
             window.clearInterval(timer);
+            window.clearTimeout(arrival);
         };
     }, []);
 
@@ -212,10 +239,47 @@ function Guard({ userId }: { userId: number }) {
      * only notices the person has gone when the presence window runs out, and
      * for those minutes a second browser — often the same person's — is told
      * the account is in use. Closing one of several tabs frees nothing.
+     *
+     * The same signal decides "Keep me logged in": a browser without it is
+     * signed out when it comes back (AccountSession::leave()). So leaving
+     * through a link or form on the page itself — a full-page load such as
+     * starting to link a Google account — is not a close, and says nothing.
+     * Inertia's own visits never unload the page, and they call
+     * preventDefault(), which is how they are told apart here.
      */
     useEffect(() => {
         const key = `${OPEN_TABS_KEY}.${userId}`;
         const tabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        let navigatingAt = 0;
+
+        const onClick = (event: MouseEvent): void => {
+            const link =
+                event.target instanceof Element
+                    ? event.target.closest('a[href]')
+                    : null;
+
+            if (
+                link === null ||
+                event.defaultPrevented ||
+                event.button !== 0 ||
+                event.ctrlKey ||
+                event.metaKey ||
+                event.shiftKey ||
+                event.altKey ||
+                link.hasAttribute('download') ||
+                !['', '_self'].includes(link.getAttribute('target') ?? '')
+            ) {
+                return;
+            }
+
+            navigatingAt = Date.now();
+        };
+
+        const onSubmit = (event: SubmitEvent): void => {
+            if (!event.defaultPrevented) {
+                navigatingAt = Date.now();
+            }
+        };
 
         const register = (): void => {
             updateOpenTabs(key, (tabs) => ({ ...tabs, [tabId]: Date.now() }));
@@ -230,8 +294,13 @@ function Guard({ userId }: { userId: number }) {
 
         const onPageHide = (): void => {
             const others = forget();
+            const leavingThroughThePage =
+                Date.now() - navigatingAt < NAVIGATION_COUNTS_FOR_MS;
 
-            if (others === null || Object.keys(others).length === 0) {
+            if (
+                !leavingThroughThePage &&
+                (others === null || Object.keys(others).length === 0)
+            ) {
                 sendLeave();
             }
         };
@@ -240,12 +309,17 @@ function Guard({ userId }: { userId: number }) {
 
         const timer = window.setInterval(register, TAB_ALIVE_EVERY_MS);
 
+        /* Bubbling, so Inertia's handlers have already run by now. */
+        document.addEventListener('click', onClick);
+        document.addEventListener('submit', onSubmit);
         window.addEventListener('pagehide', onPageHide);
         /* Restored from the back/forward cache: open again. */
         window.addEventListener('pageshow', register);
 
         return () => {
             window.clearInterval(timer);
+            document.removeEventListener('click', onClick);
+            document.removeEventListener('submit', onSubmit);
             window.removeEventListener('pagehide', onPageHide);
             window.removeEventListener('pageshow', register);
             forget();

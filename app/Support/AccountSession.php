@@ -4,7 +4,10 @@ namespace App\Support;
 
 use App\Models\User;
 use App\Notifications\Auth\AccountAccessBlocked;
+use Illuminate\Auth\Recaller;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Throwable;
@@ -22,8 +25,9 @@ use Throwable;
  * only when nobody is using the account — the holder's presence stamp
  * (users.last_seen_at, see User::isOnline()) is empty or older than the
  * presence window. Signing out nulls that stamp, so the account frees the moment
- * its holder leaves; closing the browser frees it once the window runs out.
- * While the holder is here, anybody else is refused, and the holder is told.
+ * its holder leaves; closing the last tab does the same (leave()), and a
+ * browser that could not say so frees it once the window runs out. While the
+ * holder is here, anybody else is refused, and the holder is told.
  *
  * A session that holds a token which no longer matches was replaced: somebody
  * claimed the account after it went quiet, or a password reset took it back.
@@ -42,9 +46,24 @@ final class AccountSession
     public const REPLACED = 'You were signed out because this account was signed in on another device, or its password was reset.';
 
     /**
+     * Shown to a browser that closed SDPC without "Keep me logged in".
+     */
+    public const CLOSED = 'You were signed out because SDPC was closed. Tick "Keep me logged in" when you sign in to stay signed in on this device.';
+
+    /**
      * How often the account holder is alerted about refused sign-ins.
      */
     private const ALERT_DECAY_SECONDS = 60;
+
+    /**
+     * How long a browser that said it left may take to come back and still be
+     * the same visit.
+     *
+     * A refresh fires the same "last tab closed" signal as closing does — the
+     * page cannot tell them apart — so the reloaded page has this long to
+     * report in (it does within seconds) before the visit counts as over.
+     */
+    public const LEAVE_GRACE_SECONDS = 30;
 
     /**
      * Decide whether this request's session may act as the user.
@@ -55,7 +74,7 @@ final class AccountSession
     public function admit(Request $request, User $user): ?string
     {
         if ($this->holds($request, $user)) {
-            return null;
+            return $this->cameBackInTime($request, $user) ? null : self::CLOSED;
         }
 
         if (is_string($request->session()->get($this->sessionKey($user)))) {
@@ -92,10 +111,16 @@ final class AccountSession
      * away rather than wait out the presence window — which is what left a
      * closed tab locking its own owner out of a second browser for minutes.
      *
-     * The token stays. If nobody else signs in, this browser comes back to the
-     * same session, is admitted as the holder, and its next request stamps it
-     * present again. Only the holder may say it has left: a replaced session
-     * must never free an account somebody else is using.
+     * The token stays, and what happens next depends on "Keep me logged in".
+     * A remembered browser comes back to the same session, is admitted as the
+     * holder, and its next request stamps it present again. One that was not
+     * remembered is marked as left: unless it reports back within
+     * LEAVE_GRACE_SECONDS — a refresh does — its next request signs it out
+     * (see cameBackInTime()), so the next person at a shared computer does not
+     * find the account still open.
+     *
+     * Only the holder may say it has left: a replaced session must never free
+     * an account somebody else is using.
      */
     public function leave(Request $request, User $user): void
     {
@@ -106,6 +131,10 @@ final class AccountSession
         User::withoutTimestamps(
             fn () => $user->forceFill(['last_seen_at' => null])->saveQuietly(),
         );
+
+        if (! $this->isRemembered($request, $user)) {
+            $request->session()->put($this->leftKey($user), now()->getTimestamp());
+        }
     }
 
     /**
@@ -117,6 +146,52 @@ final class AccountSession
         $held = $user->active_session_token;
 
         return is_string($mine) && is_string($held) && hash_equals($held, $mine);
+    }
+
+    /**
+     * Whether a holder that said it left is back soon enough to be the same visit.
+     *
+     * True when it never said so. The mark is used up either way: a refresh
+     * carries on as before, and a late return is signed out by the caller.
+     */
+    private function cameBackInTime(Request $request, User $user): bool
+    {
+        $leftAt = $request->session()->pull($this->leftKey($user));
+
+        if (! is_int($leftAt)) {
+            return true;
+        }
+
+        return now()->getTimestamp() - $leftAt <= self::LEAVE_GRACE_SECONDS;
+    }
+
+    /**
+     * Whether this browser carries a valid "Keep me logged in" cookie for the user.
+     *
+     * Read off the cookie rather than remembered from the sign-in, because the
+     * cookie is what actually signs the browser back in: an older one left
+     * from an earlier remembered sign-in still would, and one cleared by
+     * signing out no longer can.
+     */
+    private function isRemembered(Request $request, User $user): bool
+    {
+        $guard = Auth::guard((string) config('fortify.guard'));
+
+        if (! $guard instanceof SessionGuard) {
+            return false;
+        }
+
+        $cookie = $request->cookies->get($guard->getRecallerName());
+
+        if (! is_string($cookie) || $cookie === '') {
+            return false;
+        }
+
+        $recaller = new Recaller($cookie);
+
+        return $recaller->valid()
+            && (string) $recaller->id() === (string) $user->getAuthIdentifier()
+            && hash_equals((string) $user->getRememberToken(), $recaller->token());
     }
 
     /**
@@ -229,5 +304,16 @@ final class AccountSession
     private function sessionKey(User $user): string
     {
         return 'account_session.'.$user->getKey();
+    }
+
+    /**
+     * Where this session notes when it said it had left.
+     *
+     * A key of its own rather than beside the token: sessionKey() holds a
+     * string, and dot notation cannot nest under one.
+     */
+    private function leftKey(User $user): string
+    {
+        return 'account_session_left.'.$user->getKey();
     }
 }
