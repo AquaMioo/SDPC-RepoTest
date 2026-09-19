@@ -28,9 +28,22 @@ class TeamController extends Controller
      */
     public function index(Request $request, CollaboratingTeams $collaborating): Response
     {
-        $user = $request->user();
+        return Inertia::render('teams/index', $this->teamsPage($request->user(), $collaborating));
+    }
 
-        return Inertia::render('teams/index', [
+    /**
+     * What the Team page shows.
+     *
+     * Also sent with the team settings screen, which opens as a floating
+     * window over the Team page rather than as a page of its own (QA
+     * 2026-09-19) — so the page behind it is the real one, drawn from the
+     * same payload.
+     *
+     * @return array<string, mixed>
+     */
+    protected function teamsPage(User $user, CollaboratingTeams $collaborating): array
+    {
+        return [
             'teams' => $user->toUserTeams(includeCurrent: true),
             /*
              * Nobody creates a team here any more.
@@ -50,12 +63,12 @@ class TeamController extends Controller
             'canCreateTeam' => false,
             'createBlockedBecause' => $user->isClient()
                 ? null
-                : 'A student is on one team at a time. Joining another team replaces yours while nobody else has joined it.',
+                : 'You can be on one team at a time. If you join another team, it replaces yours, as long as nobody else has joined yours yet.',
             'membership' => $user->isStudent() ? $this->membership($user) : null,
             'collaboratingTeams' => $user->isClient()
                 ? $collaborating->handle($user)
                 : [],
-        ]);
+        ];
     }
 
     /**
@@ -112,11 +125,13 @@ class TeamController extends Controller
     /**
      * Show the team edit page.
      */
-    public function edit(Request $request, Team $team): Response
+    public function edit(Request $request, Team $team, CollaboratingTeams $collaborating): Response
     {
         $user = $request->user();
 
         return Inertia::render('teams/edit', [
+            // The Team page, drawn behind the floating settings window.
+            'background' => $this->teamsPage($user, $collaborating),
             'team' => [
                 'id' => $team->id,
                 'name' => $team->name,

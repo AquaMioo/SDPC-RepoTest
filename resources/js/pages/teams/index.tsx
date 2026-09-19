@@ -118,10 +118,10 @@ export default function TeamsIndex({
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {membership.kind === 'joined'
-                                ? `You're on ${membership.team}${membership.lead ? `, led by ${membership.lead}` : ''}. The team you had on your own was removed when you joined — a student is on one team at a time.`
+                                ? `You're on ${membership.team}${membership.lead ? `, led by ${membership.lead}` : ''}. Your old team was removed when you joined, since you can only be on one team at a time.`
                                 : membership.memberCount > 1
-                                  ? `You lead ${membership.team}, and ${membership.memberCount - 1} ${membership.memberCount - 1 === 1 ? 'person has' : 'people have'} joined you. While you lead a group you can't join another team.`
-                                  : `${membership.team} is yours. Invite others to join you, or accept an invitation to join someone else's team — this one is replaced if you do.`}
+                                  ? `You lead ${membership.team}, and ${membership.memberCount - 1} ${membership.memberCount - 1 === 1 ? 'person has' : 'people have'} joined you. You can't join another team while you lead this one.`
+                                  : `${membership.team} is yours. Invite others to join you, or accept an invite to someone else's team. If you do, it replaces this one.`}
                         </p>
                     </div>
                 )}

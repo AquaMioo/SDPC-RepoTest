@@ -330,6 +330,24 @@ class TeamTest extends TestCase
             );
     }
 
+    public function test_team_settings_open_as_a_window_over_the_team_page(): void
+    {
+        $student = User::factory()->student()->create();
+
+        // The screen draws the real Team page behind the window, so it needs
+        // the Team page's own payload — the same one teams.index sends.
+        $this->actingAs($student)
+            ->get(route('teams.edit', $student->currentTeam))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('teams/edit')
+                ->has('background.teams', 1)
+                ->where('background.canCreateTeam', false)
+                ->where('background.membership.kind', 'created')
+                ->where('background.collaboratingTeams', []),
+            );
+    }
+
     public function test_teams_can_be_updated_by_owners()
     {
         $user = User::factory()->student()->create();
