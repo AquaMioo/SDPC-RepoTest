@@ -73,11 +73,17 @@ const BRAND: CSSProperties = {
     textDecoration: 'none',
 };
 
+/*
+ * A small tag beside the wordmark rather than a second word as big as it: at
+ * the wordmark's size the pair read as one shouting name (QA 2026-09-19), and
+ * the admin portal already draws its label this way.
+ */
 const ROLE_LABEL: CSSProperties = {
-    fontSize: 20,
-    letterSpacing: '.14em',
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: '.16em',
     textTransform: 'uppercase',
-    color: 'color-mix(in srgb, var(--color-text) 45%, transparent)',
+    color: 'color-mix(in srgb, var(--color-text) 50%, transparent)',
 };
 
 /*
@@ -132,6 +138,11 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
      * has lost rather than wonder where the navigation went.
      */
     const isDeactivated = page.props.auth?.status === 'deactivated';
+
+    /** Whether the open page is `path` or somewhere under it. */
+    const currentPath = page.url.split('?')[0];
+    const isAt = (path: string): boolean =>
+        currentPath === path || currentPath.startsWith(`${path}/`);
 
     useMod('user');
 
@@ -290,6 +301,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                                     ? 0
                                     : (page.props.unreadMessages ?? 0)
                             }
+                            active={isAt(messagesIndex.url(team.slug))}
                         >
                             <ChatCircleIcon size={NAV_ICON} />
                         </IconAction>
@@ -320,6 +332,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                                         : studentProfileEdit.url(team.slug)
                                 }
                                 pending={DEACTIVATED}
+                                active={isAt(studentProfileEdit.url(team.slug))}
                             >
                                 <UserCircleIcon size={NAV_ICON} />
                             </IconAction>
@@ -332,11 +345,16 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                                         : clientProfileEdit.url(team.slug)
                                 }
                                 pending={DEACTIVATED}
+                                active={isAt(clientProfileEdit.url(team.slug))}
                             >
                                 <UserCircleIcon size={NAV_ICON} />
                             </IconAction>
                         )}
-                        <IconAction label="Settings" href={profileEdit.url()}>
+                        <IconAction
+                            label="Settings"
+                            href={profileEdit.url()}
+                            active={isAt('/settings')}
+                        >
                             <GearSixIcon size={NAV_ICON} />
                         </IconAction>
                     </div>
@@ -406,6 +424,7 @@ function IconAction({
     href,
     pending,
     badge = 0,
+    active = false,
     children,
 }: {
     label: string;
@@ -413,6 +432,11 @@ function IconAction({
     pending?: string;
     /** Unread count; anything above zero paints a dot on the icon. */
     badge?: number;
+    /**
+     * This icon's own screen is open. It turns the accent, the way a nav link
+     * keeps its bar on its own page, so the header says where you are.
+     */
+    active?: boolean;
     children: ReactNode;
 }) {
     if (!href) {
@@ -439,10 +463,22 @@ function IconAction({
                     asChild
                     icon
                     variant="bare"
-                    style={{ color: 'var(--color-text)', position: 'relative' }}
+                    style={{
+                        position: 'relative',
+                        color: active
+                            ? 'var(--color-accent)'
+                            : 'var(--color-text)',
+                        ...(active
+                            ? {
+                                  background:
+                                      'color-mix(in srgb, var(--color-accent) 12%, transparent)',
+                              }
+                            : {}),
+                    }}
                 >
                     <Link
                         href={href}
+                        aria-current={active ? 'page' : undefined}
                         aria-label={
                             badge > 0 ? `${label} (${badge} unread)` : label
                         }
