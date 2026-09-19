@@ -814,7 +814,8 @@ export default function Messages({
                 <div style={{ marginBottom: 14, flex: 'none' }}>
                     <h3 style={{ margin: 0 }}>Messages</h3>
                     <div style={{ fontSize: 13, color: MUTED(68) }}>
-                        One thread per project you are working on together
+                        One conversation for each project you&rsquo;re working
+                        on
                     </div>
                 </div>
 
@@ -822,9 +823,9 @@ export default function Messages({
                     <Panel padding="lg" gap="sm">
                         <span style={{ fontSize: 13 }}>No messages yet.</span>
                         <span style={{ fontSize: 12.5, color: MUTED(65) }}>
-                            A thread opens once a student applies to one of your
-                            postings, or once you apply to one. There is no way
-                            to message someone you have no project with.
+                            A conversation starts when a student applies to a
+                            project. You can only message people you share a
+                            project with.
                         </span>
                     </Panel>
                 ) : (
