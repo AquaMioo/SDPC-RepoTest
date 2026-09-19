@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Matching;
 
+use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -11,6 +12,7 @@ use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\ScoresFreeText;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -37,6 +39,9 @@ class GeminiRecommendationTest extends TestCase
 
         config()->set('recommendations.driver', 'gemini');
         config()->set('gemini.api_key', 'test-key');
+
+        /* One model, unless a test is about handing over to the next. */
+        config()->set('gemini.fallback_models', []);
     }
 
     public function test_the_driver_is_selected_by_configuration(): void
@@ -176,6 +181,137 @@ class GeminiRecommendationTest extends TestCase
         $service->scoresFor($project);
 
         Http::assertSentCount(2);
+    }
+
+    public function test_a_busy_model_hands_the_question_to_the_next_one(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        /*
+         * What the site saw on 2026-09-19: the pinned model answering 503
+         * "high demand" between successful calls, and every one of those 503s
+         * putting the whole site on keyword matching for the cooldown.
+         */
+        Http::fake([
+            '*/models/'.config('gemini.model').':*' => Http::response('This model is currently experiencing high demand.', 503),
+            '*/models/gemini-backup:*' => Http::response($this->reply([
+                ['id' => $student->id, 'compatibility' => 84, 'insight' => 'Has built stock systems in Laravel.'],
+            ])),
+        ]);
+
+        $scores = $this->app->make(RecommendationService::class)->scoresFor($project);
+
+        $this->assertSame(84, $scores[$student->id]['compatibility']);
+        $this->assertSame('gemini', $scores[$student->id]['reason']['source']);
+        Http::assertSentCount(2);
+
+        /* Answered is answered: nobody after this reader is cooled down. */
+        $this->assertFalse(Cache::has('gemini.cooldown'));
+    }
+
+    public function test_a_rate_limit_counts_as_busy(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        Http::fake([
+            '*/models/'.config('gemini.model').':*' => Http::response('Resource has been exhausted.', 429),
+            '*/models/gemini-backup:*' => Http::response($this->reply([
+                ['id' => $student->id, 'compatibility' => 77, 'insight' => 'Plausible.'],
+            ])),
+        ]);
+
+        $scores = $this->app->make(RecommendationService::class)->scoresFor($project);
+
+        $this->assertSame(77, $scores[$student->id]['compatibility']);
+    }
+
+    public function test_a_refusal_is_not_put_to_the_next_model(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project] = $this->briefAndStudent();
+
+        /* A bad request is bad for every model; asking again only costs time. */
+        Http::fake(['*' => Http::response('Invalid argument.', 400)]);
+
+        $scores = $this->app->make(RecommendationService::class)->scoresFor($project);
+
+        Http::assertSentCount(1);
+        $this->assertEquals($this->computedScoresFor($project), $scores->all());
+    }
+
+    public function test_every_model_busy_falls_back_and_cools_down(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project] = $this->briefAndStudent();
+
+        Http::fake(['*' => Http::response('This model is currently experiencing high demand.', 503)]);
+
+        $service = $this->app->make(RecommendationService::class);
+
+        $this->assertEquals($this->computedScoresFor($project), $service->scoresFor($project)->all());
+        Http::assertSentCount(2);
+
+        $service->scoresFor($project);
+
+        /* Discovered once, like any other outage. */
+        Http::assertSentCount(2);
+        $this->assertTrue(Cache::has('gemini.cooldown'));
+    }
+
+    public function test_a_student_past_the_shortlist_keeps_their_computed_score(): void
+    {
+        config()->set('gemini.max_candidates', 1);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        $unseen = User::factory()->student()->approved()->create();
+        StudentProfile::factory()->for($unseen)->create(['headline' => 'Laravel developer']);
+
+        Http::fake(['*' => Http::response($this->reply([
+            ['id' => $student->id, 'compatibility' => 88, 'insight' => 'Strong fit.'],
+        ]))]);
+
+        $scores = $this->app->make(RecommendationService::class)->scoresFor($project);
+
+        /*
+         * max_candidates bounds the prompt. It used to bound the results too:
+         * the thirty-first student silently disappeared from Recruit.
+         */
+        $this->assertSame(88, $scores[$student->id]['compatibility']);
+        $this->assertEquals($this->computedScoresFor($project)[$unseen->id], $scores[$unseen->id]);
+    }
+
+    public function test_a_brief_past_the_shortlist_keeps_its_computed_score(): void
+    {
+        config()->set('gemini.max_candidates', 1);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        $unseen = Project::factory()->create([
+            'team_id' => $project->team_id,
+            'status' => ProjectStatus::Open,
+            'title' => 'Point of Sale',
+            'category' => 'Web application',
+            'industry' => 'Retail',
+            'description' => 'A till for our shop that records every sale.',
+            'objectives' => 'Ring up sales and print receipts.',
+        ]);
+
+        Http::fake(['*' => Http::response($this->reply([
+            ['id' => $project->id, 'compatibility' => 81, 'insight' => 'A close fit.'],
+        ]))]);
+
+        $scores = $this->app->make(RecommendationService::class)->scoresForStudent($student);
+        $computed = $this->app->make(ComputedRecommendationService::class)->scoresForStudent($student);
+
+        $this->assertSame(81, $scores[$project->id]['compatibility']);
+        $this->assertEquals($computed[$unseen->id], $scores[$unseen->id]);
     }
 
     public function test_a_reply_in_the_wrong_shape_falls_back(): void

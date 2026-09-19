@@ -38,12 +38,36 @@ return [
     */
     'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
 
+    /*
+    | Models to ask, in order, while the one before is busy.
+    |
+    | Google sheds load per model: 429, or 503 "This model is currently
+    | experiencing high demand". A busy model is not a dead one, and the next
+    | one along usually answers. Giving up on the first 503 put the whole site
+    | on keyword matching for the cooldown below, several times a day.
+    | Measured 2026-09-19 with the real matching prompt, three calls each:
+    | gemini-3.6-flash 3/3 in about 4s (between those 503s), gemini-3.5-flash
+    | 3/3 in 7-11s, gemini-3.7-flash 1/3, gemini-3.8-flash 0/3 — newer is
+    | busier, not better.
+    |
+    | Only "busy" moves on. A refusal (400, 403, 404) would be refused again,
+    | and every model shares the one timeout below. Comma-separated, pinned
+    | like the model; empty means the one model only.
+    */
+    'fallback_models' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-3.5-flash')),
+    ))),
+
     'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
 
     /*
     | Seconds to wait. Short, because the fallback below is a good answer that
     | costs a millisecond — waiting 30 seconds for a slightly better one is the
     | wrong trade on a page load.
+    |
+    | This is the budget for the whole question, not for each model: when the
+    | first model is busy, the next one gets whatever time is left.
     */
     'timeout' => (int) env('GEMINI_TIMEOUT', 20),
 

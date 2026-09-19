@@ -337,12 +337,15 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
 
         $computed = $fallback();
 
-        /* A brief the model skipped keeps its computed score, never vanishes. */
+        /*
+         * A brief the model skipped keeps its computed score, never vanishes;
+         * so does every brief past max_candidates, which the model never saw.
+         */
         return $briefs->mapWithKeys(fn (Project $project): array => [
             $project->id => $judgements[$project->id]
                 ?? $computed[$project->id]
                 ?? $this->empty(),
-        ]);
+        ])->union($computed);
     }
 
     /**
@@ -425,6 +428,9 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
          * A model that skips a candidate must not silently delete them from
          * the results — that reads as "this student does not exist" rather
          * than "the model had nothing to say".
+         *
+         * The same goes for everybody past max_candidates, whom the model never
+         * saw: the shortlist bounds the prompt, not who can be found.
          */
         return $candidates
             ->mapWithKeys(function (StudentProfile $profile) use ($judgements, $computed): array {
@@ -435,40 +441,96 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                         ? ($computed[$profile->user_id] ?? $this->empty())
                         : $judgement,
                 ];
-            });
+            })
+            ->union($computed);
     }
 
     /**
      * Put the question to the model and read the answer back.
      *
-     * Returns null on every fault, which is the caller's signal to fall back.
+     * A model that answers "busy" hands the question to the next one in
+     * gemini.fallback_models, inside the same time budget. Returns null on
+     * every other fault, and when every model is busy, which is the caller's
+     * signal to fall back.
      *
-     * @param  Collection<int, StudentProfile>  $candidates
+     * @param  array<string, mixed>  $payload
+     * @param  list<int>  $knownIds
      * @return array<int, array{score: float, compatibility: int, reason: array<string, mixed>}>|null
      */
     protected function ask(array $payload, array $knownIds): ?array
     {
-        try {
-            $response = Http::asJson()
-                ->timeout((int) config('gemini.timeout'))
-                /*
-                 * The key travels in a header, never in the query string. A
-                 * URL is logged by proxies, kept in history and repeated in
-                 * error reports; a header is not.
-                 */
-                ->withHeaders(['x-goog-api-key' => (string) config('gemini.api_key')])
-                ->post($this->endpoint(), $payload);
-        } catch (ConnectionException $exception) {
-            return $this->logFailure('unreachable', $exception->getMessage());
-        } catch (Throwable $exception) {
-            return $this->logFailure('threw', $exception->getMessage());
+        /* However many models it takes, nobody waits longer than the timeout. */
+        $deadline = microtime(true) + (int) config('gemini.timeout');
+        $models = $this->models();
+        $tried = [];
+
+        foreach ($models as $model) {
+            $secondsLeft = $deadline - microtime(true);
+
+            if ($secondsLeft < 1) {
+                return $this->logFailure('unreachable', 'no time left after a busy model', implode(', ', $tried));
+            }
+
+            $tried[] = $model;
+
+            try {
+                $response = Http::asJson()
+                    ->timeout($secondsLeft)
+                    /*
+                     * The key travels in a header, never in the query string.
+                     * A URL is logged by proxies, kept in history and repeated
+                     * in error reports; a header is not.
+                     */
+                    ->withHeaders(['x-goog-api-key' => (string) config('gemini.api_key')])
+                    ->post($this->endpoint($model), $payload);
+            } catch (ConnectionException $exception) {
+                /* A timeout has already spent the budget; there is no next model. */
+                return $this->logFailure('unreachable', $exception->getMessage(), implode(', ', $tried));
+            } catch (Throwable $exception) {
+                return $this->logFailure('threw', $exception->getMessage(), implode(', ', $tried));
+            }
+
+            if ($response->successful()) {
+                if (count($tried) > 1) {
+                    Log::info('Gemini matching was answered by a fallback model.', ['tried' => $tried]);
+                }
+
+                return $this->parse($response->json(), $knownIds, $model);
+            }
+
+            if (! $this->isBusy($response->status())) {
+                return $this->logFailure('rejected', 'HTTP '.$response->status(), implode(', ', $tried));
+            }
+
+            $busyStatus = $response->status();
         }
 
-        if (! $response->successful()) {
-            return $this->logFailure('rejected', 'HTTP '.$response->status());
-        }
+        return $this->logFailure('rejected', 'HTTP '.($busyStatus ?? 0).' from every model', implode(', ', $tried));
+    }
 
-        return $this->parse($response->json(), $knownIds);
+    /**
+     * Whether a status means "ask again elsewhere" rather than "no".
+     *
+     * Google answers load with 429 and 503, and its guidance is to retry 500s.
+     * Anything else — a bad request, a bad key, a retired model — would get
+     * the same answer from the next model too.
+     */
+    protected function isBusy(int $status): bool
+    {
+        return in_array($status, [429, 500, 502, 503, 504], true);
+    }
+
+    /**
+     * The configured model first, then the ones to ask while it is busy.
+     *
+     * @return list<string>
+     */
+    protected function models(): array
+    {
+        return array_values(array_unique(array_filter([
+            (string) config('gemini.model'),
+            ...(array) config('gemini.fallback_models'),
+        ])));
     }
 
     /**
@@ -598,19 +660,19 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      * @param  Collection<int, StudentProfile>  $candidates
      * @return array<int, array{score: float, compatibility: int, reason: array<string, mixed>}>|null
      */
-    protected function parse(?array $body, array $knownIds): ?array
+    protected function parse(?array $body, array $knownIds, string $model): ?array
     {
         $text = data_get($body, 'candidates.0.content.parts.0.text');
 
         if (! is_string($text)) {
-            return $this->logFailure('empty', 'no text part in the reply');
+            return $this->logFailure('empty', 'no text part in the reply', $model);
         }
 
         $decoded = json_decode($text, true);
         $matches = data_get($decoded, 'matches');
 
         if (! is_array($matches)) {
-            return $this->logFailure('unparseable', 'reply was not the requested shape');
+            return $this->logFailure('unparseable', 'reply was not the requested shape', $model);
         }
 
         $scores = [];
@@ -647,7 +709,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             ];
         }
 
-        return $scores === [] ? $this->logFailure('unusable', 'no recognisable candidate in the reply') : $scores;
+        return $scores === [] ? $this->logFailure('unusable', 'no recognisable candidate in the reply', $model) : $scores;
     }
 
     /**
@@ -696,12 +758,12 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     }
 
     /**
-     * The generateContent endpoint for the configured model.
+     * The generateContent endpoint for one model.
      */
-    protected function endpoint(): string
+    protected function endpoint(string $model): string
     {
         return rtrim((string) config('gemini.base_url'), '/')
-            .'/models/'.config('gemini.model').':generateContent';
+            .'/models/'.$model.':generateContent';
     }
 
     /**
@@ -719,12 +781,12 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      * with computed scores and the person browsing has no idea anything
      * happened, which is the design.
      */
-    protected function logFailure(string $kind, string $reason): null
+    protected function logFailure(string $kind, string $reason, string $model): null
     {
         Log::warning('Gemini matching fell back to the computed scorer.', [
             'kind' => $kind,
             'reason' => $reason,
-            'model' => config('gemini.model'),
+            'model' => $model,
         ]);
 
         return null;
