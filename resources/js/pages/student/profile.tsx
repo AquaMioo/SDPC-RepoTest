@@ -204,11 +204,11 @@ export default function StudentProfilePage({
                             <IconButton
                                 label="Change profile photo"
                                 onClick={() => setPhotoOpen(true)}
+                                onPhoto
                                 style={{
                                     position: 'absolute',
                                     right: -4,
                                     bottom: -4,
-                                    background: 'var(--color-surface)',
                                 }}
                             />
                         )}
@@ -528,27 +528,31 @@ function ordinal(year: number): string {
 function IconButton({
     label,
     onClick,
+    onPhoto = false,
     style,
 }: {
     label: string;
     onClick: () => void;
+    /** Sits over the avatar, so it needs a solid ground (data-on-photo). */
+    onPhoto?: boolean;
     style?: React.CSSProperties;
 }) {
     return (
         <button
             type="button"
             onClick={onClick}
+            data-on-photo={onPhoto ? '' : undefined}
             aria-label={label}
             title={label}
+            /* Colours and hover live on button[data-edit-button] in
+               nocturne.css; inline they could not react. */
+            data-edit-button=""
             style={{
                 width: 26,
                 height: 26,
                 display: 'grid',
                 placeItems: 'center',
                 borderRadius: '50%',
-                border: '1px solid var(--color-divider)',
-                background: 'transparent',
-                color: 'var(--color-accent)',
                 cursor: 'pointer',
                 flex: 'none',
                 ...style,

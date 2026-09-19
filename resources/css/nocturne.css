@@ -823,6 +823,33 @@ button[data-calendar-arrow]:focus-visible {
   color: var(--color-accent);
 }
 
+/* The round pencil on a profile card (client and student profiles). At rest
+   it is quiet; pointed at, it fills with the accent tint, takes an accent
+   ring and lifts a pixel, and pressing sinks it — so it reads as a button,
+   not a decoration (QA 2026-09-19). */
+button[data-edit-button] {
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  color: var(--color-accent);
+  transition: background 140ms ease, border-color 140ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+button[data-edit-button]:hover,
+button[data-edit-button]:focus-visible {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+}
+button[data-edit-button]:active {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  transform: scale(0.94);
+}
+/* Over the profile photo it needs a solid ground, tinted the same way. */
+button[data-edit-button][data-on-photo] { background: var(--color-surface); }
+button[data-edit-button][data-on-photo]:hover,
+button[data-edit-button][data-on-photo]:focus-visible {
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
+
 /* The highlight behind a segmented control's choice (Find a client's
    Recommended / Newest): it glides to the new choice on the header's easing
    rather than jumping. Position and size are set inline from measurement. */
@@ -840,6 +867,10 @@ button[data-calendar-arrow]:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   [data-segment-thumb] { transition: none; }
   [data-fade-in] { animation: none; }
+  button[data-edit-button] { transition: none; }
+  button[data-edit-button]:hover,
+  button[data-edit-button]:focus-visible,
+  button[data-edit-button]:active { transform: none; }
 }
 /*
  * The user palette, taken from the platform design's [data-mod="user"] block.
@@ -1135,6 +1166,8 @@ button[data-calendar-arrow]:focus-visible {
 }
 @media (min-width: 1360px) {
   .msg-grid { grid-template-columns: 300px minmax(0, 1fr) 300px; }
+  /* The empty inbox has no third (group chat) panel to fill that column. */
+  .msg-grid.msg-grid-two { grid-template-columns: 300px minmax(0, 1fr); }
 }
 
 /* The call screen's tiles, one per person. The screen passes the column count

@@ -451,6 +451,9 @@ function SectionCard({
                         onClick={onEdit}
                         aria-label={`Edit ${title.toLowerCase()}`}
                         title={`Edit ${title.toLowerCase()}`}
+                        /* Colours and hover live on button[data-edit-button]
+                           in nocturne.css; inline they could not react. */
+                        data-edit-button=""
                         style={{
                             width: 28,
                             height: 28,
@@ -458,9 +461,6 @@ function SectionCard({
                             display: 'grid',
                             placeItems: 'center',
                             borderRadius: '50%',
-                            border: '1px solid var(--color-divider)',
-                            background: 'transparent',
-                            color: 'var(--color-accent)',
                             cursor: 'pointer',
                         }}
                     >

@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import EmptyInbox from '@/components/messaging/empty-inbox';
 import VideoCall from '@/components/messaging/video-call';
 import type {
     MeetingCredentials,
@@ -820,14 +821,7 @@ export default function Messages({
                 </div>
 
                 {threads.length === 0 ? (
-                    <Panel padding="lg" gap="sm">
-                        <span style={{ fontSize: 13 }}>No messages yet.</span>
-                        <span style={{ fontSize: 12.5, color: MUTED(65) }}>
-                            A conversation starts when a student applies to a
-                            project. You can only message people you share a
-                            project with.
-                        </span>
-                    </Panel>
+                    <EmptyInbox />
                 ) : (
                     <div
                         className="msg-grid"
