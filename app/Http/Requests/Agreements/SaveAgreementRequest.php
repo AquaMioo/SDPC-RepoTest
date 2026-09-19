@@ -43,8 +43,8 @@ class SaveAgreementRequest extends FormRequest
             'confidentiality_terms' => ['nullable', 'string', 'max:5000'],
             'academic_terms' => ['nullable', 'string', 'max:5000'],
 
-            'starts_on' => ['nullable', 'date'],
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
+            'starts_on' => ['nullable', 'date_format:Y-m-d'],
+            'ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:starts_on'],
 
             'milestones' => ['required', 'array', 'min:1', 'max:12'],
             'milestones.*.id' => ['nullable', 'integer'],
@@ -52,8 +52,8 @@ class SaveAgreementRequest extends FormRequest
             'milestones.*.description' => ['nullable', 'string', 'max:2000'],
             /* Whole pesos, and a ceiling that stops a typo becoming a contract. */
             'milestones.*.amount' => ['required', 'integer', 'min:0', 'max:10000000'],
-            'milestones.*.starts_on' => ['nullable', 'date'],
-            'milestones.*.ends_on' => ['nullable', 'date', 'after_or_equal:milestones.*.starts_on'],
+            'milestones.*.starts_on' => ['nullable', 'date_format:Y-m-d'],
+            'milestones.*.ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:milestones.*.starts_on'],
         ];
     }
 

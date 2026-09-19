@@ -177,6 +177,29 @@ const IN_PLACE = {
     only: ['threads', 'active'],
 };
 
+/** How far ahead a call may be booked; OpenMeetingRequest refuses later. */
+const MEETING_WINDOW_DAYS = 90;
+
+/** A moment as a datetime-local input writes it: local time, to the minute. */
+function toDateTimeLocal(moment: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+
+    return `${moment.getFullYear()}-${pad(moment.getMonth() + 1)}-${pad(moment.getDate())}T${pad(moment.getHours())}:${pad(moment.getMinutes())}`;
+}
+
+/**
+ * The span the "Meet at" box accepts: from now to the end of the booking
+ * window. Bounding it also stops the year at four digits — unbounded, a date
+ * box lets the year run to six, and "2026" typed once too often became 20266
+ * (QA 2026-09-19).
+ */
+function meetingWindow(): { min: string; max: string } {
+    const now = new Date();
+    const last = new Date(now.getTime() + MEETING_WINDOW_DAYS * 86_400_000);
+
+    return { min: toDateTimeLocal(now), max: toDateTimeLocal(last) };
+}
+
 type Reaction = { emoji: string; count: number; reacted: boolean };
 
 /**
@@ -1090,6 +1113,7 @@ export default function Messages({
                                             id="meeting-at"
                                             type="datetime-local"
                                             className="input"
+                                            {...meetingWindow()}
                                             value={scheduledAt}
                                             onChange={(event) =>
                                                 setScheduledAt(

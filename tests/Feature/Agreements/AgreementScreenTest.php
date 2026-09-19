@@ -195,6 +195,33 @@ class AgreementScreenTest extends TestCase
         $this->assertSame([$kept->id], $agreement->refresh()->milestones->pluck('id')->all());
     }
 
+    public function test_a_date_with_a_year_past_four_digits_is_refused(): void
+    {
+        [$owner, , $agreement] = $this->agreement();
+
+        $kept = $agreement->milestones->first();
+
+        /*
+         * A browser date box lets the year run to six digits. The plain
+         * `date` rule let "202666-01-01" through to a DATE column; the answer
+         * must be a message on the field, not a server error (2026-09-19).
+         */
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'starts_on' => '202666-01-01',
+                'milestones' => [[
+                    ...$this->milestone($kept->id, $kept->title),
+                    'ends_on' => '20266-03-01',
+                ]],
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors(['starts_on', 'milestones.0.ends_on']);
+    }
+
     public function test_the_ledger_is_advertised_as_off_by_default(): void
     {
         [$owner, , $agreement] = $this->agreement();
