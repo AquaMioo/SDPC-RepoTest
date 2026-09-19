@@ -8,7 +8,7 @@ use Tests\TestCase;
 /**
  * The browser tab shows the SDPC mark, not the Laravel logo the starter kit
  * shipped with (favicon.svg). Browsers prefer an SVG icon when one is linked,
- * so that file must not come back.
+ * so the SVG they get is SDPC's icon.svg and Laravel's must not come back.
  */
 class FaviconTest extends TestCase
 {
@@ -19,8 +19,9 @@ class FaviconTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk();
-        $response->assertSee('href="/favicon.ico?v=2"', escape: false);
-        $response->assertSee('href="/apple-touch-icon.png?v=2"', escape: false);
+        $response->assertSee('href="/icon.svg?v=3" type="image/svg+xml"', escape: false);
+        $response->assertSee('href="/favicon.ico?v=3"', escape: false);
+        $response->assertSee('href="/apple-touch-icon.png?v=3"', escape: false);
         $response->assertDontSee('favicon.svg', escape: false);
     }
 
@@ -30,7 +31,7 @@ class FaviconTest extends TestCase
 
         preg_match_all('/<link rel="(?:icon|apple-touch-icon)" href="([^"?]+)/', $html, $matches);
 
-        $this->assertNotEmpty($matches[1], 'The shell links no icons.');
+        $this->assertCount(3, $matches[1], 'The shell should link the SVG, the ICO and the home-screen icon.');
 
         foreach ($matches[1] as $path) {
             $this->assertFileExists(public_path(ltrim($path, '/')));
@@ -40,6 +41,21 @@ class FaviconTest extends TestCase
     public function test_the_laravel_svg_icon_is_gone(): void
     {
         $this->assertFileDoesNotExist(public_path('favicon.svg'));
+    }
+
+    public function test_the_svg_icon_is_the_sdpc_mark_and_follows_a_dark_tab_bar(): void
+    {
+        $svg = file_get_contents(public_path('icon.svg'));
+
+        $this->assertStringContainsString('<title>SDPC</title>', $svg);
+
+        /*
+         * No tile behind the mark (2026-09-19), so on a dark tab bar the
+         * brand green would all but vanish; the icon brings its own lighter
+         * green for that case.
+         */
+        $this->assertStringContainsString('@media (prefers-color-scheme:dark)', $svg);
+        $this->assertStringNotContainsString('<rect', $svg);
     }
 
     public function test_the_favicon_carries_every_tab_size(): void
