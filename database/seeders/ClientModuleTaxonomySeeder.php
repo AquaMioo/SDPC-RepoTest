@@ -165,7 +165,7 @@ class ClientModuleTaxonomySeeder extends Seeder
          * need a deploy.
          */
         $schools = [
-            'STI College San Jose Del Monte' => 'sti.edu.ph',
+            'STI College San Jose Del Monte' => 'sjdelmonte.sti.edu.ph',
             'City College of Technology' => null,
             'Northgate Institute of Technology' => null,
             'Riverside Polytechnic College' => null,

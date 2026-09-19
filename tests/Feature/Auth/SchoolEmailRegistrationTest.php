@@ -10,6 +10,7 @@ use App\Models\StudentVerification;
 use App\Models\User;
 use App\Notifications\Auth\EmailOneTimePassword;
 use App\Rules\SchoolEmailAddress;
+use Database\Seeders\ClientModuleTaxonomySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -187,6 +188,54 @@ class SchoolEmailRegistrationTest extends TestCase
         $this->completeRegistration($this->student(['school_email' => 'juan@mail.sti.edu.ph']));
 
         $this->assertSame(0, StudentVerification::count());
+    }
+
+    /**
+     * STI College San Jose Del Monte hands out surname.number@sjdelmonte.sti.edu.ph.
+     * It was seeded as "sti.edu.ph", which exact matching never meets, so not
+     * one of its students was recognised (2026-09-20).
+     */
+    public function test_an_sti_san_jose_del_monte_address_is_recognised_after_seeding(): void
+    {
+        $this->seed(ClientModuleTaxonomySeeder::class);
+
+        $this->completeRegistration($this->student(['school_email' => 'delacruz.123456@sjdelmonte.sti.edu.ph']));
+
+        $verification = StudentVerification::sole();
+
+        $this->assertSame(
+            School::firstWhere('slug', 'sti-college-san-jose-del-monte')->id,
+            $verification->payload['school_id'],
+        );
+    }
+
+    public function test_an_existing_install_has_the_seeded_sti_domain_corrected(): void
+    {
+        $sti = School::factory()->create([
+            'name' => 'STI College San Jose Del Monte',
+            'slug' => 'sti-college-san-jose-del-monte',
+            'domain' => 'sti.edu.ph',
+        ]);
+
+        $migration = require database_path('migrations/2026_09_19_161046_correct_sti_san_jose_del_monte_email_domain.php');
+        $migration->up();
+
+        $this->assertSame('sjdelmonte.sti.edu.ph', $sti->refresh()->domain);
+        $this->assertSame($sti->id, School::forEmailDomain('sjdelmonte.sti.edu.ph')?->id);
+    }
+
+    public function test_a_domain_an_administrator_set_by_hand_is_left_alone(): void
+    {
+        $sti = School::factory()->create([
+            'name' => 'STI College San Jose Del Monte',
+            'slug' => 'sti-college-san-jose-del-monte',
+            'domain' => 'mail.sti.edu.ph',
+        ]);
+
+        $migration = require database_path('migrations/2026_09_19_161046_correct_sti_san_jose_del_monte_email_domain.php');
+        $migration->up();
+
+        $this->assertSame('mail.sti.edu.ph', $sti->refresh()->domain);
     }
 
     public function test_an_address_proved_by_somebody_else_is_not_recorded_twice(): void
