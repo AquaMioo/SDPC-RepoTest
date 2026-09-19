@@ -45,10 +45,12 @@ return [
     | experiencing high demand". A busy model is not a dead one, and the next
     | one along usually answers. Giving up on the first 503 put the whole site
     | on keyword matching for the cooldown below, several times a day.
-    | Measured 2026-09-19 with the real matching prompt, three calls each:
-    | gemini-3.6-flash 3/3 in about 4s (between those 503s), gemini-3.5-flash
-    | 3/3 in 7-11s, gemini-3.7-flash 1/3, gemini-3.8-flash 0/3 — newer is
-    | busier, not better.
+    |
+    | Measured on sdpc.tech 2026-09-19 with the real matching prompt: the flash
+    | models 503 in turns (3.6 and 3.5 both busy at 21:50; 3.7 and 3.8 worse),
+    | while gemini-3.5-flash-lite answered 3/3 in 2.3s and gemini-3.1-flash-lite
+    | 3/3 in about 4s, both with sound rankings. So the backups are the lite
+    | models: less loaded, and quicker than the model they stand in for.
     |
     | Only "busy" moves on. A refusal (400, 403, 404) would be refused again,
     | and every model shares the one timeout below. Comma-separated, pinned
@@ -56,7 +58,7 @@ return [
     */
     'fallback_models' => array_values(array_filter(array_map(
         'trim',
-        explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-3.5-flash')),
+        explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-3.5-flash-lite,gemini-3.1-flash-lite')),
     ))),
 
     'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
