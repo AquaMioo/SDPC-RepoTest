@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Models\User;
+use App\Rules\SchoolEmailAddress;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -76,12 +77,16 @@ class ProfileController extends Controller
     /**
      * Describe the ways a student can sign in.
      *
-     * @return array{hasPassword: bool, microsoftLinked: bool, googleAvailable: bool, googleEmail: string|null, googleLinked: bool, canUnlinkGoogle: bool}
+     * @return array{hasPassword: bool, schoolEmailCode: bool, microsoftAvailable: bool, microsoftLinked: bool, googleAvailable: bool, googleEmail: string|null, googleLinked: bool, canUnlinkGoogle: bool}
      */
     protected function signInMethods(User $student, LinkGoogleAccount $linkGoogleAccount): array
     {
         return [
             'hasPassword' => $student->password !== null,
+            // A school address can always be sent a sign in code.
+            'schoolEmailCode' => SchoolEmailAddress::matches($student->email),
+            // So the card stops pointing at a button the login page is not showing.
+            'microsoftAvailable' => (bool) config('services.microsoft.enabled'),
             'microsoftLinked' => $student->microsoft_id !== null,
             'googleAvailable' => (bool) config('services.google.enabled'),
             'googleLinked' => $student->google_id !== null,

@@ -8,6 +8,7 @@ use App\Models\OneTimePassword;
 use App\Models\User;
 use App\Notifications\Auth\EmailOneTimePassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -25,6 +26,22 @@ use Tests\TestCase;
 class RegistrationOtpTest extends TestCase
 {
     use CompletesRegistration, RefreshDatabase;
+
+    /**
+     * Every purpose has a subject and a reason of its own. The match has no
+     * default, and Notification::fake() never builds the email — so a purpose
+     * left out of it threw only once a code was really mailed. SchoolEmail
+     * shipped that way; Login would have (2026-09-20).
+     */
+    public function test_every_purpose_renders_an_email(): void
+    {
+        foreach (OneTimePasswordPurpose::cases() as $purpose) {
+            $mail = (new EmailOneTimePassword('123456', $purpose))->toMail(new AnonymousNotifiable);
+
+            $this->assertNotEmpty($mail->subject, "{$purpose->value} has no subject.");
+            $this->assertStringContainsString('123456', implode(' ', $mail->introLines));
+        }
+    }
 
     public function test_registering_sends_a_code_and_creates_nothing(): void
     {

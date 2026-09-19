@@ -22,4 +22,14 @@ enum OneTimePasswordPurpose: string
      * claim a student is enrolled. See .ai/rules/auth.md.
      */
     case SchoolEmail = 'school_email';
+
+    /**
+     * Signing a student in without a password.
+     *
+     * Students sign up with their school address and no password (2026-09-20),
+     * so a code mailed to that address is how they get back in — unless they
+     * have bound a Google account, which skips it. Its own case so a sign in
+     * code can never finish a sign up, or the other way round.
+     */
+    case Login = 'login';
 }

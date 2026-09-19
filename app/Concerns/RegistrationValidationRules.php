@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Rules\SchoolEmailAddress;
 use App\Support\PendingGoogleRegistration;
 use App\Support\PendingMicrosoftRegistration;
+use App\Support\PendingSchoolEmailRegistration;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
@@ -28,9 +29,10 @@ trait RegistrationValidationRules
      * no separate email: `school_email` is the account's address and must be
      * a `.edu.ph` one nobody has registered yet.
      *
-     * An identity waiting in the session — Google for a client, the school's
-     * Microsoft account for a student — supplies the address and stands in for
-     * the password, so both stop being required. It is read from the session
+     * An identity waiting in the session — Google for a client; for a student,
+     * the school's Microsoft account or a school address proved by a code on
+     * the Student tab — supplies the address and stands in for the password,
+     * so both stop being required. It is read from the session
      * rather than the form because it is the one thing on that page nobody may
      * edit: an email posted from the browser could be anyone's.
      *
@@ -40,7 +42,9 @@ trait RegistrationValidationRules
     protected function registrationRules(array $input): array
     {
         $viaGoogle = PendingGoogleRegistration::exists();
-        $viaMicrosoft = PendingMicrosoftRegistration::exists();
+        // A school address proved by a code does for a student what the
+        // school's Microsoft sign-in would.
+        $viaMicrosoft = PendingMicrosoftRegistration::exists() || PendingSchoolEmailRegistration::exists();
         $isStudent = $this->isRole($input, UserRole::Student);
 
         return [
@@ -71,9 +75,11 @@ trait RegistrationValidationRules
             'business_name.required' => __('Please tell us the name of your business.'),
             'school_email.required' => __('Please enter your school email.'),
             'school_email.unique' => __('An account already uses this school email. Please log in instead.'),
-            'role.in' => PendingMicrosoftRegistration::exists()
-                ? __('A school Microsoft account can only register a student.')
-                : __('A Google account can only register a client. Students sign up with their school email.'),
+            'role.in' => match (true) {
+                PendingMicrosoftRegistration::exists() => __('A school Microsoft account can only register a student.'),
+                PendingSchoolEmailRegistration::exists() => __('A school email can only register a student.'),
+                default => __('A Google account can only register a client. Students sign up with their school email.'),
+            },
         ];
     }
 

@@ -64,6 +64,8 @@ class EmailOneTimePassword extends Notification
         return match ($this->purpose) {
             OneTimePasswordPurpose::Registration => __('Confirm your email address'),
             OneTimePasswordPurpose::Appeal => __('Your appeal verification code'),
+            OneTimePasswordPurpose::SchoolEmail => __('Confirm your school email'),
+            OneTimePasswordPurpose::Login => __('Your SDPC log in code'),
         };
     }
 
@@ -75,6 +77,8 @@ class EmailOneTimePassword extends Notification
         return match ($this->purpose) {
             OneTimePasswordPurpose::Registration => __('Somebody used this address to sign up for SDPC. Enter the code below to finish creating the account.'),
             OneTimePasswordPurpose::Appeal => __('Somebody asked to appeal a decision on the SDPC account at this address. Enter the code below to continue.'),
+            OneTimePasswordPurpose::SchoolEmail => __('Somebody asked to confirm this school address on an SDPC student account. Enter the code below to confirm it.'),
+            OneTimePasswordPurpose::Login => __('Somebody asked to log in to the SDPC account at this address. Enter the code below to log in.'),
         };
     }
 }

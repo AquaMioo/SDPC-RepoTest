@@ -1,10 +1,10 @@
-import { Form, Head, Link } from '@inertiajs/react';
-import { CheckCircleIcon } from '@phosphor-icons/react';
+import { Form, Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
 import AuthPitch, { Accent, wordmark } from '@/components/sdpc/auth-pitch';
 import { Btn } from '@/components/sdpc/btn';
+import EmailCodeEntry from '@/components/sdpc/email-code-entry';
 import GoogleAuthButton from '@/components/sdpc/google-auth-button';
 import GoogleAuthError from '@/components/sdpc/google-auth-error';
 import GoogleSetupHint from '@/components/sdpc/google-setup-hint';
@@ -15,13 +15,18 @@ import OAuthSetupHint from '@/components/sdpc/oauth-setup-hint';
 import RoleTransition, {
     useRoleTransition,
 } from '@/components/sdpc/role-transition';
+import SchoolEmailField from '@/components/sdpc/school-email-field';
 import TeamInvitationAlert from '@/components/team-invitation-alert';
 import { Spinner } from '@/components/ui/spinner';
 import { legal, login } from '@/routes';
 import { redirect as googleRedirect } from '@/routes/google';
 import { redirect as microsoftRedirect } from '@/routes/microsoft';
-import { store } from '@/routes/register';
+import { schoolEmail as sendSchoolEmailCode, store } from '@/routes/register';
 import { forget as forgetIdentity } from '@/routes/register/identity';
+import {
+    resend as resendSchoolEmailCode,
+    verify as verifySchoolEmailCode,
+} from '@/routes/register/school-email';
 import type { TeamInvitationContext } from '@/types';
 
 type Role = { value: string; label: string };
@@ -41,6 +46,19 @@ type MicrosoftProfile = {
     last_name: string;
 };
 
+/** A school address with a code on its way to it, on the Student tab. */
+type SchoolEmailCode = {
+    email: string;
+    codeLength: number;
+    expiresAfter: number;
+    secondsUntilResend: number;
+};
+
+/** Set once the student has typed the code back: the address is proved. */
+type SchoolEmailProfile = {
+    email: string;
+};
+
 type Props = {
     passwordRules: string;
     roles?: Role[];
@@ -51,27 +69,14 @@ type Props = {
     teamInvitation?: TeamInvitationContext | null;
     googleProfile?: GoogleProfile | null;
     microsoftProfile?: MicrosoftProfile | null;
+    schoolEmailCode?: SchoolEmailCode | null;
+    schoolEmailProfile?: SchoolEmailProfile | null;
     /** Domains schools actually issue addresses on. */
     schoolDomains?: string[];
 };
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
 
-/*
- * The same format check as App\Rules\SchoolEmailAddress: a mailbox, one or
- * more hostname labels, then `.edu.ph` and nothing after it. So `x@edu.ph`,
- * `x@stiedu.ph` and `x@sti.edu.ph.example.com` all fail, as they do on the
- * server. A format check only — it says nothing about which schools are real.
- */
-const SCHOOL_EMAIL =
-    /^[^@\s]+@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+edu\.ph$/i;
-const SCHOOL_EMAIL_MESSAGE = 'Use your school email. It must end in .edu.ph.';
-
-/** The format problem with a typed school email, or '' when there is none. */
-const schoolEmailProblem = (value: string): string =>
-    value.trim() === '' || SCHOOL_EMAIL.test(value.trim())
-        ? ''
-        : SCHOOL_EMAIL_MESSAGE;
 /*
  * Last/First and Password/Confirm sit side by side, which is the design.
  *
@@ -104,24 +109,30 @@ export default function Register({
     teamInvitation,
     googleProfile,
     microsoftProfile,
+    schoolEmailCode,
+    schoolEmailProfile,
     schoolDomains = [],
 }: Props) {
     /*
      * An identity waiting on the server decides the role: a Google address is
-     * not a school address, so it can only become a client, and a school
-     * Microsoft account can only become a student. The server enforces the
+     * not a school address, so it can only become a client, while a school
+     * Microsoft account — or a school address with a code on its way or
+     * already typed back — can only become a student. The server enforces the
      * same thing; this just keeps the other option from being picked.
      */
-    const lockedRole = microsoftProfile
-        ? 'student'
-        : googleProfile
-          ? 'client'
-          : null;
+    const lockedRole =
+        microsoftProfile || schoolEmailProfile || schoolEmailCode
+            ? 'student'
+            : googleProfile
+              ? 'client'
+              : null;
     const pendingIdentity = microsoftProfile
         ? { provider: 'microsoft', email: microsoftProfile.email }
-        : googleProfile
-          ? { provider: 'google', email: googleProfile.email }
-          : null;
+        : schoolEmailProfile
+          ? { provider: 'school-email', email: schoolEmailProfile.email }
+          : googleProfile
+            ? { provider: 'google', email: googleProfile.email }
+            : null;
     const prefill = microsoftProfile ?? googleProfile;
 
     const [role, setRole] = useState<string>(
@@ -129,36 +140,22 @@ export default function Register({
     );
     const isStudent = role === 'student';
 
-    const [schoolEmail, setSchoolEmail] = useState(
-        microsoftProfile?.email ?? '',
-    );
-    const [schoolEmailTouched, setSchoolEmailTouched] = useState(false);
-    const schoolEmailFormatError = schoolEmailProblem(schoolEmail);
+    /*
+     * The Student tab asks for the school address and its code before the
+     * rest of the form, the way the Client tab settles Google first. Until
+     * one of those has proved an address there is nothing else to fill in.
+     */
+    const needsSchoolEmailStep =
+        isStudent && !microsoftProfile && !schoolEmailProfile;
 
     /*
-     * Whether what has been typed is on a domain a school actually issues.
-     *
-     * EXACT match on the part after the last @, lowercased — never endsWith
-     * and never includes. A suffix test would tick for anybody who registers
-     * any .edu.ph domain, and a substring test would tick for
-     * "someone@sti.edu.ph.example.com". The server applies the same rule in
-     * School::forEmailDomain(); this is the same question asked early enough
-     * to be useful.
+     * By the time a student sees the full form the address is proved, so it
+     * is read from the identity rather than kept in state: the page stays
+     * mounted across the code step, and state would still hold what it
+     * started with.
      */
-    const isSchoolEmail = (() => {
-        const at = schoolEmail.lastIndexOf('@');
-
-        if (at === -1) {
-            return false;
-        }
-
-        return schoolDomains.includes(
-            schoolEmail
-                .slice(at + 1)
-                .trim()
-                .toLowerCase(),
-        );
-    })();
+    const provedSchoolEmail =
+        microsoftProfile?.email ?? schoolEmailProfile?.email ?? '';
 
     /*
      * The role picker sweeps the screen rather than swapping in place: the two
@@ -366,426 +363,357 @@ export default function Register({
                             })}
                         </div>
 
-                        <Form
-                            {...store.form()}
-                            resetOnSuccess={[
-                                'password',
-                                'password_confirmation',
-                            ]}
-                            disableWhileProcessing
-                            style={{ display: 'contents' }}
-                        >
-                            {({ processing, errors }) => (
-                                <>
-                                    {/* The segmented control lives outside the form so it
+                        {needsSchoolEmailStep ? (
+                            <SchoolEmailStep
+                                schoolDomains={schoolDomains}
+                                code={schoolEmailCode ?? null}
+                                alternative={
+                                    <>
+                                        {canLoginWithMicrosoft && (
+                                            <MicrosoftAuthButton
+                                                href={microsoftRedirect.url({
+                                                    query: {
+                                                        intent: 'register',
+                                                    },
+                                                })}
+                                            />
+                                        )}
+                                        {microsoftSetupHint && (
+                                            <OAuthSetupHint
+                                                provider="Microsoft"
+                                                variables={[
+                                                    'MICROSOFT_CLIENT_ID',
+                                                    'MICROSOFT_CLIENT_SECRET',
+                                                ]}
+                                            />
+                                        )}
+                                    </>
+                                }
+                            />
+                        ) : (
+                            <Form
+                                {...store.form()}
+                                resetOnSuccess={[
+                                    'password',
+                                    'password_confirmation',
+                                ]}
+                                disableWhileProcessing
+                                style={{ display: 'contents' }}
+                            >
+                                {({ processing, errors }) => (
+                                    <>
+                                        {/* The segmented control lives outside the form so it
                                 can drive conditional fields; its value rides
                                 along here. */}
-                                    <input
-                                        type="hidden"
-                                        name="role"
-                                        value={role}
-                                    />
-                                    <InputError
-                                        message={errors.role}
-                                        className="text-center text-[11px]"
-                                    />
+                                        <input
+                                            type="hidden"
+                                            name="role"
+                                            value={role}
+                                        />
+                                        <InputError
+                                            message={errors.role}
+                                            className="text-center text-[11px]"
+                                        />
 
-                                    <div style={TWO_UP}>
-                                        <div className="field">
-                                            <label htmlFor="last_name">
-                                                Last name
-                                            </label>
-                                            <Input
-                                                id="last_name"
-                                                name="last_name"
-                                                required
-                                                tabIndex={1}
-                                                autoComplete="family-name"
-                                                placeholder="Clemens"
-                                                defaultValue={
-                                                    prefill?.last_name
-                                                }
-                                            />
-                                            <InputError
-                                                message={errors.last_name}
-                                                className="mt-1 text-[11px]"
-                                            />
-                                        </div>
-
-                                        <div className="field">
-                                            <label htmlFor="first_name">
-                                                First name
-                                            </label>
-                                            <Input
-                                                id="first_name"
-                                                name="first_name"
-                                                required
-                                                autoFocus
-                                                tabIndex={2}
-                                                autoComplete="given-name"
-                                                placeholder="Samuel"
-                                                defaultValue={
-                                                    prefill?.first_name
-                                                }
-                                            />
-                                            <InputError
-                                                message={errors.first_name}
-                                                className="mt-1 text-[11px]"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/*
-                                     * Students have no separate email: the
-                                     * school address below is the one they
-                                     * sign in with.
-                                     */}
-                                    {!isStudent && (
-                                        <div className="field">
-                                            <label htmlFor="email">Email</label>
-                                            <Input
-                                                id="email"
-                                                type="email"
-                                                name="email"
-                                                required={!googleProfile}
-                                                tabIndex={3}
-                                                autoComplete="email"
-                                                placeholder="you@email.com"
-                                                // Google vouched for this address, so it is
-                                                // shown but not editable. The server reads
-                                                // it from the session either way.
-                                                defaultValue={
-                                                    googleProfile?.email
-                                                }
-                                                readOnly={Boolean(
-                                                    googleProfile,
-                                                )}
-                                                style={
-                                                    googleProfile
-                                                        ? {
-                                                              opacity: 0.75,
-                                                              cursor: 'not-allowed',
-                                                          }
-                                                        : undefined
-                                                }
-                                            />
-                                            <InputError
-                                                message={errors.email}
-                                                className="mt-1 text-[11px]"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {isStudent ? (
-                                        <div className="field">
-                                            <label htmlFor="school_email">
-                                                School email
-                                            </label>
-                                            <div className="relative">
+                                        <div style={TWO_UP}>
+                                            <div className="field">
+                                                <label htmlFor="last_name">
+                                                    Last name
+                                                </label>
                                                 <Input
-                                                    id="school_email"
-                                                    name="school_email"
-                                                    type="email"
+                                                    id="last_name"
+                                                    name="last_name"
                                                     required
-                                                    tabIndex={4}
-                                                    autoComplete="email"
-                                                    placeholder="02000xxxxxx@sti.edu.ph"
-                                                    value={schoolEmail}
-                                                    onChange={(event) => {
-                                                        setSchoolEmail(
-                                                            event.target.value,
-                                                        );
-                                                        /*
-                                                         * The browser refuses
-                                                         * to submit while this
-                                                         * is set, with the same
-                                                         * words the server
-                                                         * would use.
-                                                         */
-                                                        event.target.setCustomValidity(
-                                                            schoolEmailProblem(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                        );
-                                                    }}
-                                                    onBlur={() =>
-                                                        setSchoolEmailTouched(
-                                                            true,
-                                                        )
+                                                    tabIndex={1}
+                                                    autoComplete="family-name"
+                                                    placeholder="Clemens"
+                                                    defaultValue={
+                                                        prefill?.last_name
                                                     }
-                                                    aria-invalid={Boolean(
-                                                        (schoolEmailTouched &&
-                                                            schoolEmailFormatError) ||
-                                                        errors.school_email,
-                                                    )}
-                                                    // The school's own Microsoft
-                                                    // sign-in vouched for this
-                                                    // address, so it is shown but
-                                                    // not editable. The server
-                                                    // reads it from the session.
+                                                />
+                                                <InputError
+                                                    message={errors.last_name}
+                                                    className="mt-1 text-[11px]"
+                                                />
+                                            </div>
+
+                                            <div className="field">
+                                                <label htmlFor="first_name">
+                                                    First name
+                                                </label>
+                                                <Input
+                                                    id="first_name"
+                                                    name="first_name"
+                                                    required
+                                                    autoFocus
+                                                    tabIndex={2}
+                                                    autoComplete="given-name"
+                                                    placeholder="Samuel"
+                                                    defaultValue={
+                                                        prefill?.first_name
+                                                    }
+                                                />
+                                                <InputError
+                                                    message={errors.first_name}
+                                                    className="mt-1 text-[11px]"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/*
+                                         * Students have no separate email: the
+                                         * school address below is the one they
+                                         * sign in with.
+                                         */}
+                                        {!isStudent && (
+                                            <div className="field">
+                                                <label htmlFor="email">
+                                                    Email
+                                                </label>
+                                                <Input
+                                                    id="email"
+                                                    type="email"
+                                                    name="email"
+                                                    required={!googleProfile}
+                                                    tabIndex={3}
+                                                    autoComplete="email"
+                                                    placeholder="you@email.com"
+                                                    // Google vouched for this address, so it is
+                                                    // shown but not editable. The server reads
+                                                    // it from the session either way.
+                                                    defaultValue={
+                                                        googleProfile?.email
+                                                    }
                                                     readOnly={Boolean(
-                                                        microsoftProfile,
+                                                        googleProfile,
                                                     )}
-                                                    style={{
-                                                        paddingRight: 32,
-                                                        ...(microsoftProfile
+                                                    style={
+                                                        googleProfile
                                                             ? {
                                                                   opacity: 0.75,
                                                                   cursor: 'not-allowed',
                                                               }
-                                                            : {}),
-                                                    }}
-                                                />
-                                                {/*
-                                                 * The tick is a courtesy, not
-                                                 * the check. It lights for a
-                                                 * domain on the schools list;
-                                                 * the server decides the rest.
-                                                 */}
-                                                {isSchoolEmail && (
-                                                    <CheckCircleIcon
-                                                        weight="fill"
-                                                        aria-label="Recognised school email"
-                                                        style={{
-                                                            position:
-                                                                'absolute',
-                                                            right: 9,
-                                                            top: '50%',
-                                                            transform:
-                                                                'translateY(-50%)',
-                                                            color: 'var(--color-accent)',
-                                                            fontSize: 16,
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
-                                            <InputError
-                                                message={
-                                                    (schoolEmailTouched &&
-                                                        schoolEmailFormatError) ||
-                                                    errors.school_email
-                                                }
-                                                className="mt-1 text-[11px]"
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="field">
-                                            <label htmlFor="business_name">
-                                                Business name
-                                            </label>
-                                            <Input
-                                                id="business_name"
-                                                name="business_name"
-                                                required
-                                                tabIndex={4}
-                                                autoComplete="organization"
-                                                placeholder="Zenith Solutions Group"
-                                            />
-                                            <InputError
-                                                message={errors.business_name}
-                                                className="mt-1 text-[11px]"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* A Google or Microsoft account never gets a
-                                password: the provider is how they sign in. They
-                                can still set one later through the password
-                                reset flow. */}
-                                    {!pendingIdentity && (
-                                        <div style={TWO_UP}>
-                                            <div className="field">
-                                                <label htmlFor="password">
-                                                    Password
-                                                </label>
-                                                <Input
-                                                    id="password"
-                                                    name="password"
-                                                    type="password"
-                                                    required
-                                                    tabIndex={5}
-                                                    autoComplete="new-password"
-                                                    placeholder="••••••••"
-                                                    {...{
-                                                        passwordrules:
-                                                            passwordRules,
-                                                    }}
+                                                            : undefined
+                                                    }
                                                 />
                                                 <InputError
-                                                    message={errors.password}
+                                                    message={errors.email}
                                                     className="mt-1 text-[11px]"
                                                 />
                                             </div>
+                                        )}
 
+                                        {isStudent ? (
+                                            /*
+                                             * Microsoft or the code has proved
+                                             * this address, so it is shown but
+                                             * not editable. The server reads it
+                                             * from the session.
+                                             */
+                                            <SchoolEmailField
+                                                value={provedSchoolEmail}
+                                                onChange={() => {}}
+                                                schoolDomains={schoolDomains}
+                                                error={errors.school_email}
+                                                readOnly
+                                                tabIndex={4}
+                                            />
+                                        ) : (
                                             <div className="field">
-                                                <label htmlFor="password_confirmation">
-                                                    Confirm password
+                                                <label htmlFor="business_name">
+                                                    Business name
                                                 </label>
                                                 <Input
-                                                    id="password_confirmation"
-                                                    name="password_confirmation"
-                                                    type="password"
+                                                    id="business_name"
+                                                    name="business_name"
                                                     required
-                                                    tabIndex={6}
-                                                    autoComplete="new-password"
-                                                    placeholder="••••••••"
-                                                    {...{
-                                                        passwordrules:
-                                                            passwordRules,
-                                                    }}
+                                                    tabIndex={4}
+                                                    autoComplete="organization"
+                                                    placeholder="Zenith Solutions Group"
                                                 />
                                                 <InputError
                                                     message={
-                                                        errors.password_confirmation
+                                                        errors.business_name
                                                     }
                                                     className="mt-1 text-[11px]"
                                                 />
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/*
-                                     * Students sign up with their school
-                                     * Microsoft account, which proves the
-                                     * address without mailing a code to it.
-                                     * Clients keep Google.
-                                     */}
-                                    {isStudent ? (
-                                        <>
-                                            {canLoginWithMicrosoft &&
-                                                !microsoftProfile && (
-                                                    <MicrosoftAuthButton
-                                                        href={microsoftRedirect.url(
-                                                            {
-                                                                query: {
-                                                                    intent: 'register',
-                                                                },
-                                                            },
-                                                        )}
-                                                        tabIndex={7}
+                                        {/* A Google, Microsoft or school-email-code
+                                sign up never gets a password: that is how they
+                                sign in. They can still set one later through the
+                                password reset flow. */}
+                                        {!pendingIdentity && (
+                                            <div style={TWO_UP}>
+                                                <div className="field">
+                                                    <label htmlFor="password">
+                                                        Password
+                                                    </label>
+                                                    <Input
+                                                        id="password"
+                                                        name="password"
+                                                        type="password"
+                                                        required
+                                                        tabIndex={5}
+                                                        autoComplete="new-password"
+                                                        placeholder="••••••••"
+                                                        {...{
+                                                            passwordrules:
+                                                                passwordRules,
+                                                        }}
                                                     />
-                                                )}
-                                            {microsoftSetupHint &&
-                                                !microsoftProfile && (
-                                                    <OAuthSetupHint
-                                                        provider="Microsoft"
-                                                        variables={[
-                                                            'MICROSOFT_CLIENT_ID',
-                                                            'MICROSOFT_CLIENT_SECRET',
-                                                        ]}
+                                                    <InputError
+                                                        message={
+                                                            errors.password
+                                                        }
+                                                        className="mt-1 text-[11px]"
                                                     />
-                                                )}
-                                        </>
-                                    ) : (
-                                        <>
-                                            {canLoginWithGoogle &&
-                                                !googleProfile && (
-                                                    <GoogleAuthButton
-                                                        href={googleRedirect.url(
-                                                            {
-                                                                query: {
-                                                                    intent: 'register',
-                                                                },
-                                                            },
-                                                        )}
-                                                        tabIndex={7}
-                                                    />
-                                                )}
-                                            {googleSetupHint &&
-                                                !googleProfile && (
-                                                    <GoogleSetupHint />
-                                                )}
-                                        </>
-                                    )}
+                                                </div>
 
-                                    <label
-                                        style={{
-                                            display: 'flex',
-                                            gap: 10,
-                                            alignItems: 'flex-start',
-                                            fontSize: 11.5,
-                                            lineHeight: 1.5,
-                                            cursor: 'pointer',
-                                            color: 'color-mix(in srgb, var(--color-text) 62%, transparent)',
-                                            marginTop: 2,
-                                        }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            name="terms"
-                                            value="1"
-                                            tabIndex={8}
+                                                <div className="field">
+                                                    <label htmlFor="password_confirmation">
+                                                        Confirm password
+                                                    </label>
+                                                    <Input
+                                                        id="password_confirmation"
+                                                        name="password_confirmation"
+                                                        type="password"
+                                                        required
+                                                        tabIndex={6}
+                                                        autoComplete="new-password"
+                                                        placeholder="••••••••"
+                                                        {...{
+                                                            passwordrules:
+                                                                passwordRules,
+                                                        }}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.password_confirmation
+                                                        }
+                                                        className="mt-1 text-[11px]"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/*
+                                         * Clients may let Google prove their
+                                         * address. A student reaching this form
+                                         * has already proved theirs, with the
+                                         * code or Microsoft, on the step before.
+                                         */}
+                                        {!isStudent && (
+                                            <>
+                                                {canLoginWithGoogle &&
+                                                    !googleProfile && (
+                                                        <GoogleAuthButton
+                                                            href={googleRedirect.url(
+                                                                {
+                                                                    query: {
+                                                                        intent: 'register',
+                                                                    },
+                                                                },
+                                                            )}
+                                                            tabIndex={7}
+                                                        />
+                                                    )}
+                                                {googleSetupHint &&
+                                                    !googleProfile && (
+                                                        <GoogleSetupHint />
+                                                    )}
+                                            </>
+                                        )}
+
+                                        <label
                                             style={{
-                                                accentColor:
-                                                    'var(--color-accent)',
-                                                width: 15,
-                                                height: 15,
-                                                flex: 'none',
-                                                marginTop: 1,
+                                                display: 'flex',
+                                                gap: 10,
+                                                alignItems: 'flex-start',
+                                                fontSize: 11.5,
+                                                lineHeight: 1.5,
+                                                cursor: 'pointer',
+                                                color: 'color-mix(in srgb, var(--color-text) 62%, transparent)',
+                                                marginTop: 2,
                                             }}
-                                        />
-                                        {/* Colour is deliberately absent from
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                name="terms"
+                                                value="1"
+                                                tabIndex={8}
+                                                style={{
+                                                    accentColor:
+                                                        'var(--color-accent)',
+                                                    width: 15,
+                                                    height: 15,
+                                                    flex: 'none',
+                                                    marginTop: 1,
+                                                }}
+                                            />
+                                            {/* Colour is deliberately absent from
                                             the three links below: it lives on
                                             a[data-inline-link] in nocturne.css, where
                                             :hover can reach it. */}
-                                        <span>
-                                            Yes, I understand and agree to the
-                                            SDPC{' '}
-                                            <a
-                                                href={legal.url(
-                                                    'terms-of-service',
-                                                )}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                data-inline-link=""
-                                            >
-                                                Terms of Service
-                                            </a>
-                                            , including the{' '}
-                                            <a
-                                                href={legal.url(
-                                                    'user-agreement',
-                                                )}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                data-inline-link=""
-                                            >
-                                                User Agreement
-                                            </a>{' '}
-                                            and{' '}
-                                            <a
-                                                href={legal.url(
-                                                    'privacy-policy',
-                                                )}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                data-inline-link=""
-                                            >
-                                                Privacy Policy
-                                            </a>
-                                            .
-                                        </span>
-                                    </label>
-                                    <InputError
-                                        message={errors.terms}
-                                        className="text-[11px]"
-                                    />
+                                            <span>
+                                                Yes, I understand and agree to
+                                                the SDPC{' '}
+                                                <a
+                                                    href={legal.url(
+                                                        'terms-of-service',
+                                                    )}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    data-inline-link=""
+                                                >
+                                                    Terms of Service
+                                                </a>
+                                                , including the{' '}
+                                                <a
+                                                    href={legal.url(
+                                                        'user-agreement',
+                                                    )}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    data-inline-link=""
+                                                >
+                                                    User Agreement
+                                                </a>{' '}
+                                                and{' '}
+                                                <a
+                                                    href={legal.url(
+                                                        'privacy-policy',
+                                                    )}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    data-inline-link=""
+                                                >
+                                                    Privacy Policy
+                                                </a>
+                                                .
+                                            </span>
+                                        </label>
+                                        <InputError
+                                            message={errors.terms}
+                                            className="text-[11px]"
+                                        />
 
-                                    <Btn
-                                        type="submit"
-                                        variant="primary"
-                                        block
-                                        tabIndex={9}
-                                        data-test="register-user-button"
-                                        style={{ paddingBlock: 9 }}
-                                    >
-                                        {processing && <Spinner />}
-                                        Create my account
-                                    </Btn>
-                                </>
-                            )}
-                        </Form>
+                                        <Btn
+                                            type="submit"
+                                            variant="primary"
+                                            block
+                                            tabIndex={9}
+                                            data-test="register-user-button"
+                                            style={{ paddingBlock: 9 }}
+                                        >
+                                            {processing && <Spinner />}
+                                            Create my account
+                                        </Btn>
+                                    </>
+                                )}
+                            </Form>
+                        )}
 
                         <div
                             style={{
@@ -822,5 +750,91 @@ export default function Register({
                 </main>
             </div>
         </>
+    );
+}
+
+/**
+ * The Student tab's first two steps: the school email, then its code.
+ *
+ * Laid out like the Client tab's "Continue with Google": the address is
+ * settled first, and only then does the form ask for a name — with no
+ * password, because the code has just proved the address the way Google
+ * would. Once the code comes back the server holds the address and the page
+ * reloads into that form with a "Continuing as …" banner.
+ */
+function SchoolEmailStep({
+    schoolDomains,
+    code,
+    alternative,
+}: {
+    schoolDomains: string[];
+    code: SchoolEmailCode | null;
+    /** Another way to prove the address, e.g. the school's Microsoft account. */
+    alternative?: React.ReactNode;
+}) {
+    const [email, setEmail] = useState('');
+
+    if (code) {
+        return (
+            <EmailCodeEntry
+                email={code.email}
+                codeLength={code.codeLength}
+                expiresAfter={code.expiresAfter}
+                secondsUntilResend={code.secondsUntilResend}
+                submitUrl={verifySchoolEmailCode.url()}
+                resendUrl={resendSchoolEmailCode.url()}
+                submitLabel="Verify my school email"
+                onStartOver={() => router.delete(forgetIdentity.url())}
+                startOverLabel="Use a different email"
+            />
+        );
+    }
+
+    return (
+        <Form
+            {...sendSchoolEmailCode.form()}
+            disableWhileProcessing
+            style={{ display: 'contents' }}
+        >
+            {({ processing, errors }) => (
+                <>
+                    <p
+                        style={{
+                            margin: 0,
+                            fontSize: 12.5,
+                            lineHeight: 1.6,
+                            color: MUTED,
+                            textAlign: 'center',
+                        }}
+                    >
+                        Start with your school email. We&apos;ll send a code to
+                        it to confirm it&apos;s yours — no password needed.
+                    </p>
+
+                    <SchoolEmailField
+                        value={email}
+                        onChange={setEmail}
+                        schoolDomains={schoolDomains}
+                        error={errors.school_email}
+                        tabIndex={1}
+                        autoFocus
+                    />
+
+                    <Btn
+                        type="submit"
+                        variant="primary"
+                        block
+                        tabIndex={2}
+                        data-test="send-school-email-code"
+                        style={{ paddingBlock: 9 }}
+                    >
+                        {processing && <Spinner />}
+                        Send code
+                    </Btn>
+
+                    {alternative}
+                </>
+            )}
+        </Form>
     );
 }

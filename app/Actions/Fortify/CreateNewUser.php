@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Verification\SchoolEmailVerifier;
 use App\Support\PendingGoogleRegistration;
 use App\Support\PendingMicrosoftRegistration;
+use App\Support\PendingSchoolEmailRegistration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -52,6 +53,8 @@ class CreateNewUser implements CreatesNewUsers
         // email posted from the browser could be anyone's.
         $google = PendingGoogleRegistration::get();
         $microsoft = PendingMicrosoftRegistration::get();
+        // A school address proved by a code on the Student tab.
+        $schoolEmail = PendingSchoolEmailRegistration::verifiedEmail();
 
         Validator::make(
             $input,
@@ -62,6 +65,7 @@ class CreateNewUser implements CreatesNewUsers
         $role = UserRole::from($input['role']);
 
         $email = $microsoft['email']
+            ?? $schoolEmail
             ?? $google['email']
             ?? ($role === UserRole::Student
                 ? mb_strtolower(trim($input['school_email']))
@@ -74,6 +78,7 @@ class CreateNewUser implements CreatesNewUsers
         if (User::where('email', $email)->exists()) {
             PendingGoogleRegistration::forget();
             PendingMicrosoftRegistration::forget();
+            PendingSchoolEmailRegistration::forget();
 
             throw ValidationException::withMessages([
                 'email' => [__('An account already exists for :email. Please log in instead.', ['email' => $email])],
@@ -84,7 +89,7 @@ class CreateNewUser implements CreatesNewUsers
         $lastName = trim($input['last_name']);
         $name = trim($firstName.' '.$lastName);
 
-        return DB::transaction(function () use ($input, $firstName, $lastName, $role, $name, $email, $google, $microsoft) {
+        return DB::transaction(function () use ($input, $firstName, $lastName, $role, $name, $email, $google, $microsoft, $schoolEmail) {
             $user = new User;
 
             $user->forceFill([
@@ -92,10 +97,11 @@ class CreateNewUser implements CreatesNewUsers
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'email' => $email,
-                // An account made through Google or Microsoft never gets a
-                // password. They may still set one later through the password
-                // reset flow.
-                'password' => $google !== null || $microsoft !== null ? null : $input['password'],
+                // An account made through Google, Microsoft or a school-email
+                // code never gets a password. A student signs back in with a
+                // code or a bound Google account; anyone may still set one
+                // through the password reset flow.
+                'password' => $google !== null || $microsoft !== null || $schoolEmail !== null ? null : $input['password'],
                 'role' => $role,
                 'google_id' => $google['google_id'] ?? null,
                 'google_email' => $google['email'] ?? null,
@@ -111,6 +117,7 @@ class CreateNewUser implements CreatesNewUsers
 
             PendingGoogleRegistration::forget();
             PendingMicrosoftRegistration::forget();
+            PendingSchoolEmailRegistration::forget();
 
             $team = $this->createTeam->handle(
                 $user,

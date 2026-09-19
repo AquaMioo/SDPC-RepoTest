@@ -11,6 +11,10 @@ import {
 
 export type SignInMethods = {
     hasPassword: boolean;
+    /** The account address is a school one, so a login code can go to it. */
+    schoolEmailCode: boolean;
+    /** False while Microsoft sign-in is not configured on the server. */
+    microsoftAvailable: boolean;
     microsoftLinked: boolean;
     /** False while Google sign-in is not configured on the server. */
     googleAvailable: boolean;
@@ -59,21 +63,38 @@ export default function SignInMethodsCard({
         >
             <h6 style={{ margin: 0 }}>Sign-in methods</h6>
 
-            <div style={ROW}>
-                <div style={{ marginRight: 'auto' }}>
-                    <div style={{ fontSize: 13.5 }}>
-                        School Microsoft account
+            {methods.schoolEmailCode && (
+                <div style={ROW}>
+                    <div style={{ marginRight: 'auto' }}>
+                        <div style={{ fontSize: 13.5 }}>School email code</div>
+                        <div style={{ fontSize: 12, color: MUTED(58) }}>
+                            On the login page, choose “Log in with a code” and
+                            we email one to your school address.
+                        </div>
                     </div>
-                    <div style={{ fontSize: 12, color: MUTED(58) }}>
-                        {methods.microsoftLinked
-                            ? 'Use “Continue with Microsoft” on the login page.'
-                            : 'Links itself the first time you use “Continue with Microsoft” on the login page.'}
-                    </div>
+                    <Tag variant="accent">On</Tag>
                 </div>
-                <Tag variant={methods.microsoftLinked ? 'accent' : 'outline'}>
-                    {methods.microsoftLinked ? 'Linked' : 'Not linked'}
-                </Tag>
-            </div>
+            )}
+
+            {(methods.microsoftAvailable || methods.microsoftLinked) && (
+                <div style={ROW}>
+                    <div style={{ marginRight: 'auto' }}>
+                        <div style={{ fontSize: 13.5 }}>
+                            School Microsoft account
+                        </div>
+                        <div style={{ fontSize: 12, color: MUTED(58) }}>
+                            {methods.microsoftLinked
+                                ? 'Use “Continue with Microsoft” on the login page.'
+                                : 'Links itself the first time you use “Continue with Microsoft” on the login page.'}
+                        </div>
+                    </div>
+                    <Tag
+                        variant={methods.microsoftLinked ? 'accent' : 'outline'}
+                    >
+                        {methods.microsoftLinked ? 'Linked' : 'Not linked'}
+                    </Tag>
+                </div>
+            )}
 
             <div style={ROW}>
                 <div style={{ marginRight: 'auto' }}>
@@ -81,7 +102,9 @@ export default function SignInMethodsCard({
                     <div style={{ fontSize: 12, color: MUTED(58) }}>
                         {methods.hasPassword
                             ? 'Signs in with your school email.'
-                            : 'None set. Use “Forgot password” on the login page to add one.'}
+                            : methods.schoolEmailCode
+                              ? 'Not needed. You log in with a code sent to your school email.'
+                              : 'None set. Use “Forgot password” on the login page to add one.'}
                     </div>
                 </div>
                 <Tag variant={methods.hasPassword ? 'accent' : 'outline'}>

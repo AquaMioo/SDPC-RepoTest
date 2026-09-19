@@ -13,6 +13,7 @@ use App\Services\Verification\OneTimePasswordService;
 use App\Support\PendingGoogleRegistration;
 use App\Support\PendingMicrosoftRegistration;
 use App\Support\PendingRegistration;
+use App\Support\PendingSchoolEmailRegistration;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,6 +69,13 @@ class RegistrationController extends Controller
             // the form to Student and fills in the school email.
             'microsoftProfile' => $this->microsoftProfile(),
             /*
+             * The Student tab's own way to the same place: a school address
+             * with a code on its way to it, and then the address once proved.
+             * Once proved it behaves like the Microsoft identity above.
+             */
+            'schoolEmailCode' => $this->schoolEmailCode(),
+            'schoolEmailProfile' => $this->schoolEmailProfile(),
+            /*
              * The domains a school actually issues addresses on, so the field
              * can tick the moment a real one is typed instead of waiting for a
              * round trip per keystroke.
@@ -97,7 +105,7 @@ class RegistrationController extends Controller
      */
     public function store(RegisterRequest $request): RedirectResponse
     {
-        if (PendingMicrosoftRegistration::exists()) {
+        if (PendingMicrosoftRegistration::exists() || PendingSchoolEmailRegistration::exists()) {
             try {
                 return $this->completeRegistration($request->validated());
             } catch (ValidationException $exception) {
@@ -221,6 +229,7 @@ class RegistrationController extends Controller
 
         PendingRegistration::forget();
         PendingMicrosoftRegistration::forget();
+        PendingSchoolEmailRegistration::forget();
 
         /*
          * Written here rather than forwarded from the exception. Whichever of
@@ -277,16 +286,24 @@ class RegistrationController extends Controller
     }
 
     /**
-     * Drop a Google or Microsoft identity and show a blank form again.
+     * Drop a Google, Microsoft or school-email identity and start again.
      *
      * The identity locks both the role and the address, so without this
-     * somebody who pressed the wrong button would be stuck with it until the
-     * session expired.
+     * somebody who pressed the wrong button — or typed their school address
+     * wrong — would be stuck with it until the session expired. A code still
+     * on its way is dropped with it, so it cannot finish a later attempt.
      */
     public function forgetIdentity(): RedirectResponse
     {
+        $awaiting = PendingSchoolEmailRegistration::awaitingEmail();
+
+        if ($awaiting !== null) {
+            $this->passwords->forget($awaiting, OneTimePasswordPurpose::Registration);
+        }
+
         PendingGoogleRegistration::forget();
         PendingMicrosoftRegistration::forget();
+        PendingSchoolEmailRegistration::forget();
 
         return to_route('register');
     }
@@ -365,6 +382,35 @@ class RegistrationController extends Controller
             'email' => $pending['email'],
             'first_name' => $pending['first_name'],
             'last_name' => $pending['last_name'],
+        ];
+    }
+
+    /**
+     * Get the school address the student has proved with a code.
+     *
+     * @return array{email: string}|null
+     */
+    private function schoolEmailProfile(): ?array
+    {
+        $email = PendingSchoolEmailRegistration::verifiedEmail();
+
+        return $email === null ? null : ['email' => $email];
+    }
+
+    /**
+     * Get the school address a code is waiting on, for the Student tab's code box.
+     *
+     * @return array{email: string, codeLength: int, expiresAfter: int, secondsUntilResend: int}|null
+     */
+    private function schoolEmailCode(): ?array
+    {
+        $email = PendingSchoolEmailRegistration::awaitingEmail();
+
+        return $email === null ? null : [
+            'email' => $email,
+            'codeLength' => (int) config('otp.length'),
+            'expiresAfter' => (int) config('otp.expires_after'),
+            'secondsUntilResend' => $this->passwords->secondsUntilResend($email, OneTimePasswordPurpose::Registration),
         ];
     }
 

@@ -4,8 +4,10 @@ use App\Http\Controllers\Auth\AccountAppealController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\Auth\RegistrationController;
+use App\Http\Controllers\Auth\SchoolEmailCodeController;
 use App\Http\Controllers\Auth\SessionHeartbeatController;
 use App\Http\Controllers\Auth\SessionLeaveController;
+use App\Http\Controllers\Auth\StudentCodeLoginController;
 use App\Http\Controllers\Auth\StudentCredentialController;
 use Illuminate\Support\Facades\Route;
 
@@ -79,6 +81,44 @@ Route::middleware(['guest:'.$guard])->group(function () {
      */
     Route::delete('register/identity', [RegistrationController::class, 'forgetIdentity'])
         ->name('register.identity.forget');
+
+    /*
+     * The Student tab: a school address, then its code, then the rest of the
+     * form with no password — the order the Client tab's Google button uses.
+     * Throttled like the code routes above; the per-code attempt budget in
+     * OneTimePasswordService is the real limit.
+     */
+    Route::post('register/school-email', [SchoolEmailCodeController::class, 'send'])
+        ->middleware('throttle:5,1')
+        ->name('register.school-email');
+
+    Route::post('register/school-email/verify', [SchoolEmailCodeController::class, 'confirm'])
+        ->middleware('throttle:10,1')
+        ->name('register.school-email.verify');
+
+    Route::post('register/school-email/resend', [SchoolEmailCodeController::class, 'resend'])
+        ->middleware('throttle:5,1')
+        ->name('register.school-email.resend');
+
+    /*
+     * Students sign in with a code mailed to their school address; they have
+     * no password. A bound Google account skips this. See
+     * StudentCodeLoginController for why nothing here reveals an account.
+     */
+    Route::post('login/code', [StudentCodeLoginController::class, 'send'])
+        ->middleware('throttle:5,1')
+        ->name('login.code');
+
+    Route::post('login/code/verify', [StudentCodeLoginController::class, 'confirm'])
+        ->middleware('throttle:10,1')
+        ->name('login.code.verify');
+
+    Route::post('login/code/resend', [StudentCodeLoginController::class, 'resend'])
+        ->middleware('throttle:5,1')
+        ->name('login.code.resend');
+
+    Route::delete('login/code', [StudentCodeLoginController::class, 'cancel'])
+        ->name('login.code.cancel');
 });
 
 /*

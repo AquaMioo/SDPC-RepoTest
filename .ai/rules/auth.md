@@ -4,6 +4,7 @@ paths:
   - app/Http/Controllers/Auth/AccountAppealController.php
   - app/Http/Middleware/EnsureAccountIsNotMonitored.php
   - 'app/Http/Middleware/**'
+  - 'app/Http/Controllers/Auth/**'
 ---
 
 # Auth
@@ -56,3 +57,6 @@ The same signal enforces "Keep me logged in" (agreed with the team 2026-09-19): 
 
 ## A deactivated account is confined to Settings by an allow-list, not by gating each module
 ConfineDeactivatedAccounts runs in the web group right after EndSessionOnLoginScreen and sends a deactivated account back to profile.edit (JSON requests get 403) unless the route is in OPEN_ROUTES: home, legal, login screens, logout, session.heartbeat, session.leave, profile.edit/appeal.store/destroy, the Security routes (security.edit, user-password.update, password.confirm*, two-factor.*, passkey.*), student.google.* and verification.*. New modules are closed by default — only widen OPEN_ROUTES for something that is genuinely part of Settings. broadcasting/auth is open only for the account's own `private-App.Models.User.{id}` channel (the sign-in alert), never for a conversation. AuthHome sends a deactivated account straight to settings; ClientLayout greys out every nav item and icon except Settings. tests/Feature/Auth/DeactivatedAccountTest.php pins it.
+
+## Students have no password: a school-email code signs them up and in
+Since 2026-09-20 the Student tab mirrors the Client tab's Google flow: school email -> code (SchoolEmailCodeController, Registration purpose) -> PendingSchoolEmailRegistration verified -> name + terms, no password. RegistrationValidationRules and CreateNewUser treat that verified address exactly like the Microsoft identity (student only, password null, address from the session, never the form). Students sign in with StudentCodeLoginController (Login purpose) or a bound Google account; students who already have a password keep the ordinary form. The code sign in must never reveal whether an address is a student account — same rules as the guest appeal page: resend clock in the session (PendingCodeLogin), one rejected-code message, identical screen. LinkGoogleAccount::canUnlink counts a school address as a way in. The old student path (full form with password -> register.verify) still works server-side; the UI no longer offers it.

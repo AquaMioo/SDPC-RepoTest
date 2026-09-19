@@ -12,6 +12,7 @@ use App\Http\Responses\RegisterResponse;
 use App\Http\Responses\TwoFactorLoginResponse;
 use App\Http\Responses\VerifyEmailResponse;
 use App\Models\TeamInvitation;
+use App\Support\PendingCodeLogin;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Http\Request;
@@ -100,6 +101,8 @@ class FortifyServiceProvider extends ServiceProvider
             // Why this device was just signed out or refused. See App\Support\AccountSession.
             'warning' => $request->session()->get('warning'),
             'teamInvitation' => $this->teamInvitation($request),
+            // A student part way through signing in with a school-email code.
+            'loginCode' => PendingCodeLogin::forView(),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [

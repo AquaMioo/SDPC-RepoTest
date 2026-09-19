@@ -95,10 +95,15 @@ class LinkGoogleAccount
 
     /**
      * Determine if removing Google would still leave the student a way in.
+     *
+     * A student whose account address is a school address can always sign in
+     * with a code mailed to it (StudentCodeLoginController), password or not.
      */
     public function canUnlink(User $student): bool
     {
-        return $student->password !== null || $student->microsoft_id !== null;
+        return $student->password !== null
+            || $student->microsoft_id !== null
+            || SchoolEmailAddress::matches($student->email);
     }
 
     /**
