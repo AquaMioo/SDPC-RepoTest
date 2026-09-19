@@ -10,7 +10,6 @@ use App\Models\Agreement;
 use App\Models\Project;
 use App\Models\SiteContent;
 use App\Models\User;
-use Illuminate\Support\Carbon;
 
 /**
  * Gathers everything the student dashboard shows.
@@ -28,16 +27,14 @@ class BuildStudentDashboard
      *
      * @return array<string, mixed>
      */
-    public function handle(User $student, ?Carbon $today = null): array
+    public function handle(User $student): array
     {
-        $today ??= Carbon::today();
-
         $project = $this->activeProject($student);
         $agreement = $this->activeAgreement($student, $project);
 
         return [
             'project' => $this->project($project, $agreement),
-            'calendar' => $this->calendar($today, $agreement),
+            'calendar' => ['marks' => $this->milestoneMarks($agreement)],
             'announcement' => $this->announcement(),
         ];
     }
@@ -131,46 +128,14 @@ class BuildStudentDashboard
     }
 
     /**
-     * Build the month grid the calendar card renders.
-     *
-     * Six weeks from the Sunday on or before the first, so the card does not
-     * change height between months. Milestone start and end dates are marked
-     * from the signed agreement; without one the month is plain, because a
-     * posting still carries no dates of its own.
-     *
-     * @return array<string, mixed>
-     */
-    protected function calendar(Carbon $today, ?Agreement $agreement): array
-    {
-        $marks = $this->milestoneMarks($agreement);
-
-        $firstOfMonth = $today->copy()->startOfMonth();
-        $cursor = $firstOfMonth->copy()->startOfWeek(Carbon::SUNDAY);
-
-        $days = [];
-
-        for ($i = 0; $i < 42; $i++) {
-            $date = $cursor->toDateString();
-
-            $days[] = [
-                'day' => $cursor->day,
-                'date' => $date,
-                'isToday' => $cursor->isSameDay($today),
-                'isOutsideMonth' => $cursor->month !== $firstOfMonth->month,
-                'milestone' => $marks[$date] ?? null,
-            ];
-
-            $cursor->addDay();
-        }
-
-        return [
-            'label' => $firstOfMonth->format('M Y'),
-            'days' => $days,
-        ];
-    }
-
-    /**
      * Index the agreed milestone dates by the day they fall on.
+     *
+     * Every month's, not only this one's: the calendar card builds its month
+     * grid in the browser and can be paged, so it needs the whole schedule to
+     * mark whichever month is shown. Building the grid there also puts
+     * "today" on the viewer's own date — the app runs in UTC, so a grid built
+     * here showed yesterday as today until 8 AM in the Philippines. Without a
+     * signed agreement there are no marks, because a posting carries no dates.
      *
      * A milestone that starts and ends on the same day is one mark, not two —
      * the calendar has one cell to say it with.

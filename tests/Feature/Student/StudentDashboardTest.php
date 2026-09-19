@@ -17,7 +17,6 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -58,7 +57,7 @@ class StudentDashboardTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('project', null)
                 ->where('announcement', null)
-                ->has('calendar.days', 42));
+                ->where('calendar.marks', []));
     }
 
     public function test_the_active_project_comes_from_an_accepted_application(): void
@@ -170,12 +169,10 @@ class StudentDashboardTest extends TestCase
         $this->actingAs($student)
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where(
-                    'calendar.days',
-                    fn (Collection $days) => $days->firstWhere('date', '2026-03-09')['milestone'] === 'Design starts'
-                        && $days->firstWhere('date', '2026-03-27')['milestone'] === 'Design due'
-                        && $days->firstWhere('date', '2026-03-10')['milestone'] === null
-                ));
+                ->where('calendar.marks', [
+                    '2026-03-09' => 'Design starts',
+                    '2026-03-27' => 'Design due',
+                ]));
 
         Carbon::setTestNow();
     }
@@ -205,22 +202,38 @@ class StudentDashboardTest extends TestCase
                 ->where('project.team.1.role', 'Backend · database'));
     }
 
-    public function test_the_calendar_shows_the_current_month(): void
+    public function test_the_calendar_carries_milestones_from_other_months_for_paging(): void
     {
+        // The card builds the grid in the browser and pages through months,
+        // so a phase due next month has to be in the payload this month.
         Carbon::setTestNow('2026-03-10');
 
         $student = $this->student();
+        $project = $this->project(['status' => ProjectStatus::InProgress]);
+        $application = $this->accept($student, $project);
+
+        $agreement = Agreement::factory()->active()->create([
+            'project_id' => $project->id,
+            'application_id' => $application->id,
+            'team_id' => $project->team_id,
+            'student_id' => $student->id,
+        ]);
+
+        AgreementMilestone::factory()->create([
+            'agreement_id' => $agreement->id,
+            'position' => 1,
+            'title' => 'Build',
+            'starts_on' => '2026-04-20',
+            'ends_on' => '2026-05-15',
+        ]);
 
         $this->actingAs($student)
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('calendar.label', 'Mar 2026')
-                ->has('calendar.days', 42)
-                ->where(
-                    'calendar.days',
-                    fn (Collection $days) => $days->firstWhere('date', '2026-03-10')['isToday'] === true
-                        && $days->firstWhere('date', '2026-03-11')['isToday'] === false
-                ));
+                ->where('calendar.marks', [
+                    '2026-04-20' => 'Build starts',
+                    '2026-05-15' => 'Build due',
+                ]));
 
         Carbon::setTestNow();
     }

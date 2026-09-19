@@ -1,6 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     CalendarBlankIcon,
+    CaretLeftIcon,
+    CaretRightIcon,
     CircleIcon,
     MegaphoneIcon,
     PlusIcon,
@@ -25,14 +27,47 @@ const MUTED = (pct: number) =>
 
 const DAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+/** The announcements box's fixed height; the client dashboard uses the same. */
+const ANNOUNCEMENTS_HEIGHT = 280;
+
 type CalendarDay = {
     day: number;
+    /** YYYY-MM-DD on the viewer's own calendar. */
     date: string;
     isToday: boolean;
     isOutsideMonth: boolean;
-    /** What the agreement has scheduled for that day, if anything. */
-    milestone: string | null;
 };
+
+/** A date as YYYY-MM-DD in the viewer's time zone, like localDateKey. */
+function dayKey(date: Date): string {
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+}
+
+/**
+ * Six weeks from the Sunday on or before the first of the month, so the card
+ * keeps its height as the months are paged.
+ */
+function monthGrid(first: Date, today: string): CalendarDay[] {
+    return Array.from({ length: 42 }, (_, index) => {
+        const date = new Date(
+            first.getFullYear(),
+            first.getMonth(),
+            1 - first.getDay() + index,
+        );
+        const key = dayKey(date);
+
+        return {
+            day: date.getDate(),
+            date: key,
+            isToday: key === today,
+            isOutsideMonth: date.getMonth() !== first.getMonth(),
+        };
+    });
+}
 
 type Props = {
     project: {
@@ -56,7 +91,8 @@ type Props = {
         }[];
         team: { name: string; role: string | null; isAvailable: boolean }[];
     } | null;
-    calendar: { label: string; days: CalendarDay[] };
+    /** The agreed milestone dates, every month's, as YYYY-MM-DD → label. */
+    calendar: { marks: Record<string, string> };
     announcement: { body: string; updatedAt: string | null } | null;
     pendingInvitations?: DashboardInvitation[];
     /** Meetings booked in this student's threads, soonest first. */
@@ -157,6 +193,10 @@ export default function StudentDashboard({
  * only through the `title` tooltip, which a touch screen never shows and a
  * keyboard never reaches. Selecting a day writes it into the line under the
  * grid, so every day says what it holds without a pointer hovering over it.
+ *
+ * The grid is built here rather than sent by the server, so the arrows can
+ * page to any month and "today" is the viewer's own date — the server runs in
+ * UTC and marked yesterday as today until 8 AM in the Philippines.
  */
 function CalendarCard({
     calendar,
@@ -165,14 +205,27 @@ function CalendarCard({
     calendar: Props['calendar'];
     meetings: UpcomingMeeting[];
 }) {
+    const now = new Date();
+    const today = dayKey(now);
+    const [offset, setOffset] = useState(0);
     const [selected, setSelected] = useState<string | null>(null);
-    const selectedDay =
-        calendar.days.find((day) => day.date === selected) ?? null;
+
+    const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const days = monthGrid(first, today);
+    const label = first.toLocaleString(undefined, {
+        month: 'short',
+        year: 'numeric',
+    });
+
+    /* A selection belongs to the month it was made in. */
+    const page = (step: number): void => {
+        setOffset((value) => value + step);
+        setSelected(null);
+    };
 
     /*
-     * Meetings keyed on the viewer's own calendar day. The cells come from the
-     * server, but a meeting's day has to be read in the browser's time zone —
-     * see localDateKey.
+     * Meetings keyed on the viewer's own calendar day — a meeting's day has to
+     * be read in the browser's time zone, see localDateKey.
      */
     const meetingsOn = new Map<string, string[]>();
 
@@ -184,18 +237,36 @@ function CalendarCard({
     }
 
     /** Everything on a day: its milestone, then any meetings. */
-    const describe = (day: CalendarDay): string | null => {
+    const describe = (date: string): string | null => {
+        const milestone = calendar.marks[date];
         const parts = [
-            ...(day.milestone === null ? [] : [day.milestone]),
-            ...(meetingsOn.get(day.date) ?? []),
+            ...(milestone === undefined ? [] : [milestone]),
+            ...(meetingsOn.get(date) ?? []),
         ];
 
         return parts.length === 0 ? null : parts.join(' · ');
     };
 
-    const nothingScheduled = calendar.days.every(
-        (day) => describe(day) === null,
-    );
+    const nothingScheduled = days.every((day) => describe(day.date) === null);
+
+    /* "Sat, 19 Sep" for the line under the grid. */
+    const dateLabel = (date: string): string =>
+        new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+        });
+
+    /* Colours and hover live on button[data-calendar-arrow] in nocturne.css. */
+    const arrow: React.CSSProperties = {
+        display: 'grid',
+        placeItems: 'center',
+        width: 22,
+        height: 22,
+        border: 0,
+        borderRadius: 6,
+        cursor: 'pointer',
+    };
 
     return (
         <Panel padding="md" gap="md">
@@ -204,9 +275,25 @@ function CalendarCard({
                 <span style={{ fontSize: 13, marginRight: 'auto' }}>
                     Calendar
                 </span>
-                <span style={{ fontSize: 12, color: MUTED(68) }}>
-                    {calendar.label}
-                </span>
+                <span style={{ fontSize: 12, color: MUTED(68) }}>{label}</span>
+                <button
+                    type="button"
+                    aria-label="Previous month"
+                    data-calendar-arrow=""
+                    onClick={() => page(-1)}
+                    style={arrow}
+                >
+                    <CaretLeftIcon />
+                </button>
+                <button
+                    type="button"
+                    aria-label="Next month"
+                    data-calendar-arrow=""
+                    onClick={() => page(1)}
+                    style={arrow}
+                >
+                    <CaretRightIcon />
+                </button>
             </div>
 
             <div
@@ -232,8 +319,9 @@ function CalendarCard({
                     gap: 3,
                 }}
             >
-                {calendar.days.map((day) => {
+                {days.map((day) => {
                     const isSelected = day.date === selected;
+                    const scheduled = describe(day.date);
 
                     return (
                         <button
@@ -244,9 +332,9 @@ function CalendarCard({
                             data-muted={day.isOutsideMonth ? 'true' : undefined}
                             aria-pressed={isSelected}
                             aria-label={
-                                describe(day) === null
+                                scheduled === null
                                     ? day.date
-                                    : `${day.date} — ${describe(day)}`
+                                    : `${day.date} — ${scheduled}`
                             }
                             onClick={() =>
                                 setSelected(isSelected ? null : day.date)
@@ -264,7 +352,7 @@ function CalendarCard({
                             }}
                         >
                             {day.day}
-                            {describe(day) !== null && (
+                            {scheduled !== null && (
                                 <span
                                     aria-hidden="true"
                                     style={{
@@ -282,9 +370,13 @@ function CalendarCard({
                 })}
             </div>
 
-            {selectedDay !== null ? (
+            {selected !== null ? (
                 <span style={{ fontSize: 11, color: MUTED(70) }}>
-                    {describe(selectedDay) ?? 'Nothing scheduled for this day.'}
+                    <strong style={{ fontWeight: 500 }}>
+                        {dateLabel(selected)}
+                    </strong>
+                    {': '}
+                    {describe(selected) ?? 'nothing scheduled.'}
                 </span>
             ) : (
                 nothingScheduled && (
@@ -577,8 +669,18 @@ function AnnouncementsCard({
 }: {
     announcement: Props['announcement'];
 }) {
+    /*
+     * A fixed height rather than one that follows the text: a one-line post
+     * left a thin strip over a screenful of nothing, and a long one pushed the
+     * page down. It fills the space under the cards, and a long post scrolls
+     * inside it. Kept equal to the client dashboard's AnnouncementsPanel.
+     */
     return (
-        <Panel padding="lg" gap="md" style={{ marginTop: 18 }}>
+        <Panel
+            padding="lg"
+            gap="md"
+            style={{ marginTop: 18, height: ANNOUNCEMENTS_HEIGHT }}
+        >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MegaphoneIcon style={{ color: 'var(--color-accent)' }} />
                 <span style={{ fontSize: 13, marginRight: 'auto' }}>
@@ -591,24 +693,26 @@ function AnnouncementsCard({
                 )}
             </div>
 
-            {announcement === null ? (
-                <div style={{ fontSize: 12.5, color: MUTED(55) }}>
-                    No announcements yet. Anything the administrators post
-                    appears here.
-                </div>
-            ) : (
-                <p
-                    style={{
-                        margin: 0,
-                        fontSize: 12.5,
-                        lineHeight: 1.55,
-                        color: MUTED(80),
-                        whiteSpace: 'pre-line',
-                    }}
-                >
-                    {announcement.body}
-                </p>
-            )}
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                {announcement === null ? (
+                    <div style={{ fontSize: 12.5, color: MUTED(55) }}>
+                        No announcements yet. Anything the administrators post
+                        appears here.
+                    </div>
+                ) : (
+                    <p
+                        style={{
+                            margin: 0,
+                            fontSize: 12.5,
+                            lineHeight: 1.55,
+                            color: MUTED(80),
+                            whiteSpace: 'pre-line',
+                        }}
+                    >
+                        {announcement.body}
+                    </p>
+                )}
+            </div>
         </Panel>
     );
 }

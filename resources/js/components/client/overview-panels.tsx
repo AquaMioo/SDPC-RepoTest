@@ -583,6 +583,10 @@ export type Announcement = {
  * Shows the block an administrator maintains on the admin Content screen —
  * the same row the student dashboard reads, so one piece of copy reaches both
  * modules instead of two that drift apart.
+ *
+ * A fixed height (280px, the student dashboard's too) rather than one that
+ * follows the text: a one-line post left a thin strip over a screenful of
+ * nothing. It fills the space under the cards; a long post scrolls inside.
  */
 export function AnnouncementsPanel({
     announcement,
@@ -590,7 +594,7 @@ export function AnnouncementsPanel({
     announcement: Announcement | null;
 }) {
     return (
-        <Card>
+        <Card className="flex h-[280px] flex-col">
             <div className="flex items-baseline gap-3">
                 <CardTitle>News &amp; announcements</CardTitle>
                 {announcement?.updatedAt && (
@@ -600,19 +604,21 @@ export function AnnouncementsPanel({
                 )}
             </div>
 
-            {announcement === null ? (
-                <p className="mt-2 mb-0 text-[12.5px] text-muted-foreground">
-                    Nothing posted yet.
-                </p>
-            ) : (
-                /*
-                 * The administrator writes plain text, so newlines are the
-                 * only formatting there is to honour.
-                 */
-                <p className="mt-3 mb-0 text-[13px] leading-relaxed whitespace-pre-line">
-                    {announcement.body}
-                </p>
-            )}
+            <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+                {announcement === null ? (
+                    <p className="m-0 text-[12.5px] text-muted-foreground">
+                        Nothing posted yet.
+                    </p>
+                ) : (
+                    /*
+                     * The administrator writes plain text, so newlines are
+                     * the only formatting there is to honour.
+                     */
+                    <p className="m-0 text-[13px] leading-relaxed whitespace-pre-line">
+                        {announcement.body}
+                    </p>
+                )}
+            </div>
         </Card>
     );
 }

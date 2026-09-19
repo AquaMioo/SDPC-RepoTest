@@ -810,6 +810,37 @@ button[data-day]:hover { background: color-mix(in srgb, var(--color-text) 8%, tr
 button[data-day][aria-pressed="true"] { border-color: var(--color-accent); }
 [data-day][data-today="true"] { background: var(--color-accent); color: var(--color-bg); }
 [data-day][data-muted="true"] { opacity: 0.25; }
+/* The month arrows beside the calendar's label: quiet until pointed at, then
+   the same tint as a day and the accent, so they read as buttons. */
+button[data-calendar-arrow] {
+  background: transparent;
+  color: color-mix(in srgb, var(--color-text) 68%, transparent);
+  transition: background 140ms ease, color 140ms ease;
+}
+button[data-calendar-arrow]:hover,
+button[data-calendar-arrow]:focus-visible {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: var(--color-accent);
+}
+
+/* The highlight behind a segmented control's choice (Find a client's
+   Recommended / Newest): it glides to the new choice on the header's easing
+   rather than jumping. Position and size are set inline from measurement. */
+[data-segment-thumb] {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), width 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A list redrawn in a new order rises in, so the change reads as one. */
+[data-fade-in] { animation: fade-rise-in 220ms ease-out both; }
+@keyframes fade-rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-segment-thumb] { transition: none; }
+  [data-fade-in] { animation: none; }
+}
 /*
  * The user palette, taken from the platform design's [data-mod="user"] block.
  *

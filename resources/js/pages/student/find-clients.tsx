@@ -4,7 +4,7 @@ import {
     MagnifyingGlassIcon,
     SparkleIcon,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
@@ -89,6 +89,7 @@ export default function FindClients({
             capstone_title?: string;
             capstone_description?: string;
         },
+        options: { onFinish?: () => void } = {},
     ) =>
         router.get(
             boardIndex.url(team.slug),
@@ -99,7 +100,12 @@ export default function FindClients({
                 capstone_description: capstone.description,
                 ...next,
             },
-            { preserveState: true, preserveScroll: true, replace: true },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                ...options,
+            },
         );
 
     const rankingByCapstone =
@@ -209,49 +215,13 @@ export default function FindClients({
                         flexWrap: 'wrap',
                     }}
                 >
-                    {/* A segmented control rather than loose links: these
-                        are one choice, and only one can be current. */}
-                    <div
-                        role="tablist"
-                        aria-label="Order briefs"
-                        style={{
-                            display: 'flex',
-                            gap: 2,
-                            padding: 3,
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-divider)',
-                        }}
-                    >
-                        {sorts.map((sort) => {
-                            const isCurrent = filters.sort === sort.value;
-
-                            return (
-                                <button
-                                    key={sort.value}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={isCurrent}
-                                    onClick={() => go({ sort: sort.value })}
-                                    style={{
-                                        background: isCurrent
-                                            ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)'
-                                            : 'none',
-                                        border: 0,
-                                        font: 'inherit',
-                                        fontSize: 12.5,
-                                        padding: '6px 14px',
-                                        borderRadius: 'var(--radius-sm)',
-                                        cursor: 'pointer',
-                                        color: isCurrent
-                                            ? 'var(--color-accent)'
-                                            : MUTED(70),
-                                    }}
-                                >
-                                    {sort.label}
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <SortSwitch
+                        sorts={sorts}
+                        current={filters.sort}
+                        onChange={(value, done) =>
+                            go({ sort: value }, { onFinish: done })
+                        }
+                    />
 
                     <form
                         onSubmit={(event) => {
@@ -308,7 +278,15 @@ export default function FindClients({
                         </span>
                     </Panel>
                 ) : (
-                    <Panel padding="lg" gap="none">
+                    /* Keyed by the order, so a new order redraws the list and
+                       fades it in (data-fade-in) rather than swapping rows
+                       under the reader's eye. */
+                    <Panel
+                        key={filters.sort}
+                        data-fade-in=""
+                        padding="lg"
+                        gap="none"
+                    >
                         {projects.data.map((project, index) => (
                             <BriefRow
                                 key={project.slug}
@@ -367,6 +345,124 @@ export default function FindClients({
                 )}
             </div>
         </>
+    );
+}
+
+/**
+ * Recommended / Newest: one segmented control, with a highlight that slides
+ * to the choice (data-segment-thumb in nocturne.css).
+ *
+ * The slide starts on the click rather than when the reload lands, so the
+ * control answers at once. Until the visit finishes the pending choice is
+ * what shows; after it, the page's own sort does — so a visit that fails
+ * slides back instead of showing an order the list is not in.
+ * preserveState keeps this mounted across the reload, which is what lets the
+ * highlight glide instead of jumping.
+ */
+function SortSwitch({
+    sorts,
+    current,
+    onChange,
+}: {
+    sorts: Props['sorts'];
+    current: string;
+    onChange: (value: string, done: () => void) => void;
+}) {
+    const [pending, setPending] = useState<string | null>(null);
+    const shown = pending ?? current;
+
+    const tabs = useRef<Record<string, HTMLButtonElement | null>>({});
+    const [thumb, setThumb] = useState<{ left: number; width: number } | null>(
+        null,
+    );
+
+    /* Measured before paint, so the highlight never shows in the wrong place. */
+    useLayoutEffect(() => {
+        const measure = (): void => {
+            const tab = tabs.current[shown];
+
+            if (tab) {
+                setThumb({ left: tab.offsetLeft, width: tab.offsetWidth });
+            }
+        };
+
+        measure();
+        window.addEventListener('resize', measure);
+
+        return () => window.removeEventListener('resize', measure);
+    }, [shown]);
+
+    return (
+        <div
+            role="tablist"
+            aria-label="Order briefs"
+            style={{
+                position: 'relative',
+                display: 'flex',
+                gap: 2,
+                padding: 3,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-divider)',
+            }}
+        >
+            {thumb && (
+                <span
+                    aria-hidden="true"
+                    data-segment-thumb=""
+                    style={{
+                        position: 'absolute',
+                        top: 3,
+                        bottom: 3,
+                        left: 0,
+                        width: thumb.width,
+                        transform: `translateX(${thumb.left}px)`,
+                        borderRadius: 'var(--radius-sm)',
+                        background:
+                            'color-mix(in srgb, var(--color-accent) 14%, transparent)',
+                    }}
+                />
+            )}
+
+            {sorts.map((sort) => {
+                const isCurrent = shown === sort.value;
+
+                return (
+                    <button
+                        key={sort.value}
+                        ref={(element) => {
+                            tabs.current[sort.value] = element;
+                        }}
+                        type="button"
+                        role="tab"
+                        aria-selected={isCurrent}
+                        onClick={() => {
+                            if (isCurrent) {
+                                return;
+                            }
+
+                            setPending(sort.value);
+                            onChange(sort.value, () => setPending(null));
+                        }}
+                        style={{
+                            position: 'relative',
+                            background: 'none',
+                            border: 0,
+                            font: 'inherit',
+                            fontSize: 12.5,
+                            padding: '6px 14px',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: isCurrent
+                                ? 'var(--color-accent)'
+                                : MUTED(70),
+                            transition: 'color 200ms ease',
+                        }}
+                    >
+                        {sort.label}
+                    </button>
+                );
+            })}
+        </div>
     );
 }
 
