@@ -73,7 +73,6 @@ class UpdateStudentProfileRequest extends FormRequest
             'weekly_hours' => ['nullable', 'integer', 'min:1', 'max:80'],
             'availability_note' => ['nullable', 'string', 'max:255'],
             'response_time_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
-            'hourly_rate' => ['nullable', 'integer', 'min:0', 'max:100000'],
 
             'skills' => ['array', 'max:'.self::MAXIMUM_SKILLS],
             'skills.*' => ['required', 'string', 'max:60'],

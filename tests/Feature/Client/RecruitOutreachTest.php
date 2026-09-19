@@ -49,6 +49,48 @@ class RecruitOutreachTest extends TestCase
                 ->has('existingApplications', 0));
     }
 
+    public function test_neither_the_profile_nor_the_applicants_show_a_price(): void
+    {
+        [$client, $student] = $this->pair();
+
+        /*
+         * SDPC does not price work by the hour (2026-09-19). Rows written
+         * before then still hold a rate; no screen reads it.
+         */
+        $student->studentProfile->forceFill(['hourly_rate' => 250])->save();
+
+        $project = Project::factory()->create([
+            'team_id' => $client->current_team_id,
+            'status' => ProjectStatus::Open,
+        ]);
+
+        Application::factory()->create([
+            'project_id' => $project->id,
+            'user_id' => $student->id,
+            'proposed_rate' => 300,
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('students.show', [
+                'current_team' => $client->currentTeam,
+                'user' => $student,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('student')
+                ->missing('student.hourlyRate'));
+
+        $this->actingAs($client)
+            ->get(route('projects.applicants.index', [
+                'current_team' => $client->currentTeam,
+                'project' => $project,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('applications', 1)
+                ->missing('applications.0.proposedRate'));
+    }
+
     public function test_a_posting_the_student_is_already_on_is_not_offered_twice(): void
     {
         [$client, $student] = $this->pair();

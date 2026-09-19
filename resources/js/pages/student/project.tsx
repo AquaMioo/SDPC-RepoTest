@@ -6,7 +6,6 @@ import { Btn } from '@/components/sdpc/btn';
 import Field from '@/components/sdpc/field';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
-import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
     apply as boardApply,
@@ -57,7 +56,7 @@ export default function StudentProject({
 }: Props) {
     const team = useCurrentTeam();
 
-    const form = useForm({ cover_letter: '', proposed_rate: '' });
+    const form = useForm({ cover_letter: '' });
 
     const isOpen = project.isAcceptingApplications && application === null;
 
@@ -185,27 +184,6 @@ export default function StudentProject({
                                             onChange={(e) =>
                                                 form.setData(
                                                     'cover_letter',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </Field>
-
-                                <Field
-                                    label="Your rate per hour (optional)"
-                                    error={form.errors.proposed_rate}
-                                >
-                                    {(props) => (
-                                        <Input
-                                            {...props}
-                                            type="number"
-                                            min={0}
-                                            placeholder="250"
-                                            value={form.data.proposed_rate}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'proposed_rate',
                                                     e.target.value,
                                                 )
                                             }

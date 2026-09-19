@@ -110,12 +110,16 @@ class ProjectBoardTest extends TestCase
             ])
             ->assertSessionHasNoErrors();
 
+        /*
+         * SDPC does not price work by the hour (2026-09-19), so a rate sent by
+         * an old form is dropped rather than stored for a client to read.
+         */
         $this->assertDatabaseHas('applications', [
             'project_id' => $project->id,
             'user_id' => $student->id,
             'status' => ApplicationStatus::Pending->value,
             'source' => ApplicationSource::Applied->value,
-            'proposed_rate' => 250,
+            'proposed_rate' => null,
         ]);
     }
 

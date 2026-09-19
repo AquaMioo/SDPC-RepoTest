@@ -59,7 +59,6 @@ class StudentProfileController extends Controller
                 'weeklyHours' => $profile->weekly_hours,
                 'availabilityNote' => $profile->availability_note,
                 'responseTimeHours' => $profile->response_time_hours,
-                'hourlyRate' => $profile->hourly_rate,
                 'educationNote' => $profile->education_note,
                 /*
                  * Student Background History. This is the evidence a client

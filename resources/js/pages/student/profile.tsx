@@ -68,7 +68,6 @@ type Props = {
         weeklyHours: number | null;
         availabilityNote: string | null;
         responseTimeHours: number | null;
-        hourlyRate: number | null;
         skills: string[];
     };
     educations: Education[];
@@ -741,7 +740,6 @@ function DetailsDialog({
         weekly_hours: profile.weeklyHours?.toString() ?? '',
         availability_note: profile.availabilityNote ?? '',
         response_time_hours: profile.responseTimeHours?.toString() ?? '',
-        hourly_rate: profile.hourlyRate?.toString() ?? '',
     });
 
     const save = () => {
@@ -757,7 +755,6 @@ function DetailsDialog({
             barangay: data.barangay || null,
             weekly_hours: data.weekly_hours || null,
             response_time_hours: data.response_time_hours || null,
-            hourly_rate: data.hourly_rate || null,
         }));
 
         form.patch(profileUpdate.url(team.slug), {
@@ -960,18 +957,6 @@ function DetailsDialog({
                                 value={form.data.weekly_hours}
                                 onChange={(e) =>
                                     form.setData('weekly_hours', e.target.value)
-                                }
-                            />
-                        </div>
-
-                        <div className="field">
-                            <label htmlFor="hourly_rate">₱/hr</label>
-                            <Input
-                                id="hourly_rate"
-                                type="number"
-                                value={form.data.hourly_rate}
-                                onChange={(e) =>
-                                    form.setData('hourly_rate', e.target.value)
                                 }
                             />
                         </div>

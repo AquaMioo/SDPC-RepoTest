@@ -80,7 +80,6 @@ class StudentProfileController extends Controller
                 'weeklyHours' => $profile->weekly_hours,
                 'availabilityNote' => $profile->availability_note,
                 'responseTimeHours' => $profile->response_time_hours,
-                'hourlyRate' => $profile->hourly_rate,
 
                 'skills' => $profile->skills->pluck('name')->values()->all(),
             ],
@@ -162,7 +161,7 @@ class StudentProfileController extends Controller
                 'headline', 'biography', 'location', 'barangay', 'school_id', 'course_id',
                 'year_level', 'education_started_on', 'education_note',
                 'github_url', 'portfolio_url', 'is_available', 'weekly_hours',
-                'availability_note', 'response_time_hours', 'hourly_rate',
+                'availability_note', 'response_time_hours',
             ]));
 
             /*

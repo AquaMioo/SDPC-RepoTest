@@ -165,6 +165,8 @@ class StudentProfileTest extends TestCase
 
         $this->assertSame('Towerville, San Jose del Monte', $profile->location);
         $this->assertSame(20, $profile->weekly_hours);
+        /* No hourly rates on SDPC (2026-09-19): one sent anyway is not kept. */
+        $this->assertNull($profile->hourly_rate);
         $this->assertSame($school->id, $profile->school_id);
         $this->assertEqualsCanonicalizing(
             ['Laravel', 'React', 'MySQL'],

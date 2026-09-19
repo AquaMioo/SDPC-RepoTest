@@ -125,7 +125,6 @@ class ProjectApplicationController extends Controller
             'source' => $application->source->value,
             'sourceLabel' => $application->source->label(),
             'coverLetter' => $application->cover_letter,
-            'proposedRate' => $application->proposed_rate,
             'appliedAt' => $application->created_at?->toDateTimeString(),
             'student' => [
                 'id' => $application->student->id,

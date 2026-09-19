@@ -28,7 +28,6 @@ class ApplyToProjectRequest extends FormRequest
     {
         return [
             'cover_letter' => ['required', 'string', 'min:40', 'max:2000'],
-            'proposed_rate' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ];
     }
 

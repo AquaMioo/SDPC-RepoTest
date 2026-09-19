@@ -35,7 +35,6 @@ type Props = {
         weeklyHours: number | null;
         availabilityNote: string | null;
         responseTimeHours: number | null;
-        hourlyRate: number | null;
         educationNote: string | null;
         portfolio: {
             id: number;
@@ -386,9 +385,6 @@ export default function StudentProfile({
                             {[
                                 student.weeklyHours
                                     ? `≈ ${student.weeklyHours} hrs/week`
-                                    : null,
-                                student.hourlyRate
-                                    ? `₱ ${student.hourlyRate}/hr`
                                     : null,
                                 student.responseTimeHours
                                     ? `responds within ${student.responseTimeHours} hrs`

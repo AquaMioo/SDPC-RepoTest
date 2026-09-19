@@ -16,7 +16,6 @@ type Applicant = {
     awaitsStudentDecision: boolean;
     sourceLabel: string;
     coverLetter: string | null;
-    proposedRate: number | null;
     student: {
         id: number;
         name: string;
@@ -131,12 +130,6 @@ export default function Applicants({ project, applications }: Props) {
                                             .completedProjects ?? 0}{' '}
                                         completed
                                     </span>
-                                    {application.proposedRate !== null && (
-                                        <span>
-                                            Proposed rate: ₱
-                                            {application.proposedRate}
-                                        </span>
-                                    )}
                                 </div>
 
                                 {application.student.skills.length > 0 && (
