@@ -91,9 +91,11 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        {{-- The SDPC mark on a white tile, so it reads on dark tab bars too. ?v=
+             makes browsers drop the Laravel icon they cached; bump it whenever
+             the icon changes. --}}
+        <link rel="icon" href="/favicon.ico?v=2" sizes="16x16 20x20 24x24 32x32 40x40 48x48 64x64">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 
         @fonts
 
