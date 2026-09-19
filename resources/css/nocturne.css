@@ -850,6 +850,55 @@ button[data-edit-button][data-on-photo]:focus-visible {
   background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
 }
 
+/*
+ * The message box in Messages: one bordered field holding the attached
+ * picture and the text, the way Messenger draws it (QA 2026-09-20). The
+ * border and focus ring sit on the box, so the textarea inside is bare.
+ */
+.composer-box {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;
+  padding: 6px 10px; background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: 12px;
+  transition: border-color 140ms ease;
+}
+.composer-box:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.composer-box:focus-within { border-color: var(--color-accent); }
+.composer-box textarea {
+  width: 100%; min-height: 24px; max-height: 160px; padding: 3px 0;
+  font: inherit; font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: transparent; border: 0; outline: none; resize: none;
+}
+.composer-attachments { display: flex; gap: 10px; padding-top: 6px; }
+.composer-thumb { position: relative; width: 56px; height: 56px; flex: none; }
+.composer-thumb img {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--color-divider);
+}
+/* Picks a different picture; one goes with each message. */
+button[data-attachment-add] {
+  width: 56px; height: 56px; flex: none; display: grid; place-items: center;
+  font-size: 22px; cursor: pointer; border-radius: 10px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  border: 1px dashed var(--color-divider);
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+button[data-attachment-add]:hover,
+button[data-attachment-add]:focus-visible {
+  color: var(--color-accent); border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+/* The round ✕ on the thumbnail's corner. */
+button[data-attachment-remove] {
+  position: absolute; top: -7px; right: -7px; width: 22px; height: 22px;
+  display: grid; place-items: center; font-size: 11px; cursor: pointer;
+  border-radius: 50%; color: var(--color-surface); background: var(--color-text);
+  border: 2px solid var(--color-surface);
+  transition: background 140ms ease, transform 140ms ease;
+}
+button[data-attachment-remove]:hover,
+button[data-attachment-remove]:focus-visible { background: var(--color-accent); transform: scale(1.1); }
+
 /* The highlight behind a segmented control's choice (Find a client's
    Recommended / Newest): it glides to the new choice on the header's easing
    rather than jumping. Position and size are set inline from measurement. */
@@ -871,6 +920,9 @@ button[data-edit-button][data-on-photo]:focus-visible {
   button[data-edit-button]:hover,
   button[data-edit-button]:focus-visible,
   button[data-edit-button]:active { transform: none; }
+  .composer-box, button[data-attachment-add], button[data-attachment-remove] { transition: none; }
+  button[data-attachment-remove]:hover,
+  button[data-attachment-remove]:focus-visible { transform: none; }
 }
 /*
  * The user palette, taken from the platform design's [data-mod="user"] block.

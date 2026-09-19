@@ -3,14 +3,17 @@ import { useEcho } from '@laravel/echo-react';
 import {
     CalendarPlusIcon,
     ImageIcon,
+    ImagesIcon,
     PaperPlaneRightIcon,
     SmileyIcon,
     UsersThreeIcon,
     VideoCameraIcon,
+    XIcon,
 } from '@phosphor-icons/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import InputError from '@/components/input-error';
 import EmptyInbox from '@/components/messaging/empty-inbox';
 import VideoCall from '@/components/messaging/video-call';
 import type {
@@ -531,6 +534,42 @@ export default function Messages({
 
     const form = useForm({ body: '', image: null as File | null });
 
+    /*
+     * The attached picture, drawn inside the message box the way Messenger
+     * shows it, rather than as a file name under it (QA 2026-09-20). An object
+     * URL points at the file on this device, so nothing is uploaded until
+     * Send; it is released as soon as the picture changes or goes.
+     */
+    const imagePreview = useMemo(
+        () =>
+            form.data.image === null
+                ? null
+                : URL.createObjectURL(form.data.image),
+        [form.data.image],
+    );
+
+    useEffect(
+        () => () => {
+            if (imagePreview !== null) {
+                URL.revokeObjectURL(imagePreview);
+            }
+        },
+        [imagePreview],
+    );
+
+    /*
+     * Also empties the hidden file input: left holding the old file, picking
+     * the same picture again would not count as a change and nothing would
+     * attach.
+     */
+    const clearImage = () => {
+        form.setData('image', null);
+
+        if (imageRef.current) {
+            imageRef.current.value = '';
+        }
+    };
+
     /** The message being edited, and the text as it stands mid-edit. */
     const [editing, setEditing] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
@@ -643,6 +682,11 @@ export default function Messages({
                 only: ['threads', 'active'],
                 onSuccess: () => {
                     form.reset('body', 'image');
+
+                    if (imageRef.current) {
+                        imageRef.current.value = '';
+                    }
+
                     setEmojiOpen(false);
                 },
             },
@@ -1706,35 +1750,84 @@ export default function Messages({
                                     onSubmit={submit}
                                     style={{
                                         display: 'flex',
+                                        alignItems: 'flex-end',
                                         gap: 8,
                                         padding: 14,
                                         borderTop:
                                             '1px solid var(--color-divider)',
                                     }}
                                 >
-                                    <textarea
-                                        className="input"
-                                        rows={1}
-                                        maxLength={4000}
-                                        placeholder="Write a message"
-                                        value={form.data.body}
-                                        onChange={(e) =>
-                                            form.setData('body', e.target.value)
-                                        }
-                                        onKeyDown={(e) => {
-                                            if (
-                                                e.key === 'Enter' &&
-                                                !e.shiftKey
-                                            ) {
-                                                submit(e);
+                                    {/*
+                                     * One bordered box holds the picture and
+                                     * the text, as Messenger draws it. Its
+                                     * border, focus ring and the tiles'
+                                     * hover live on .composer-box in
+                                     * nocturne.css.
+                                     */}
+                                    <div className="composer-box">
+                                        {form.data.image !== null &&
+                                            imagePreview !== null && (
+                                                <div className="composer-attachments">
+                                                    <button
+                                                        type="button"
+                                                        data-attachment-add=""
+                                                        title="Choose a different picture"
+                                                        aria-label="Choose a different picture"
+                                                        onClick={() =>
+                                                            imageRef.current?.click()
+                                                        }
+                                                    >
+                                                        <ImagesIcon />
+                                                    </button>
+
+                                                    <div
+                                                        className="composer-thumb"
+                                                        title={
+                                                            form.data.image.name
+                                                        }
+                                                    >
+                                                        <img
+                                                            src={imagePreview}
+                                                            alt={
+                                                                form.data.image
+                                                                    .name
+                                                            }
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            data-attachment-remove=""
+                                                            title="Remove picture"
+                                                            aria-label={`Remove ${form.data.image.name}`}
+                                                            onClick={clearImage}
+                                                        >
+                                                            <XIcon weight="bold" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                        <textarea
+                                            rows={1}
+                                            maxLength={4000}
+                                            placeholder="Write a message"
+                                            aria-label="Message"
+                                            value={form.data.body}
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    'body',
+                                                    e.target.value,
+                                                )
                                             }
-                                        }}
-                                        style={{
-                                            flex: 1,
-                                            resize: 'none',
-                                            minHeight: 38,
-                                        }}
-                                    />
+                                            onKeyDown={(e) => {
+                                                if (
+                                                    e.key === 'Enter' &&
+                                                    !e.shiftKey
+                                                ) {
+                                                    submit(e);
+                                                }
+                                            }}
+                                        />
+                                    </div>
                                     {/* Emoji are characters in the body, so
                                         this needs nothing from the server. */}
                                     <Btn
@@ -1785,10 +1878,20 @@ export default function Messages({
                                     </Btn>
                                 </form>
 
-                                {/* Sits under the composer so neither the
-                                    picker nor the attachment note covers the
-                                    last message in the thread. */}
-                                {(emojiOpen || form.data.image !== null) && (
+                                {(form.errors.image || form.errors.body) && (
+                                    <InputError
+                                        message={
+                                            form.errors.image ??
+                                            form.errors.body
+                                        }
+                                        className="px-[14px] pb-2 text-[11.5px]"
+                                    />
+                                )}
+
+                                {/* Sits under the composer so the picker does
+                                    not cover the last message in the thread.
+                                    The picture shows inside the box above. */}
+                                {emojiOpen && (
                                     <div
                                         style={{
                                             display: 'flex',
@@ -1815,40 +1918,6 @@ export default function Messages({
                                                     {emoji}
                                                 </button>
                                             ))}
-
-                                        {form.data.image !== null && (
-                                            <span
-                                                style={{
-                                                    fontSize: 11.5,
-                                                    color: MUTED(60),
-                                                    display: 'flex',
-                                                    gap: 6,
-                                                    alignItems: 'center',
-                                                }}
-                                            >
-                                                {form.data.image.name}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        form.setData(
-                                                            'image',
-                                                            null,
-                                                        );
-
-                                                        if (imageRef.current) {
-                                                            imageRef.current.value =
-                                                                '';
-                                                        }
-                                                    }}
-                                                    style={{
-                                                        textDecoration:
-                                                            'underline',
-                                                    }}
-                                                >
-                                                    remove
-                                                </button>
-                                            </span>
-                                        )}
                                     </div>
                                 )}
                             </Panel>
