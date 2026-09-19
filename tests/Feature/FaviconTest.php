@@ -19,9 +19,9 @@ class FaviconTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk();
-        $response->assertSee('href="/icon.svg?v=4" type="image/svg+xml"', escape: false);
-        $response->assertSee('href="/favicon.ico?v=4"', escape: false);
-        $response->assertSee('href="/apple-touch-icon.png?v=4"', escape: false);
+        $response->assertSee('href="/icon.svg?v=5" type="image/svg+xml"', escape: false);
+        $response->assertSee('href="/favicon.ico?v=5"', escape: false);
+        $response->assertSee('href="/apple-touch-icon.png?v=5"', escape: false);
         $response->assertDontSee('favicon.svg', escape: false);
     }
 
