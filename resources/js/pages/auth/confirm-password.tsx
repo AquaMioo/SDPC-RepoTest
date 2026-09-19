@@ -1,4 +1,5 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router, usePage } from '@inertiajs/react';
+import { ArrowLeftIcon } from '@phosphor-icons/react';
 import {
     index as confirmOptions,
     store as confirmStore,
@@ -10,8 +11,24 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { store } from '@/routes/password/confirm';
+import type { Auth } from '@/types';
 
 export default function ConfirmPassword() {
+    const home = usePage<{ auth?: Auth }>().props.auth?.home ?? '/';
+
+    /*
+     * This screen interrupts whatever the person was doing in Settings, so
+     * Back returns them there. Opened on its own, with no page behind it, it
+     * leads to their dashboard instead.
+     */
+    const goBack = (): void => {
+        if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            router.visit(home);
+        }
+    };
+
     return (
         <>
             <Head title="Confirm password" />
@@ -55,6 +72,23 @@ export default function ConfirmPassword() {
                     </div>
                 )}
             </Form>
+
+            <button
+                type="button"
+                onClick={goBack}
+                data-inline-link=""
+                data-test="confirm-password-back"
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    border: 0,
+                    fontSize: 13,
+                }}
+            >
+                <ArrowLeftIcon />
+                Back
+            </button>
         </>
     );
 }

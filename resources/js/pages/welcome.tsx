@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     BriefcaseIcon,
     BuildingsIcon,
@@ -20,6 +20,7 @@ import { Btn } from '@/components/sdpc/btn';
 import PublicLayout from '@/layouts/public-layout';
 import { legal, login, register } from '@/routes';
 import { login as adminLogin } from '@/routes/admin';
+import type { Auth } from '@/types';
 
 const SHELL: React.CSSProperties = {
     maxWidth: 'clamp(1240px, 100vw - 320px, 1600px)',
@@ -80,6 +81,8 @@ export default function Welcome({
     stats: Stats;
     testimonials: TestimonialItem[];
 }) {
+    const home = usePage<{ auth?: Auth }>().props.auth?.home ?? null;
+
     return (
         <PublicLayout>
             <Head title="SDPC — Student Developer Project Connection" />
@@ -124,12 +127,23 @@ export default function Welcome({
                         </a>
                     ))}
 
-                    <Btn asChild variant="ghost">
-                        <Link href={login.url()}>Log in</Link>
-                    </Btn>
-                    <Btn asChild variant="primary">
-                        <Link href={register.url()}>Sign up</Link>
-                    </Btn>
+                    {/* Signed in, "Log in" would end the session (the login
+                        screen does that on arrival), so it leads back into
+                        the person's own portal instead. */}
+                    {home ? (
+                        <Btn asChild variant="primary">
+                            <Link href={home}>Go to dashboard</Link>
+                        </Btn>
+                    ) : (
+                        <>
+                            <Btn asChild variant="ghost">
+                                <Link href={login.url()}>Log in</Link>
+                            </Btn>
+                            <Btn asChild variant="primary">
+                                <Link href={register.url()}>Sign up</Link>
+                            </Btn>
+                        </>
+                    )}
                 </nav>
 
                 <div style={FADING_RULE} />

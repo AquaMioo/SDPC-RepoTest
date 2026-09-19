@@ -1,7 +1,8 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 
 import { useMod } from '@/hooks/use-mod';
+import type { Auth } from '@/types';
 
 /**
  * The design's auth shell: a full-height centred column with the wordmark above
@@ -19,6 +20,13 @@ export default function AuthLayout({
     children: ReactNode;
 }) {
     useMod('user');
+
+    /*
+     * Some of these screens are reached while signed in — confirming a
+     * password from Settings, verifying an email. There the wordmark leads
+     * back into the person's own portal, not out to the landing page.
+     */
+    const home = usePage<{ auth?: Auth }>().props.auth?.home ?? '/';
 
     return (
         <div
@@ -54,7 +62,7 @@ export default function AuthLayout({
             />
 
             <Link
-                href="/"
+                href={home}
                 style={{
                     fontFamily: 'var(--font-heading)',
                     fontWeight: 600,

@@ -214,6 +214,43 @@ class HomePageTest extends TestCase
         );
     }
 
+    public function test_a_signed_out_visitor_has_no_home_to_go_back_to(): void
+    {
+        $this->get(route('home'))->assertInertia(
+            fn (AssertableInertia $page) => $page->where('auth.home', null)
+        );
+    }
+
+    public function test_a_signed_in_student_is_pointed_back_to_their_own_dashboard(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->actingAs($student)->get(route('home'))->assertInertia(
+            fn (AssertableInertia $page) => $page->where(
+                'auth.home',
+                route('dashboard', ['current_team' => $student->currentTeam], absolute: false),
+            )
+        );
+    }
+
+    public function test_an_administrator_is_pointed_back_to_the_admin_portal(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)->get(route('home'))->assertInertia(
+            fn (AssertableInertia $page) => $page->where('auth.home', route('admin.dashboard', absolute: false))
+        );
+    }
+
+    public function test_a_deactivated_account_is_pointed_back_to_settings(): void
+    {
+        $student = User::factory()->student()->deactivated()->create();
+
+        $this->actingAs($student)->get(route('home'))->assertInertia(
+            fn (AssertableInertia $page) => $page->where('auth.home', route('profile.edit', absolute: false))
+        );
+    }
+
     /**
      * Create a verified business with a profile to attribute quotes to.
      */

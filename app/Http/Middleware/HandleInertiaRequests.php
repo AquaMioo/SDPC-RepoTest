@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Actions\Notifications\PresentNotification;
 use App\Models\Conversation;
+use App\Support\AuthHome;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
@@ -53,6 +54,13 @@ class HandleInertiaRequests extends Middleware
                 // Drawn by the header on every screen, and the column it comes
                 // from is not the one the model exposes.
                 'avatarUrl' => $user?->avatarUrl(),
+                /*
+                 * Where this account lives — the same path signing in sends it
+                 * to. The SDPC wordmark and the landing page link here, so a
+                 * signed-in person heads back into their own portal rather than
+                 * to the public landing page.
+                 */
+                'home' => fn (): ?string => $user === null ? null : AuthHome::for($user),
             ],
             /*
              * The header's chat icon carries this on every screen, so it is

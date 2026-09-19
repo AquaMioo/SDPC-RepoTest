@@ -18,6 +18,11 @@ export type Auth = {
      * server because the two live in different columns.
      */
     avatarUrl?: string | null;
+    /**
+     * Where the signed-in account lives: its dashboard (settings for a
+     * deactivated account). Null for a guest.
+     */
+    home?: string | null;
 };
 
 /* @chisel-passkeys */
