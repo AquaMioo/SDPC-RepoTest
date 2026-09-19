@@ -19,9 +19,9 @@ class FaviconTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk();
-        $response->assertSee('href="/icon.svg?v=3" type="image/svg+xml"', escape: false);
-        $response->assertSee('href="/favicon.ico?v=3"', escape: false);
-        $response->assertSee('href="/apple-touch-icon.png?v=3"', escape: false);
+        $response->assertSee('href="/icon.svg?v=4" type="image/svg+xml"', escape: false);
+        $response->assertSee('href="/favicon.ico?v=4"', escape: false);
+        $response->assertSee('href="/apple-touch-icon.png?v=4"', escape: false);
         $response->assertDontSee('favicon.svg', escape: false);
     }
 
@@ -43,19 +43,18 @@ class FaviconTest extends TestCase
         $this->assertFileDoesNotExist(public_path('favicon.svg'));
     }
 
-    public function test_the_svg_icon_is_the_sdpc_mark_and_follows_a_dark_tab_bar(): void
+    public function test_the_svg_icon_is_the_sdpc_mark_on_a_white_tile(): void
     {
         $svg = file_get_contents(public_path('icon.svg'));
 
         $this->assertStringContainsString('<title>SDPC</title>', $svg);
 
         /*
-         * No tile behind the mark (2026-09-19), so on a dark tab bar the
-         * brand green would all but vanish; the icon brings its own lighter
-         * green for that case.
+         * The team tried the mark with no tile and wanted the white one back
+         * (2026-09-19). The tile is also what keeps the dark green readable
+         * on a dark tab bar.
          */
-        $this->assertStringContainsString('@media (prefers-color-scheme:dark)', $svg);
-        $this->assertStringNotContainsString('<rect', $svg);
+        $this->assertMatchesRegularExpression('/<rect [^>]*fill="#fff"/', $svg);
     }
 
     public function test_the_favicon_carries_every_tab_size(): void

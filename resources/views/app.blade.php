@@ -91,16 +91,16 @@
             }
         </style>
 
-        {{-- The SDPC mark with no tile behind it. icon.svg is the one browsers
-             draw: sharp at any size, and it switches to a lighter green on a
-             dark tab bar, where the brand green disappears. favicon.ico is
-             the fallback for browsers without SVG icons; sizes="32x32" keeps
-             Chromium from choosing it over the SVG. The home-screen icon keeps
-             a white ground because iOS paints transparency black. Bump ?v=
-             whenever an icon changes, or browsers keep the cached one. --}}
-        <link rel="icon" href="/favicon.ico?v=3" sizes="32x32">
-        <link rel="icon" href="/icon.svg?v=3" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
+        {{-- The SDPC mark on a white rounded tile, with room around it. The
+             team tried it without the tile (2026-09-19) and wanted the tile
+             back; it also keeps the dark green readable on dark tab bars.
+             icon.svg is the one browsers draw, sharp at any size. favicon.ico
+             is the fallback for browsers without SVG icons; sizes="32x32"
+             keeps Chromium from choosing it over the SVG. Bump ?v= whenever
+             an icon changes, or browsers keep the cached one. --}}
+        <link rel="icon" href="/favicon.ico?v=4" sizes="32x32">
+        <link rel="icon" href="/icon.svg?v=4" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=4">
 
         @fonts
 
