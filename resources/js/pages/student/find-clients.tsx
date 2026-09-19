@@ -5,6 +5,7 @@ import {
     SparkleIcon,
 } from '@phosphor-icons/react';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
@@ -89,7 +90,7 @@ export default function FindClients({
             capstone_title?: string;
             capstone_description?: string;
         },
-        options: { onFinish?: () => void } = {},
+        options: { onFinish?: () => void; onSuccess?: () => void } = {},
     ) =>
         router.get(
             boardIndex.url(team.slug),
@@ -133,8 +134,7 @@ export default function FindClients({
                     <div style={{ marginRight: 'auto' }}>
                         <h3 style={{ margin: 0 }}>Find a client</h3>
                         <div style={{ fontSize: 13, color: MUTED(68) }}>
-                            Open project briefs from businesses around San Jose
-                            Del Monte
+                            Projects posted by businesses in San Jose Del Monte
                         </div>
                     </div>
                 </div>
@@ -142,9 +142,8 @@ export default function FindClients({
                 {!canApply && (
                     <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
                         <span style={{ fontSize: 12.5, color: MUTED(70) }}>
-                            You can read every brief here. Applying opens up
-                            once an administrator has verified your student
-                            credential.
+                            You can look through every project. You can apply
+                            once an admin verifies your student credential.
                         </span>
                     </Panel>
                 )}
@@ -153,9 +152,9 @@ export default function FindClients({
                 {canApply && holdsProjectInHand && (
                     <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
                         <span style={{ fontSize: 12.5, color: MUTED(70) }}>
-                            You already have a project in hand. Browse all you
-                            like — applying opens up again once that build is
-                            finished.
+                            You&rsquo;re already working on a project. You can
+                            still look around, and you can apply again once
+                            it&rsquo;s finished.
                         </span>
                     </Panel>
                 )}
@@ -164,26 +163,38 @@ export default function FindClients({
                     open={capstoneOpen}
                     onOpenChange={setCapstoneOpen}
                     heading="Your capstone project"
-                    description="We match open briefs against what you are building this term."
+                    description="Tell us what you're building this term, and we'll show the projects that fit it best."
                     titleLabel="Capstone title"
                     titlePlaceholder="Ex: Inventory System with Predictive Analytics"
-                    bodyLabel="Brief description"
-                    bodyPlaceholder="What does the system do, who uses it, and what stage is it in?"
+                    bodyLabel="Short description"
+                    bodyPlaceholder="What does it do, who uses it, and how far along is it?"
                     value={capstone}
                     onConfirm={(next) =>
-                        go({
-                            capstone_title: next.title,
-                            capstone_description: next.description,
-                        })
+                        go(
+                            {
+                                capstone_title: next.title,
+                                capstone_description: next.description,
+                            },
+                            {
+                                /* Say it worked: re-sorting a short or empty
+                                   list changed nothing you could see (QA). */
+                                onSuccess: () =>
+                                    toast.success(
+                                        next.title !== ''
+                                            ? `Showing projects that fit “${next.title}”`
+                                            : 'Showing projects that fit your capstone',
+                                    ),
+                            },
+                        )
                     }
                 />
 
                 {rankingByCapstone && (
                     <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
                         <span style={{ fontSize: 12.5, color: MUTED(70) }}>
-                            Ranked against your capstone
+                            Showing projects that fit your capstone
                             {capstone.title !== ''
-                                ? `, "${capstone.title}"`
+                                ? `, “${capstone.title}”`
                                 : ''}
                             .{' '}
                             <button
@@ -196,7 +207,7 @@ export default function FindClients({
                                     })
                                 }
                             >
-                                Rank by my profile instead
+                                Use my profile instead
                             </button>
                         </span>
                     </Panel>
@@ -223,6 +234,19 @@ export default function FindClients({
                         }
                     />
 
+                    {/* Its own button. The search box used to open this form
+                        when clicked, so typing a search and pressing Enter
+                        re-ranked by a "capstone" instead — which on a short
+                        list changed nothing anybody could see (QA). */}
+                    <Btn
+                        variant="secondary"
+                        onClick={() => setCapstoneOpen(true)}
+                        style={{ marginLeft: 'auto' }}
+                    >
+                        <SparkleIcon />
+                        Match my capstone
+                    </Btn>
+
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
@@ -230,7 +254,6 @@ export default function FindClients({
                         }}
                         style={{
                             position: 'relative',
-                            marginLeft: 'auto',
                             width: 260,
                         }}
                     >
@@ -246,36 +269,48 @@ export default function FindClients({
                         <input
                             className="input"
                             style={{ paddingLeft: 31, width: '100%' }}
-                            placeholder="Search briefs"
+                            placeholder="Search projects"
+                            aria-label="Search projects"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            /*
-                             * Clicking the box asks what you are building
-                             * rather than what you want to type. Typing still
-                             * filters by keyword — the two are different
-                             * questions and the box answers both.
-                             *
-                             * onClick and NOT onFocus. Radix returns focus to
-                             * the element that opened a dialog when it closes,
-                             * so on focus the dialog reopened itself the
-                             * instant you confirmed or cancelled — closing it
-                             * was impossible without clicking elsewhere.
-                             */
-                            onClick={() => setCapstoneOpen(true)}
                         />
                     </form>
                 </div>
 
                 {projects.data.length === 0 ? (
                     <Panel padding="lg" gap="sm">
-                        <span style={{ fontSize: 13 }}>
-                            No briefs match yet.
-                        </span>
-                        <span style={{ fontSize: 12.5, color: MUTED(65) }}>
-                            A brief appears here once a business publishes it
-                            and an administrator approves it. Try clearing your
-                            filters.
-                        </span>
+                        {rankingByCapstone ? (
+                            <>
+                                <span style={{ fontSize: 13 }}>
+                                    No projects to match yet.
+                                </span>
+                                <span
+                                    style={{ fontSize: 12.5, color: MUTED(65) }}
+                                >
+                                    When businesses post projects, the ones that
+                                    best fit
+                                    {capstone.title !== ''
+                                        ? ` “${capstone.title}”`
+                                        : ' your capstone'}{' '}
+                                    will show first.
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <span style={{ fontSize: 13 }}>
+                                    No projects yet.
+                                </span>
+                                <span
+                                    style={{ fontSize: 12.5, color: MUTED(65) }}
+                                >
+                                    Projects appear here once a business posts
+                                    one and an admin approves it.
+                                    {filters.search !== ''
+                                        ? ' Try a different search.'
+                                        : ''}
+                                </span>
+                            </>
+                        )}
                     </Panel>
                 ) : (
                     /* Keyed by the order, so a new order redraws the list and
@@ -619,7 +654,7 @@ function MatchPanel({
                             marginBottom: 6,
                         }}
                     >
-                        Strategic recommendation
+                        Our suggestion
                     </div>
                     <p
                         style={{
@@ -725,7 +760,7 @@ function BriefRow({
                     }}
                 >
                     <span style={{ color: 'var(--color-accent)' }}>
-                        AI insight
+                        Why it fits
                     </span>{' '}
                     · {project.insight}
                 </div>
@@ -777,7 +812,7 @@ function BriefRow({
                             title={
                                 canApply
                                     ? undefined
-                                    : 'Applying opens up once your credential is verified and you have no build in hand.'
+                                    : "You can apply once your credential is verified and you're not already working on a project."
                             }
                         >
                             {canApply ? (
