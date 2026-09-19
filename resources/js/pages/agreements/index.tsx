@@ -1,9 +1,17 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import {
+    BriefcaseIcon,
+    CertificateIcon,
+    MagnifyingGlassIcon,
+} from '@phosphor-icons/react';
 
+import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { projectManagement } from '@/routes';
 import { show as agreementShow } from '@/routes/agreements';
+import { index as studentBoard } from '@/routes/student/board';
 import type { AgreementListItem } from '@/types/agreements';
 
 const MUTED = (pct: number) =>
@@ -18,6 +26,88 @@ const TAG_VARIANT: Record<string, 'accent' | 'neutral' | 'outline'> = {
 type Props = {
     agreements: AgreementListItem[];
 };
+
+/**
+ * The page before any contract exists.
+ *
+ * Centred in the space the list would fill, with no box around it — the
+ * style the team picked on 2026-09-19 over a lone line of text in a panel.
+ * The button goes where an agreement actually starts: a client accepts a
+ * student on Project Management; a student applies from Find a client.
+ */
+function NoAgreements() {
+    const team = useCurrentTeam();
+    const isStudent =
+        usePage<{ auth?: { role?: string | null } }>().props.auth?.role ===
+        'student';
+
+    return (
+        <div
+            style={{
+                minHeight: 'min(58vh, 520px)',
+                display: 'grid',
+                placeItems: 'center',
+                textAlign: 'center',
+                padding: '24px 0',
+            }}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 10,
+                    maxWidth: 440,
+                }}
+            >
+                <CertificateIcon
+                    aria-hidden="true"
+                    size={42}
+                    style={{ color: 'var(--color-accent-400)' }}
+                />
+
+                <div style={{ fontSize: 20, lineHeight: 1.3 }}>
+                    No agreements yet
+                </div>
+
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: 13.5,
+                        lineHeight: 1.6,
+                        color: MUTED(62),
+                    }}
+                >
+                    {isStudent
+                        ? 'One is drafted the moment a client accepts you, and the work starts when both sides have signed it.'
+                        : 'One is drafted the moment you accept a student, and the work starts when both sides have signed it.'}
+                </p>
+
+                <Btn asChild variant="primary" style={{ marginTop: 8 }}>
+                    <Link
+                        href={
+                            isStudent
+                                ? studentBoard.url(team.slug)
+                                : projectManagement.url(team.slug)
+                        }
+                    >
+                        {isStudent ? (
+                            <>
+                                <MagnifyingGlassIcon />
+                                Find a client
+                            </>
+                        ) : (
+                            <>
+                                <BriefcaseIcon />
+                                Go to Project Management
+                            </>
+                        )}
+                    </Link>
+                </Btn>
+            </div>
+        </div>
+    );
+}
 
 /**
  * The fallback list.
@@ -52,14 +142,7 @@ export default function AgreementIndex({ agreements }: Props) {
                 </div>
 
                 {agreements.length === 0 ? (
-                    <Panel padding="lg" gap="sm">
-                        <span style={{ fontSize: 13 }}>No agreement yet.</span>
-                        <span style={{ fontSize: 12.5, color: MUTED(65) }}>
-                            One is drafted the moment a client accepts a
-                            student, and the work starts when both sides have
-                            signed it.
-                        </span>
-                    </Panel>
+                    <NoAgreements />
                 ) : (
                     <Panel padding="lg" gap="md">
                         <PanelKicker>{agreements.length} in total</PanelKicker>
