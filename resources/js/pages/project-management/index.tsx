@@ -94,10 +94,10 @@ export default function ProjectManagement({
                         </h3>
                         <div style={{ fontSize: 13, color: MUTED(60) }}>
                             {agreement === null
-                                ? 'Track the build once you are collaborating.'
+                                ? 'Track your project here once you start working together.'
                                 : side === 'student'
-                                  ? 'Check a task off once it’s done and attach proof. It stays pending until the client reviews and verifies it.'
-                                  : `Tasks ${agreement.studentName} checks off wait here for you to review. Only the tasks you verify count towards progress.`}
+                                  ? 'Mark a task done and attach proof. It stays pending until the client checks and approves it.'
+                                  : `When ${agreement.studentName} marks a task done, it waits here for you to check. Only tasks you approve count toward progress.`}
                         </div>
                     </div>
 
@@ -124,19 +124,23 @@ export default function ProjectManagement({
                         </Select>
                     )}
 
-                    {side === 'client' ? (
-                        <Btn asChild variant="secondary">
-                            <Link href={projectsIndex.url(team.slug)}>
-                                Your postings
-                            </Link>
-                        </Btn>
-                    ) : (
-                        <Btn asChild variant="secondary">
-                            <Link href={boardIndex.url(team.slug)}>
-                                Find more work
-                            </Link>
-                        </Btn>
-                    )}
+                    {/* Only once there is an agreement. Before that the locked
+                        panel below carries the same link, and three buttons to
+                        one page read as three different things (QA). */}
+                    {agreement !== null &&
+                        (side === 'client' ? (
+                            <Btn asChild variant="secondary">
+                                <Link href={projectsIndex.url(team.slug)}>
+                                    Your postings
+                                </Link>
+                            </Btn>
+                        ) : (
+                            <Btn asChild variant="secondary">
+                                <Link href={boardIndex.url(team.slug)}>
+                                    Find more work
+                                </Link>
+                            </Btn>
+                        ))}
 
                     {agreement !== null && (
                         <Tag
@@ -390,7 +394,7 @@ function LockedPanel({
                 <LockSimpleIcon />
             </span>
             <div style={{ fontSize: 15 }}>
-                Project Management opens once you are collaborating
+                Project Management opens when your project starts
             </div>
             <div
                 style={{
@@ -401,8 +405,8 @@ function LockedPanel({
                 }}
             >
                 {side === 'student'
-                    ? 'It unlocks when a client has taken you on and you have both signed the agreement. Then you list each phase’s tasks, plan the timeline, and check work off for the client to verify.'
-                    : 'It unlocks when you have taken a student on and you have both signed the agreement. Then the student lists each phase’s tasks and checks work off, and you verify it here.'}
+                    ? 'It opens once a client accepts you and you both sign the agreement. Then you can list the tasks for each phase, plan your timeline, and mark work done for the client to check.'
+                    : 'It opens once you accept a student and you both sign the agreement. The student then lists the tasks and marks work done, and you check and approve it here.'}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {pendingAgreementId !== null && (

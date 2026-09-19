@@ -10,7 +10,7 @@ import {
     decline as applicationDecline,
     withdraw as applicationWithdraw,
 } from '@/routes/student/applications';
-import { index as boardIndex, show as boardShow } from '@/routes/student/board';
+import { show as boardShow } from '@/routes/student/board';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -56,19 +56,12 @@ export function ApplicationsSection({
             <span style={{ fontSize: 13 }}>Your applications</span>
 
             {applications.length === 0 ? (
+                /* No button here: this only shows before an agreement, when
+                   the locked panel above already links to Find a client. */
                 <Panel padding="lg" gap="sm">
                     <span style={{ fontSize: 13 }}>
-                        You have not applied to anything yet.
+                        You haven&rsquo;t applied to any projects yet.
                     </span>
-                    <Btn
-                        asChild
-                        variant="secondary"
-                        style={{ alignSelf: 'start' }}
-                    >
-                        <Link href={boardIndex.url(teamSlug)}>
-                            Browse postings
-                        </Link>
-                    </Btn>
                 </Panel>
             ) : (
                 <Panel padding="lg" gap="md">
