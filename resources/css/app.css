@@ -301,6 +301,22 @@ html[data-mod='admin'] {
         @apply text-[13.5px];
     }
 
+    /*
+     * Hold the scrollbar's track open even on a page short enough not to
+     * need one.
+     *
+     * Every shell on the site is `margin-inline: auto`, so the content is
+     * centred in whatever width the viewport leaves. Without this the
+     * classic scrollbar appears only on pages tall enough to scroll, and
+     * those 8px come out of the centred width — so the main column and the
+     * sticky header both slid 4px sideways on every navigation between a
+     * short screen and a tall one. That is the "shifting" QA reported on
+     * Recruit, and it happened on every page, not just that one.
+     */
+    html {
+        scrollbar-gutter: stable;
+    }
+
     /* The design pairs every scroll region with a slim, tinted scrollbar. */
     *::-webkit-scrollbar {
         @apply size-2;

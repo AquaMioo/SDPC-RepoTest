@@ -21,3 +21,10 @@ For a link that must react on both palettes, lean on the page's own foreground i
 An inline `color` on a link outranks every selector, so no `:hover` can reach it — that is how a dozen links on the user side ended up dead. Leave colour off the element and pick an attribute from nocturne.css instead: `data-nav` for header navigation (bar + lift, pass `padding: '4px 0'` inline like top-nav.tsx), `data-inline-link` for a text link or a Link `as="button"` that reads as one (bar grows out of the baseline; do not also set an inline `background`, it erases the bar), and `data-quiet` for a link that reads as text until pointed at, such as a title in a list.
 
 Related: the `--color-neutral-*` ramp inverts the same way under `[data-mod="user"]`.
+
+## html keeps scrollbar-gutter: stable, or every page shifts 4px on navigation
+Nocturne styles the scrollbar as a classic 8px one (`*::-webkit-scrollbar { width: 8px }`), so it takes layout width rather than floating over the page. Every shell on the site is `margin-inline: auto`, so those 8px come out of the centred width — and only on pages tall enough to scroll.
+
+Measured at 1440px: a short screen put the shell's left edge at 60px, a tall one at 56px. The main column and the sticky header both slid 4px sideways on every navigation between the two. That is the "the page moves when I open Recruit" QA report; it was happening on every screen, not just that one.
+
+`html { scrollbar-gutter: stable }` in app.css's base layer holds the track open always. Do not remove it to "get the 8px back" — the gutter is the price of a page that does not jump.

@@ -6,6 +6,7 @@ use App\Actions\Teams\CreateTeam;
 use App\Enums\AgreementStatus;
 use App\Enums\TeamPermission;
 use App\Enums\TeamRole;
+use App\Enums\UserRole;
 use App\Models\Agreement;
 use App\Models\Team;
 use App\Models\User;
@@ -208,6 +209,29 @@ class TeamTest extends TestCase
             'id' => $team->id,
             'name' => $team->name,
         ]);
+    }
+
+    /**
+     * The teams row hides its edit pencil for a client, and the shared auth
+     * role is the only thing on the page that lets it.
+     *
+     * Nothing in the teams payload says this owner may not edit: a client owns
+     * the business team outright, so `role` reads "owner" exactly as a student
+     * lead's does, and the row drew a pencil that
+     * test_a_client_may_not_rename_their_team shows the server refuses. Drop
+     * either fact below and the pencil comes back.
+     */
+    public function test_the_teams_page_names_the_role_the_screen_is_drawing_for(): void
+    {
+        $client = User::factory()->client()->create();
+
+        $this->actingAs($client)
+            ->get(route('teams.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('teams/index')
+                ->where('auth.role', UserRole::Client->value)
+                ->where('teams.0.role', TeamRole::Owner->value)
+            );
     }
 
     public function test_a_client_may_not_invite_anybody_into_their_team(): void

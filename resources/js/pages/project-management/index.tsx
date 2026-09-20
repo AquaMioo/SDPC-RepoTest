@@ -68,7 +68,7 @@ export default function ProjectManagement({
             <div
                 className="page-shell"
                 style={{
-                    maxWidth: 'clamp(1100px, 100vw - 320px, 1600px)',
+                    maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
                     paddingTop: 30,
                     paddingBottom: 72,

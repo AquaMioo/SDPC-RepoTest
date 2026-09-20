@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Eye, LogOut, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import CreateTeamModal from '@/components/create-team-modal';
@@ -50,6 +50,20 @@ export default function TeamsIndex({
     collaboratingTeams = [],
     membership = null,
 }: Props) {
+    /*
+     * A client administers no team. Theirs is the business they registered
+     * as — it holds only them and owns the postings — so renaming it,
+     * inviting into it and deleting it are all closed to them by
+     * HasTeams::hasTeamPermission(). The row's pencil offered an edit the
+     * server would refuse, and the page behind it had nothing on it for a
+     * client to read, so the whole action is dropped rather than softened
+     * to an eye. Read from the shared auth props, the way SettingsShell
+     * picks its chrome.
+     */
+    const role = usePage<{ auth?: { role?: string | null } }>().props.auth
+        ?.role;
+    const isClient = role === 'client';
+
     const [leaveTeamDialogOpen, setLeaveTeamDialogOpen] = useState(false);
     const [teamLeaving, setTeamLeaving] = useState<Team | null>(null);
 
@@ -73,8 +87,8 @@ export default function TeamsIndex({
             <div
                 className="page-shell flex flex-col space-y-6"
                 style={{
-                    maxWidth: 'clamp(1120px, 100vw - 320px, 1600px)',
-                    paddingTop: 28,
+                    maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
+                    paddingTop: 30,
                     paddingBottom: 72,
                 }}
             >
@@ -135,6 +149,14 @@ export default function TeamsIndex({
                          */
                         const canLeaveTeam = team.role !== 'owner';
 
+                        /*
+                         * Neither action belongs on a client's row: the team
+                         * page behind both is empty for them, and the pencil
+                         * offered an edit hasTeamPermission() refuses.
+                         */
+                        const canViewTeam = !isClient && team.role === 'member';
+                        const canEditTeam = !isClient && team.role !== 'member';
+
                         return (
                             <div
                                 key={team.id}
@@ -169,77 +191,86 @@ export default function TeamsIndex({
                                     </div>
                                 </div>
 
-                                <TooltipProvider>
-                                    <div className="flex items-center gap-2">
-                                        {canLeaveTeam ? (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        data-test="team-leave-button"
-                                                        onClick={() =>
-                                                            openLeaveTeamDialog(
-                                                                team,
-                                                            )
-                                                        }
-                                                    >
-                                                        <LogOut className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Leave team</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        ) : null}
+                                {/*
+                                 * Nothing to offer a client here: they cannot
+                                 * leave their own team and they cannot edit
+                                 * it. The cluster is left out entirely so the
+                                 * row does not carry a gap where the buttons
+                                 * used to be.
+                                 */}
+                                {canLeaveTeam || canViewTeam || canEditTeam ? (
+                                    <TooltipProvider>
+                                        <div className="flex items-center gap-2">
+                                            {canLeaveTeam ? (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            data-test="team-leave-button"
+                                                            onClick={() =>
+                                                                openLeaveTeamDialog(
+                                                                    team,
+                                                                )
+                                                            }
+                                                        >
+                                                            <LogOut className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Leave team</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            ) : null}
 
-                                        {team.role === 'member' ? (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        data-test="team-view-button"
-                                                        asChild
-                                                    >
-                                                        <Link
-                                                            href={edit(
-                                                                team.slug,
-                                                            )}
+                                            {canViewTeam ? (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            data-test="team-view-button"
+                                                            asChild
                                                         >
-                                                            <Eye className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>View team</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        ) : (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        data-test="team-edit-button"
-                                                        asChild
-                                                    >
-                                                        <Link
-                                                            href={edit(
-                                                                team.slug,
-                                                            )}
+                                                            <Link
+                                                                href={edit(
+                                                                    team.slug,
+                                                                )}
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </Link>
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>View team</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            ) : canEditTeam ? (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            data-test="team-edit-button"
+                                                            asChild
                                                         >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Edit team</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        )}
-                                    </div>
-                                </TooltipProvider>
+                                                            <Link
+                                                                href={edit(
+                                                                    team.slug,
+                                                                )}
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Link>
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Edit team</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            ) : null}
+                                        </div>
+                                    </TooltipProvider>
+                                ) : null}
                             </div>
                         );
                     })}
