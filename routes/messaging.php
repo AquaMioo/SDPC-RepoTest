@@ -41,6 +41,13 @@ Route::prefix('{current_team}')
         Route::post('messages/{conversation}/{message}/reactions', [ConversationController::class, 'react'])->name('messages.react');
 
         /*
+         * "Remove for you", beside messages.remove's "remove for everyone".
+         * A hide is the viewer's own business, so this is open to either side
+         * of the thread and to anybody's message, not just your own.
+         */
+        Route::post('messages/{conversation}/{message}/hide', [ConversationController::class, 'hide'])->name('messages.hide');
+
+        /*
          * An attachment is read through the thread, never off the disk.
          *
          * The file lives on the public disk because that is where the volume

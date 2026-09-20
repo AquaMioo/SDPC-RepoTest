@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
-import { Input, Select, Textarea } from '@/components/sdpc/input';
+import { Input, Select } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import {
@@ -31,6 +31,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { update as profileUpdate } from '@/routes/student/profile';
 
@@ -107,6 +112,8 @@ export default function StudentProfilePage({
     const [accountOpen, setAccountOpen] = useState(false);
     const [aboutOpen, setAboutOpen] = useState(false);
     const [skillsOpen, setSkillsOpen] = useState(false);
+    /* School, course and year level — the three filterable columns. */
+    const [enrolmentOpen, setEnrolmentOpen] = useState(false);
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [education, setEducation] = useState<Education | null>(null);
     const [educationOpen, setEducationOpen] = useState(false);
@@ -308,7 +315,47 @@ export default function StudentProfilePage({
                             title="Education"
                             editable={editable}
                             onAdd={() => openEducation(null)}
+                            onEdit={() => setEnrolmentOpen(true)}
+                            addLabel="Add a school you attended"
+                            editLabel="Edit school, course and year level"
                         >
+                            {/*
+                             * What the student is enrolled in now, above the
+                             * list of where they have studied. These three are
+                             * one per profile and are what RecruitController
+                             * filters on; the rows below are the readable
+                             * history.
+                             */}
+                            {(profile.schoolName ??
+                                profile.courseAbbreviation ??
+                                profile.yearLevel) !== null && (
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gap: 2,
+                                        paddingBottom: 10,
+                                        borderBottom: `1px solid ${MUTED(12)}`,
+                                    }}
+                                >
+                                    <Enrolment
+                                        label="School"
+                                        value={profile.schoolName}
+                                    />
+                                    <Enrolment
+                                        label="Course"
+                                        value={profile.courseAbbreviation}
+                                    />
+                                    <Enrolment
+                                        label="Year level"
+                                        value={
+                                            profile.yearLevel
+                                                ? `${profile.yearLevel}${ordinal(profile.yearLevel)} year`
+                                                : null
+                                        }
+                                    />
+                                </div>
+                            )}
+
                             {educations.length === 0 ? (
                                 <Empty>No schools listed yet.</Empty>
                             ) : (
@@ -486,6 +533,13 @@ export default function StudentProfilePage({
                 biography={profile.biography}
             />
 
+            <EnrolmentDialog
+                open={enrolmentOpen}
+                onOpenChange={setEnrolmentOpen}
+                profile={profile}
+                options={options}
+            />
+
             <SkillsDialog
                 open={skillsOpen}
                 onOpenChange={setSkillsOpen}
@@ -568,12 +622,18 @@ function Card({
     editable,
     onAdd,
     onEdit,
+    addLabel,
+    editLabel,
     children,
 }: {
     title: string;
     editable: boolean;
     onAdd?: () => void;
     onEdit?: () => void;
+    /** What the + does, in words. Defaults to "Add <title>". */
+    addLabel?: string;
+    /** What the pencil does. Defaults to "Edit <title>". */
+    editLabel?: string;
     children: ReactNode;
 }) {
     return (
@@ -592,32 +652,60 @@ function Card({
                 </span>
 
                 {editable && onAdd && (
-                    <button
-                        type="button"
-                        onClick={onAdd}
-                        aria-label={`Add ${title.toLowerCase()}`}
-                        title={`Add ${title.toLowerCase()}`}
-                        style={{
-                            width: 26,
-                            height: 26,
-                            display: 'grid',
-                            placeItems: 'center',
-                            borderRadius: '50%',
-                            border: '1px solid var(--color-divider)',
-                            background: 'transparent',
-                            color: 'var(--color-accent)',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <PlusIcon size={13} />
-                    </button>
+                    /*
+                     * A real tooltip rather than the browser's `title`, which
+                     * takes a second to appear and cannot be styled — somebody
+                     * hovering a bare + should be told what it does at once
+                     * (QA 2026-09-20). aria-label carries the same words for a
+                     * screen reader, and data-edit-button gives it the hover
+                     * and press states the pencils already have; inline styles
+                     * could not react to :hover.
+                     */
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                onClick={onAdd}
+                                aria-label={
+                                    addLabel ?? `Add ${title.toLowerCase()}`
+                                }
+                                data-edit-button=""
+                                style={{
+                                    width: 26,
+                                    height: 26,
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    borderRadius: '50%',
+                                    cursor: 'pointer',
+                                    flex: 'none',
+                                }}
+                            >
+                                <PlusIcon size={13} />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {addLabel ?? `Add ${title.toLowerCase()}`}
+                        </TooltipContent>
+                    </Tooltip>
                 )}
 
                 {editable && onEdit && (
-                    <IconButton
-                        label={`Edit ${title.toLowerCase()}`}
-                        onClick={onEdit}
-                    />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span style={{ display: 'inline-flex' }}>
+                                <IconButton
+                                    label={
+                                        editLabel ??
+                                        `Edit ${title.toLowerCase()}`
+                                    }
+                                    onClick={onEdit}
+                                />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {editLabel ?? `Edit ${title.toLowerCase()}`}
+                        </TooltipContent>
+                    </Tooltip>
                 )}
             </div>
 
@@ -688,6 +776,20 @@ function Empty({ children }: { children: ReactNode }) {
     );
 }
 
+/** One of the three enrolment facts, above the Education list. */
+function Enrolment({ label, value }: { label: string; value: string | null }) {
+    return (
+        <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+            <span style={{ width: 66, flex: 'none', color: MUTED(50) }}>
+                {label}
+            </span>
+            <span style={{ minWidth: 0 }}>
+                {value ?? <span style={{ color: MUTED(40) }}>Not stated</span>}
+            </span>
+        </div>
+    );
+}
+
 /** One outbound link, absent rather than empty when unset. */
 function ExternalLink({ label, href }: { label: string; href: string | null }) {
     if (href === null) {
@@ -707,13 +809,19 @@ function ExternalLink({ label, href }: { label: string; href: string | null }) {
 }
 
 /**
- * Everything the redesign's cards do not each own: where you are, what you are
- * enrolled in, your links and your availability.
+ * What the redesign's cards do not each own: which barangay you are in, and
+ * where to read your work.
  *
- * school_id, course_id and year_level are here rather than in the Education
- * dialog on purpose. That dialog writes the readable list; these three are the
- * columns RecruitController filters students by, so they stay one per profile
- * and keep feeding the line under the name.
+ * school_id, course_id and year_level used to be here. They moved to
+ * EnrolmentDialog, under the Education card, where a student looks for them —
+ * they are still the columns RecruitController filters by and still one per
+ * profile, so nothing about what they mean has changed, only which pencil
+ * opens them.
+ *
+ * The hours-per-week, replies-in and availability-note fields were taken out
+ * (QA 2026-09-20). student_profiles still carries the columns and
+ * client/students/show still reads them, so existing answers are shown rather
+ * than lost — there is simply no editor for them here any more.
  */
 function DetailsDialog({
     open,
@@ -729,32 +837,20 @@ function DetailsDialog({
     const team = useCurrentTeam();
 
     const form = useForm({
-        location: profile.location ?? '',
         barangay: profile.barangay ?? '',
-        school_id: profile.schoolId?.toString() ?? '',
-        course_id: profile.courseId?.toString() ?? '',
-        year_level: profile.yearLevel?.toString() ?? '',
         github_url: profile.githubUrl ?? '',
         portfolio_url: profile.portfolioUrl ?? '',
         is_available: profile.isAvailable,
-        weekly_hours: profile.weeklyHours?.toString() ?? '',
-        availability_note: profile.availabilityNote ?? '',
-        response_time_hours: profile.responseTimeHours?.toString() ?? '',
     });
 
     const save = () => {
         form.transform((data) => ({
             ...data,
             /*
-             * Empty selects post "", and every one of these rules is nullable
-             * rather than allowing a blank string past an exists check.
+             * An empty select posts "", and the rule is nullable rather than
+             * letting a blank string past an exists check.
              */
-            school_id: data.school_id || null,
-            course_id: data.course_id || null,
-            year_level: data.year_level || null,
             barangay: data.barangay || null,
-            weekly_hours: data.weekly_hours || null,
-            response_time_hours: data.response_time_hours || null,
         }));
 
         form.patch(profileUpdate.url(team.slug), {
@@ -779,25 +875,6 @@ function DetailsDialog({
                     }}
                 >
                     <div className="field">
-                        <label htmlFor="location">
-                            Area or subdivision{' '}
-                            <span style={{ color: MUTED(50) }}>(optional)</span>
-                        </label>
-                        <Input
-                            id="location"
-                            value={form.data.location}
-                            placeholder="Towerville, Phase 2, near the market"
-                            onChange={(e) =>
-                                form.setData('location', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={form.errors.location}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
-
-                    <div className="field">
                         <label htmlFor="barangay">Barangay</label>
                         <Select
                             id="barangay"
@@ -819,6 +896,140 @@ function DetailsDialog({
                         />
                     </div>
 
+                    <div className="field">
+                        <label htmlFor="github_url">GitHub</label>
+                        <Input
+                            id="github_url"
+                            value={form.data.github_url}
+                            placeholder="https://github.com/you"
+                            onChange={(e) =>
+                                form.setData('github_url', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.github_url}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="portfolio_url">Portfolio site</label>
+                        <Input
+                            id="portfolio_url"
+                            value={form.data.portfolio_url}
+                            placeholder="https://you.dev"
+                            onChange={(e) =>
+                                form.setData('portfolio_url', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.portfolio_url}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <label
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            fontSize: 12.5,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={form.data.is_available}
+                            onChange={(e) =>
+                                form.setData('is_available', e.target.checked)
+                            }
+                            style={{
+                                accentColor: 'var(--color-accent)',
+                                width: 15,
+                                height: 15,
+                            }}
+                        />
+                        Open to a project this term
+                    </label>
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Btn type="button" variant="ghost">
+                            Cancel
+                        </Btn>
+                    </DialogClose>
+
+                    <Btn
+                        type="button"
+                        variant="secondary"
+                        disabled={form.processing}
+                        onClick={save}
+                        data-test="save-details-button"
+                    >
+                        Save
+                    </Btn>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/**
+ * What the student is enrolled in: school, course and year level.
+ *
+ * These three moved out of "Profile details" and under the Education card
+ * (QA 2026-09-20), which is where a student goes looking for them. They are
+ * still one per profile and still the columns RecruitController filters on —
+ * EducationDialog beside them writes the readable student_educations list,
+ * which is a different thing and stays a different dialog. See
+ * .ai/rules/student.md.
+ */
+function EnrolmentDialog({
+    open,
+    onOpenChange,
+    profile,
+    options,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    profile: Props['profile'];
+    options: Props['options'];
+}) {
+    const team = useCurrentTeam();
+
+    const form = useForm({
+        school_id: profile.schoolId?.toString() ?? '',
+        course_id: profile.courseId?.toString() ?? '',
+        year_level: profile.yearLevel?.toString() ?? '',
+    });
+
+    const save = () => {
+        form.transform((data) => ({
+            ...data,
+            /*
+             * Empty selects post "", and each of these rules is nullable
+             * rather than allowing a blank string past an exists check.
+             */
+            school_id: data.school_id || null,
+            course_id: data.course_id || null,
+            year_level: data.year_level || null,
+        }));
+
+        form.patch(profileUpdate.url(team.slug), {
+            preserveScroll: true,
+            onSuccess: () => onOpenChange(false),
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>School, course and year level</DialogTitle>
+                </DialogHeader>
+
+                <div style={{ display: 'grid', gap: 12 }}>
                     <div className="field">
                         <label htmlFor="school_id">School</label>
                         <Select
@@ -884,121 +1095,6 @@ function DetailsDialog({
                             className="mt-1 text-[11px]"
                         />
                     </div>
-
-                    <div className="field">
-                        <label htmlFor="github_url">GitHub</label>
-                        <Input
-                            id="github_url"
-                            value={form.data.github_url}
-                            placeholder="https://github.com/you"
-                            onChange={(e) =>
-                                form.setData('github_url', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={form.errors.github_url}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
-
-                    <div className="field">
-                        <label htmlFor="portfolio_url">Portfolio site</label>
-                        <Input
-                            id="portfolio_url"
-                            value={form.data.portfolio_url}
-                            placeholder="https://you.dev"
-                            onChange={(e) =>
-                                form.setData('portfolio_url', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={form.errors.portfolio_url}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
-
-                    <label
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            fontSize: 12.5,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={form.data.is_available}
-                            onChange={(e) =>
-                                form.setData('is_available', e.target.checked)
-                            }
-                            style={{
-                                accentColor: 'var(--color-accent)',
-                                width: 15,
-                                height: 15,
-                            }}
-                        />
-                        Open to a project this term
-                    </label>
-
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns:
-                                'repeat(auto-fit, minmax(150px, 1fr))',
-                            gap: 10,
-                        }}
-                    >
-                        <div className="field">
-                            <label htmlFor="weekly_hours">Hrs/week</label>
-                            <Input
-                                id="weekly_hours"
-                                type="number"
-                                value={form.data.weekly_hours}
-                                onChange={(e) =>
-                                    form.setData('weekly_hours', e.target.value)
-                                }
-                            />
-                        </div>
-
-                        <div className="field">
-                            <label htmlFor="response_time_hours">
-                                Replies in (h)
-                            </label>
-                            <Input
-                                id="response_time_hours"
-                                type="number"
-                                value={form.data.response_time_hours}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'response_time_hours',
-                                        e.target.value,
-                                    )
-                                }
-                            />
-                        </div>
-                    </div>
-
-                    <div className="field">
-                        <label htmlFor="availability_note">
-                            Availability note
-                        </label>
-                        <Textarea
-                            id="availability_note"
-                            rows={2}
-                            value={form.data.availability_note}
-                            onChange={(e) =>
-                                form.setData(
-                                    'availability_note',
-                                    e.target.value,
-                                )
-                            }
-                        />
-                        <InputError
-                            message={form.errors.availability_note}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
                 </div>
 
                 <DialogFooter className="gap-2">
@@ -1013,7 +1109,7 @@ function DetailsDialog({
                         variant="secondary"
                         disabled={form.processing}
                         onClick={save}
-                        data-test="save-details-button"
+                        data-test="save-enrolment-button"
                     >
                         Save
                     </Btn>

@@ -65,6 +65,7 @@ class IncomingCall extends Notification
             'type' => 'call.incoming',
             'meeting_id' => $this->meeting->id,
             'conversation_id' => $conversation->id,
+            'caller_id' => $this->caller->id,
             'caller_name' => $this->caller->name,
             'project_title' => $conversation->project->title,
             'started_at' => $this->meeting->started_at?->toIso8601String(),

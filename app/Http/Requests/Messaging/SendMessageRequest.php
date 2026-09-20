@@ -3,7 +3,9 @@
 namespace App\Http\Requests\Messaging;
 
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SendMessageRequest extends FormRequest
 {
@@ -33,6 +35,18 @@ class SendMessageRequest extends FormRequest
              */
             'body' => ['required_without:image', 'nullable', 'string', 'max:4000'],
             'image' => ['required_without:body', 'nullable', 'image', 'max:'.config('uploads.max_image_kilobytes')],
+            /*
+             * A reply may only quote a message from the same thread. Without
+             * the scope any id would do, and a reply would carry a line out of
+             * somebody else's conversation into this one.
+             */
+            'reply_to_message_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('messages', 'id')->where(
+                    fn (Builder $query) => $query->where('conversation_id', $this->route('conversation')?->id),
+                ),
+            ],
         ];
     }
 

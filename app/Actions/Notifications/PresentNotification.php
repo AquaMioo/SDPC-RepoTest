@@ -3,7 +3,9 @@
 namespace App\Actions\Notifications;
 
 use App\Models\Team;
+use App\Models\User;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Collection;
 
 /**
  * Turns a stored notification row into something a person can read.
@@ -28,9 +30,10 @@ class PresentNotification
     /**
      * Describe one notification for the person it was sent to.
      *
-     * @return array{id: string, from: string, initials: string, title: string, body: string|null, url: string|null, at: string|null, sentOn: string|null, sentTime: string|null, read: bool}
+     * @param  array<int, string|null>  $avatars  Actor id => picture, from avatarsFor().
+     * @return array{id: string, from: string, initials: string, avatarUrl: string|null, title: string, body: string|null, url: string|null, at: string|null, sentOn: string|null, sentTime: string|null, read: bool}
      */
-    public function handle(DatabaseNotification $notification, Team $team): array
+    public function handle(DatabaseNotification $notification, Team $team, array $avatars = []): array
     {
         /** @var array<string, mixed> $data */
         $data = $notification->data;
@@ -38,11 +41,18 @@ class PresentNotification
         [$title, $body, $url] = $this->describe($data, $team);
 
         $from = $this->actor($data) ?? self::SYSTEM_SENDER;
+        $actorId = $this->actorId($data);
 
         return [
             'id' => $notification->id,
             'from' => $from,
             'initials' => $this->initials($from),
+            /*
+             * Null for a row whose payload names nobody, and for every row
+             * written before the actor's id was stored — those keep their
+             * initials, which is all their payload can support.
+             */
+            'avatarUrl' => $actorId === null ? null : ($avatars[$actorId] ?? null),
             'title' => $title,
             'body' => $body,
             'url' => $url,
@@ -86,12 +96,61 @@ class PresentNotification
     }
 
     /**
+     * Which account triggered it, when the payload says.
+     *
+     * Probed the same way as actor() above, and for the same reasons. The id
+     * keys were added alongside the names later, so a row written before that
+     * yields null here and falls back to initials — which every row can do.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function actorId(array $data): ?int
+    {
+        foreach (['sender_id', 'student_id', 'inviter_id', 'caller_id'] as $key) {
+            $id = $data[$key] ?? null;
+
+            if (is_int($id) || (is_string($id) && ctype_digit($id))) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Every actor's picture for a page of notifications, in one query.
+     *
+     * Resolved here rather than per row: the bell draws several notifications
+     * at once, and asking for a user inside handle() would be a query each.
+     *
+     * @param  Collection<int, DatabaseNotification>  $notifications
+     * @return array<int, string|null>
+     */
+    public function avatarsFor(Collection $notifications): array
+    {
+        $ids = $notifications
+            ->map(fn (DatabaseNotification $row): ?int => $this->actorId((array) $row->data))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return User::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'avatar', 'avatar_path'])
+            ->mapWithKeys(fn (User $user): array => [$user->id => $user->avatarUrl()])
+            ->all();
+    }
+
+    /**
      * The one or two letters drawn in the avatar circle.
      *
-     * Notification payloads store a name and never an id, so there is no user
-     * to read an avatar off — not even for rows written today, and certainly
-     * not for the ones already in the table. Initials are derived from the
-     * name itself, which works for every row ever written.
+     * What a row falls back to when there is no picture: the actor has none,
+     * or the payload predates actorId() and names nobody to look up. Derived
+     * from the name itself, which every row ever written carries.
      */
     protected function initials(string $name): string
     {

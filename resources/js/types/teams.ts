@@ -17,7 +17,8 @@ export type TeamMember = {
     id: number;
     name: string;
     email: string;
-    avatar?: string | null;
+    /** Resolved by User::avatarUrl(); null when the account has no picture. */
+    avatarUrl?: string | null;
     role: TeamRole;
     role_label: string;
 };

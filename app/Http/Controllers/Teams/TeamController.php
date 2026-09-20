@@ -146,7 +146,13 @@ class TeamController extends Controller
                     'id' => $member->id,
                     'name' => $member->name,
                     'email' => $member->email,
-                    'avatar' => $member->avatar ?? null,
+                    /*
+                     * Through avatarUrl(), not off users.avatar: that column
+                     * holds only what the OAuth provider handed over, so a
+                     * teammate who uploaded a picture kept showing their old
+                     * Google one on this list alone.
+                     */
+                    'avatarUrl' => $member->avatarUrl(),
                     'role' => $membership->role->value,
                     'role_label' => $membership->role->label(),
                 ];

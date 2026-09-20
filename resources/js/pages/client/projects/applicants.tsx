@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { StarIcon } from '@phosphor-icons/react';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
+import UserAvatar from '@/components/sdpc/user-avatar';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { update as applicationsUpdate } from '@/routes/applications';
@@ -19,6 +20,8 @@ type Applicant = {
     student: {
         id: number;
         name: string;
+        /** Resolved by User::avatarUrl(); null when they have no picture. */
+        avatarUrl: string | null;
         headline: string | null;
         school: string | null;
         course: string | null;
@@ -80,6 +83,14 @@ export default function Applicants({ project, applications }: Props) {
                         {applications.map((application) => (
                             <Panel key={application.id} padding="lg" gap="lg">
                                 <div className="flex flex-wrap items-start gap-3">
+                                    <UserAvatar
+                                        name={application.student.name}
+                                        avatarUrl={
+                                            application.student.avatarUrl
+                                        }
+                                        size={40}
+                                    />
+
                                     <div className="mr-auto min-w-0">
                                         <Link
                                             href={studentsShow.url({

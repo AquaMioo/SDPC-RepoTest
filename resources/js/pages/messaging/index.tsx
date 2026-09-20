@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 
 import InputError from '@/components/input-error';
 import EmptyInbox from '@/components/messaging/empty-inbox';
+import MessageRow from '@/components/messaging/message-row';
+import type { ChatMessage } from '@/components/messaging/message-row';
 import VideoCall from '@/components/messaging/video-call';
 import type {
     MeetingCredentials,
@@ -32,6 +34,7 @@ import {
 } from '@/routes/meetings';
 import {
     edit as editMessage,
+    hide as hideMessage,
     react as reactToMessage,
     remove as removeMessageRoute,
     send as sendMessage,
@@ -93,18 +96,7 @@ type Props = {
         }[];
         /** A call somebody is in right now, and who. */
         call: { id: number; people: string[] } | null;
-        messages: {
-            id: number;
-            body: string | null;
-            author: string;
-            isMine: boolean;
-            at: string | null;
-            isEdited: boolean;
-            isRemoved: boolean;
-            editableUntil: number | null;
-            imageUrl: string | null;
-            reactions: { emoji: string; count: number; reacted: boolean }[];
-        }[];
+        messages: ChatMessage[];
         reactionChoices: string[];
         /** Null until there is a signed agreement to report on. */
         intel: {
@@ -130,39 +122,6 @@ const QUICK_EMOJI = [
     '👀',
     '✅',
 ];
-
-/**
- * Whether a message is nothing but a few emoji.
- *
- * Those get drawn large and without a bubble, the way every chat app does it —
- * a lone 🔥 sitting in a full-width panel reads as a mistake. Capped at a
- * handful so a wall of emoji stays a normal message rather than filling the
- * thread.
- */
-function isEmojiOnly(message: {
-    body: string | null;
-    imageUrl: string | null;
-}) {
-    if (message.imageUrl !== null || message.body === null) {
-        return false;
-    }
-
-    const text = message.body.trim();
-
-    if (text === '') {
-        return false;
-    }
-
-    // Extended_Pictographic covers emoji proper; the rest are the joiners,
-    // skin-tone modifiers and variation selectors that compose them.
-    const emojiOnly =
-        /^(\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u;
-
-    return (
-        emojiOnly.test(text) &&
-        [...new Intl.Segmenter().segment(text)].length <= 3
-    );
-}
 
 /**
  * How an action on one message goes out: re-read the thread and the list, and
@@ -251,10 +210,6 @@ export default function Messages({
     const [find, setFind] = useState('');
     /* An invite or removal on its way to the server. */
     const [groupBusy, setGroupBusy] = useState(false);
-    /* The message whose Remove is waiting for a yes. */
-    const [confirmingRemoval, setConfirmingRemoval] = useState<number | null>(
-        null,
-    );
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -532,7 +487,12 @@ export default function Messages({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const form = useForm({ body: '', image: null as File | null });
+    const form = useForm({
+        body: '',
+        image: null as File | null,
+        // Null unless the composer is answering a particular message.
+        reply_to_message_id: null as number | null,
+    });
 
     /*
      * The attached picture, drawn inside the message box the way Messenger
@@ -570,6 +530,13 @@ export default function Messages({
         }
     };
 
+    /**
+     * The message the composer is answering, quoted above the box until it is
+     * sent or dismissed. Held as the whole message rather than its id so the
+     * quote can be drawn without searching the thread for it again.
+     */
+    const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+
     /** The message being edited, and the text as it stands mid-edit. */
     const [editing, setEditing] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
@@ -586,41 +553,6 @@ export default function Messages({
 
         return () => clearInterval(tick);
     }, []);
-
-    /*
-     * Which message the cursor has rested on long enough to show its reaction
-     * picker. Held for a beat so the row of emoji does not flash up at every
-     * mouse movement across the thread.
-     */
-    const [hovered, setHovered] = useState<number | null>(null);
-    const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const startHover = (messageId: number) => {
-        if (hoverTimer.current !== null) {
-            clearTimeout(hoverTimer.current);
-        }
-
-        hoverTimer.current = setTimeout(() => setHovered(messageId), 2000);
-    };
-
-    const endHover = () => {
-        if (hoverTimer.current !== null) {
-            clearTimeout(hoverTimer.current);
-            hoverTimer.current = null;
-        }
-
-        setHovered(null);
-    };
-
-    // Leaving the page mid-hover must not fire the timer into a gone component.
-    useEffect(
-        () => () => {
-            if (hoverTimer.current !== null) {
-                clearTimeout(hoverTimer.current);
-            }
-        },
-        [],
-    );
 
     /*
      * Land on the newest message, every time.
@@ -681,13 +613,14 @@ export default function Messages({
                  */
                 only: ['threads', 'active'],
                 onSuccess: () => {
-                    form.reset('body', 'image');
+                    form.reset('body', 'image', 'reply_to_message_id');
 
                     if (imageRef.current) {
                         imageRef.current.value = '';
                     }
 
                     setEmojiOpen(false);
+                    setReplyingTo(null);
                 },
             },
         );
@@ -708,6 +641,48 @@ export default function Messages({
             {
                 ...IN_PLACE,
                 onSuccess: () => setEditing(null),
+            },
+        );
+    };
+
+    /**
+     * Answer a particular message.
+     *
+     * The whole message is kept rather than its id, so the quote above the
+     * composer can be drawn without hunting through the thread for it.
+     */
+    const startReply = (message: ChatMessage) => {
+        setReplyingTo(message);
+        form.setData('reply_to_message_id', message.id);
+    };
+
+    const cancelReply = () => {
+        setReplyingTo(null);
+        form.setData('reply_to_message_id', null);
+    };
+
+    /**
+     * Remove a message from this account's own view.
+     *
+     * Not the same as removeMessage below, which takes it back from everybody.
+     * Nothing is broadcast for this one: no other screen has changed.
+     */
+    const hideForMe = (messageId: number) => {
+        if (active === null) {
+            return;
+        }
+
+        router.post(
+            hideMessage.url({
+                current_team: team.slug,
+                conversation: active.id,
+                message: messageId,
+            }),
+            {},
+            {
+                ...IN_PLACE,
+                onError: () =>
+                    toast.error('That message could not be removed.'),
             },
         );
     };
@@ -862,7 +837,7 @@ export default function Messages({
                 style={{
                     maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
-                    padding: '24px clamp(16px, 4vw, 32px) 24px',
+                    padding: '30px clamp(16px, 4vw, 32px) 24px',
                     /*
                      * The inbox owns the viewport rather than growing with the
                      * thread. Everything that scrolls does so inside its own
@@ -1316,431 +1291,37 @@ export default function Messages({
                                     )}
 
                                     {active.messages.map((message) => (
-                                        <div
+                                        <MessageRow
                                             key={message.id}
-                                            onMouseEnter={() =>
-                                                startHover(message.id)
+                                            message={message}
+                                            reactionChoices={
+                                                active.reactionChoices
                                             }
-                                            onMouseLeave={endHover}
-                                            style={{
-                                                alignSelf: message.isMine
-                                                    ? 'flex-end'
-                                                    : 'flex-start',
-                                                maxWidth: '68%',
+                                            now={now}
+                                            isEditing={editing === message.id}
+                                            draft={draft}
+                                            onDraftChange={setDraft}
+                                            onStartEdit={() => {
+                                                setEditing(message.id);
+                                                setDraft(message.body ?? '');
                                             }}
-                                        >
-                                            <div
-                                                style={{
-                                                    /*
-                                                     * Hug the content. Without
-                                                     * this the bubble is a
-                                                     * block and stretches to
-                                                     * whatever the widest row
-                                                     * below it is — the meta
-                                                     * line "You · 11s ago Edit
-                                                     * Remove" — so a one
-                                                     * character message drew a
-                                                     * bubble wide enough for a
-                                                     * sentence.
-                                                     */
-                                                    width: 'fit-content',
-                                                    maxWidth: '100%',
-                                                    marginLeft: message.isMine
-                                                        ? 'auto'
-                                                        : undefined,
-                                                    padding: isEmojiOnly(
-                                                        message,
-                                                    )
-                                                        ? 0
-                                                        : '9px 12px',
-                                                    borderRadius:
-                                                        'var(--radius-md)',
-                                                    // A message that is only
-                                                    // emoji is read, not
-                                                    // parsed, so it gets the
-                                                    // room to be seen.
-                                                    fontSize: isEmojiOnly(
-                                                        message,
-                                                    )
-                                                        ? 34
-                                                        : 13,
-                                                    lineHeight: isEmojiOnly(
-                                                        message,
-                                                    )
-                                                        ? 1.15
-                                                        : 1.5,
-                                                    whiteSpace: 'pre-wrap',
-                                                    wordBreak: 'break-word',
-                                                    fontStyle: message.isRemoved
-                                                        ? 'italic'
-                                                        : undefined,
-                                                    color: message.isRemoved
-                                                        ? MUTED(50)
-                                                        : undefined,
-                                                    background:
-                                                        message.isRemoved ||
-                                                        isEmojiOnly(message)
-                                                            ? 'transparent'
-                                                            : message.isMine
-                                                              ? 'color-mix(in srgb, var(--color-accent) 16%, transparent)'
-                                                              : 'color-mix(in srgb, var(--color-text) 6%, transparent)',
-                                                    border: message.isRemoved
-                                                        ? `1px dashed ${MUTED(20)}`
-                                                        : undefined,
-                                                }}
-                                            >
-                                                {message.isRemoved ? (
-                                                    'Message removed'
-                                                ) : editing === message.id ? (
-                                                    <div
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection:
-                                                                'column',
-                                                            gap: 6,
-                                                        }}
-                                                    >
-                                                        <textarea
-                                                            value={draft}
-                                                            rows={2}
-                                                            autoFocus
-                                                            onChange={(e) =>
-                                                                setDraft(
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            style={{
-                                                                fontSize: 13,
-                                                                padding: 6,
-                                                                borderRadius: 6,
-                                                                border: `1px solid ${MUTED(20)}`,
-                                                                background:
-                                                                    'var(--color-surface, #fff)',
-                                                            }}
-                                                        />
-                                                        <div
-                                                            style={{
-                                                                display: 'flex',
-                                                                gap: 6,
-                                                            }}
-                                                        >
-                                                            <Btn
-                                                                style={{
-                                                                    fontSize: 11.5,
-                                                                    padding:
-                                                                        '3px 9px',
-                                                                }}
-                                                                onClick={() =>
-                                                                    saveEdit(
-                                                                        message.id,
-                                                                    )
-                                                                }
-                                                            >
-                                                                Save
-                                                            </Btn>
-                                                            <Btn
-                                                                variant="ghost"
-                                                                style={{
-                                                                    fontSize: 11.5,
-                                                                    padding:
-                                                                        '3px 9px',
-                                                                }}
-                                                                onClick={() =>
-                                                                    setEditing(
-                                                                        null,
-                                                                    )
-                                                                }
-                                                            >
-                                                                Cancel
-                                                            </Btn>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        {message.imageUrl && (
-                                                            <img
-                                                                src={
-                                                                    message.imageUrl
-                                                                }
-                                                                alt=""
-                                                                style={{
-                                                                    maxWidth:
-                                                                        '100%',
-                                                                    borderRadius: 8,
-                                                                    marginBottom:
-                                                                        message.body
-                                                                            ? 6
-                                                                            : 0,
-                                                                    display:
-                                                                        'block',
-                                                                }}
-                                                            />
-                                                        )}
-                                                        {message.body}
-                                                    </>
-                                                )}
-                                            </div>
-
-                                            {/*
-                                             * Reactions already left, plus the
-                                             * picker while hovered. Rendered
-                                             * only when there is something to
-                                             * show, so an untouched message
-                                             * carries no empty strip.
-                                             */}
-                                            {!message.isRemoved &&
-                                                (message.reactions.length > 0 ||
-                                                    hovered === message.id) && (
-                                                    <div
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexWrap: 'wrap',
-                                                            gap: 4,
-                                                            marginTop: 4,
-                                                            justifyContent:
-                                                                message.isMine
-                                                                    ? 'flex-end'
-                                                                    : 'flex-start',
-                                                        }}
-                                                    >
-                                                        {message.reactions.map(
-                                                            (reaction) => (
-                                                                <button
-                                                                    key={
-                                                                        reaction.emoji
-                                                                    }
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        react(
-                                                                            message.id,
-                                                                            reaction.emoji,
-                                                                        )
-                                                                    }
-                                                                    title="Toggle this reaction"
-                                                                    style={{
-                                                                        fontSize: 11.5,
-                                                                        padding:
-                                                                            '1px 7px',
-                                                                        borderRadius: 999,
-                                                                        border: `1px solid ${reaction.reacted ? 'var(--color-primary, #4a7c4e)' : MUTED(18)}`,
-                                                                        background:
-                                                                            reaction.reacted
-                                                                                ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)'
-                                                                                : 'transparent',
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        reaction.emoji
-                                                                    }{' '}
-                                                                    {
-                                                                        reaction.count
-                                                                    }
-                                                                </button>
-                                                            ),
-                                                        )}
-
-                                                        {/*
-                                                         * Appears once the cursor
-                                                         * has rested on the
-                                                         * message for two seconds,
-                                                         * so it does not flash up
-                                                         * at every pass of the
-                                                         * mouse across the thread.
-                                                         */}
-                                                        {hovered ===
-                                                            message.id && (
-                                                            <div
-                                                                style={{
-                                                                    display:
-                                                                        'flex',
-                                                                    gap: 2,
-                                                                    padding: 3,
-                                                                    borderRadius: 999,
-                                                                    border: `1px solid ${MUTED(15)}`,
-                                                                    background:
-                                                                        'var(--color-surface, #fff)',
-                                                                }}
-                                                            >
-                                                                {active.reactionChoices.map(
-                                                                    (emoji) => (
-                                                                        <button
-                                                                            key={
-                                                                                emoji
-                                                                            }
-                                                                            type="button"
-                                                                            title="React"
-                                                                            onClick={() =>
-                                                                                react(
-                                                                                    message.id,
-                                                                                    emoji,
-                                                                                )
-                                                                            }
-                                                                            style={{
-                                                                                fontSize: 14,
-                                                                                padding:
-                                                                                    '1px 3px',
-                                                                                lineHeight: 1,
-                                                                            }}
-                                                                        >
-                                                                            {
-                                                                                emoji
-                                                                            }
-                                                                        </button>
-                                                                    ),
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                            <div
-                                                style={{
-                                                    fontSize: 10.5,
-                                                    color: MUTED(55),
-                                                    marginTop: 3,
-                                                    display: 'flex',
-                                                    gap: 6,
-                                                    justifyContent:
-                                                        message.isMine
-                                                            ? 'flex-end'
-                                                            : 'flex-start',
-                                                }}
-                                            >
-                                                <span>
-                                                    {message.isMine
-                                                        ? 'You'
-                                                        : message.author}
-                                                    {message.at
-                                                        ? ` · ${message.at}`
-                                                        : ''}
-                                                    {message.isEdited
-                                                        ? ' · edited'
-                                                        : ''}
-                                                </span>
-
-                                                {/* Only the sender's own, and
-                                                    not once it is removed. */}
-                                                {message.isMine &&
-                                                    !message.isRemoved &&
-                                                    editing !== message.id &&
-                                                    confirmingRemoval ===
-                                                        message.id && (
-                                                        <>
-                                                            {/*
-                                                             * Asked first: a
-                                                             * removed message
-                                                             * cannot be brought
-                                                             * back.
-                                                             */}
-                                                            <span>
-                                                                Remove this
-                                                                message?
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setConfirmingRemoval(
-                                                                        null,
-                                                                    );
-                                                                    removeMessage(
-                                                                        message.id,
-                                                                    );
-                                                                }}
-                                                                style={{
-                                                                    color: 'var(--color-text)',
-                                                                    textDecoration:
-                                                                        'underline',
-                                                                }}
-                                                            >
-                                                                Yes, remove
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    setConfirmingRemoval(
-                                                                        null,
-                                                                    )
-                                                                }
-                                                                style={{
-                                                                    color: MUTED(
-                                                                        60,
-                                                                    ),
-                                                                    textDecoration:
-                                                                        'underline',
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </button>
-                                                        </>
-                                                    )}
-
-                                                {message.isMine &&
-                                                    !message.isRemoved &&
-                                                    editing !== message.id &&
-                                                    confirmingRemoval !==
-                                                        message.id && (
-                                                        <>
-                                                            {/*
-                                                             * Editing closes
-                                                             * 30 seconds after
-                                                             * sending. The
-                                                             * clock ticking
-                                                             * above is what
-                                                             * makes this
-                                                             * disappear on its
-                                                             * own; the server
-                                                             * refuses it
-                                                             * either way.
-                                                             */}
-                                                            {message.editableUntil !==
-                                                                null &&
-                                                                now <
-                                                                    message.editableUntil && (
-                                                                    <button
-                                                                        type="button"
-                                                                        title={`Editable for ${Math.max(0, Math.ceil((message.editableUntil - now) / 1000))}s more`}
-                                                                        onClick={() => {
-                                                                            setEditing(
-                                                                                message.id,
-                                                                            );
-                                                                            setDraft(
-                                                                                message.body ??
-                                                                                    '',
-                                                                            );
-                                                                        }}
-                                                                        style={{
-                                                                            color: MUTED(
-                                                                                60,
-                                                                            ),
-                                                                            textDecoration:
-                                                                                'underline',
-                                                                        }}
-                                                                    >
-                                                                        Edit
-                                                                    </button>
-                                                                )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    setConfirmingRemoval(
-                                                                        message.id,
-                                                                    )
-                                                                }
-                                                                style={{
-                                                                    color: MUTED(
-                                                                        60,
-                                                                    ),
-                                                                    textDecoration:
-                                                                        'underline',
-                                                                }}
-                                                            >
-                                                                Remove
-                                                            </button>
-                                                        </>
-                                                    )}
-                                            </div>
-                                        </div>
+                                            onCancelEdit={() =>
+                                                setEditing(null)
+                                            }
+                                            onSaveEdit={() =>
+                                                saveEdit(message.id)
+                                            }
+                                            onReact={(emoji) =>
+                                                react(message.id, emoji)
+                                            }
+                                            onReply={() => startReply(message)}
+                                            onRemoveForEveryone={() =>
+                                                removeMessage(message.id)
+                                            }
+                                            onRemoveForMe={() =>
+                                                hideForMe(message.id)
+                                            }
+                                        />
                                     ))}
 
                                     <div ref={endRef} />
@@ -1765,6 +1346,61 @@ export default function Messages({
                                      * nocturne.css.
                                      */}
                                     <div className="composer-box">
+                                        {/*
+                                         * What this message will answer, above
+                                         * the box the way Messenger shows it,
+                                         * with a way out that also clears the
+                                         * id going to the server.
+                                         */}
+                                        {replyingTo !== null && (
+                                            <div
+                                                className="msg-quote"
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    paddingTop: 6,
+                                                    fontSize: 11.5,
+                                                    color: MUTED(65),
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        flex: 1,
+                                                        minWidth: 0,
+                                                        overflow: 'hidden',
+                                                        textOverflow:
+                                                            'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    Replying to{' '}
+                                                    <span
+                                                        style={{
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        {replyingTo.isMine
+                                                            ? 'yourself'
+                                                            : replyingTo.author}
+                                                    </span>
+                                                    {replyingTo.body
+                                                        ? ` · ${replyingTo.body}`
+                                                        : ''}
+                                                </span>
+
+                                                <button
+                                                    type="button"
+                                                    className="msg-action"
+                                                    title="Cancel reply"
+                                                    aria-label="Cancel reply"
+                                                    onClick={cancelReply}
+                                                >
+                                                    <XIcon />
+                                                </button>
+                                            </div>
+                                        )}
+
                                         {form.data.image !== null &&
                                             imagePreview !== null && (
                                                 <div className="composer-attachments">

@@ -843,6 +843,30 @@ button[data-edit-button]:active {
   background: color-mix(in srgb, var(--color-accent) 22%, transparent);
   transform: scale(0.94);
 }
+/* The ✕ on a chip — a skill in the picker, and anything else that lists
+   removable tags. Muted until pointed at, so the chip reads as a word rather
+   than as a button, then unmistakably a control once the pointer is on it. */
+button[data-chip-remove] {
+  display: inline-grid;
+  place-items: center;
+  margin-left: 4px;
+  padding: 1px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+button[data-chip-remove]:hover,
+button[data-chip-remove]:focus-visible {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  transform: scale(1.15);
+}
+button[data-chip-remove]:active { transform: scale(0.9); }
+button[data-chip-remove]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
 /* Over the profile photo it needs a solid ground, tinted the same way. */
 button[data-edit-button][data-on-photo] { background: var(--color-surface); }
 button[data-edit-button][data-on-photo]:hover,
@@ -1220,6 +1244,106 @@ button[data-attachment-remove]:focus-visible { background: var(--color-accent); 
   .msg-grid { grid-template-columns: 300px minmax(0, 1fr) 300px; }
   /* The empty inbox has no third (group chat) panel to fill that column. */
   .msg-grid.msg-grid-two { grid-template-columns: 300px minmax(0, 1fr); }
+}
+
+/* ————————————————————————————————————————————————————————————————————————
+   Message rows — the actions that appear beside a bubble on hover, and the
+   reaction picker they open.
+
+   The inbox sets its geometry in inline styles, and an inline style beats
+   every selector, so anything that has to answer :hover lives here as a class
+   instead of in the component. Same reasoning as .app-bar above.
+   ———————————————————————————————————————————————————————————————————— */
+
+.msg-row { display: flex; align-items: flex-end; gap: 8px; }
+
+/* Hidden until the pointer rests on the row — but never hidden from the
+   keyboard, which is what :focus-within is for, and never while its own menu
+   is open, which is what [data-open] is for. Opacity rather than display, so
+   the row does not reflow as the cluster appears. */
+.msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity .12s ease, transform .12s ease;
+  pointer-events: none;
+}
+.msg-row:hover .msg-actions,
+.msg-row:focus-within .msg-actions,
+.msg-actions[data-open='true'] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.msg-action {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease, transform .12s ease;
+}
+.msg-action:hover {
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
+  color: var(--color-text);
+  transform: scale(1.12);
+}
+.msg-action:active { transform: scale(.94); }
+.msg-action:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* The picker. Each face grows and lifts under the pointer so the one about to
+   be picked is unmistakable, and springs rather than slides — the overshoot in
+   the easing is what reads as a reaction rather than a menu. */
+.msg-emoji {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  padding: 3px;
+  border-radius: 999px;
+  transition: transform .14s cubic-bezier(.34, 1.56, .64, 1), background .14s ease;
+}
+.msg-emoji:hover {
+  transform: scale(1.45) translateY(-2px);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.msg-emoji:active { transform: scale(1.05); }
+.msg-emoji:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+/* A reaction already left. The pop fires on the one just added, so you see
+   your own land rather than having it appear fully formed. */
+.msg-reaction {
+  cursor: pointer;
+  transition: transform .14s cubic-bezier(.34, 1.56, .64, 1), background .14s ease, border-color .14s ease;
+}
+.msg-reaction:hover { transform: scale(1.12); }
+.msg-reaction[data-just-added='true'] { animation: msg-reaction-pop .32s cubic-bezier(.34, 1.56, .64, 1); }
+
+@keyframes msg-reaction-pop {
+  0%   { transform: scale(.4); }
+  60%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* The quoted line above a reply, and the one over the composer. */
+.msg-quote {
+  border-left: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  padding-left: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-actions, .msg-action, .msg-emoji, .msg-reaction { transition: none; }
+  .msg-action:hover, .msg-emoji:hover, .msg-reaction:hover { transform: none; }
+  .msg-reaction[data-just-added='true'] { animation: none; }
 }
 
 /* The call screen's tiles, one per person. The screen passes the column count

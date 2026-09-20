@@ -179,9 +179,22 @@ class ConversationController extends Controller
              */
             $active->adoptStudentTeam();
 
-            // Reactions come with the messages: without this the summary runs
-            // a query per bubble.
-            $active->load(['messages.sender', 'messages.reactions', 'project.team.clientProfile', 'student', 'studentTeam', 'members']);
+            /*
+             * Reactions come with the messages: without this the summary runs
+             * a query per bubble. 'messages.hides' is the same story for
+             * isHiddenFor(), and 'messages.replyTo.sender' for the quoted line
+             * above a reply.
+             */
+            $active->load([
+                'messages.sender',
+                'messages.reactions',
+                'messages.hides',
+                'messages.replyTo.sender',
+                'project.team.clientProfile',
+                'student',
+                'studentTeam',
+                'members',
+            ]);
             $active->markReadFor($user);
         }
 
@@ -224,26 +237,40 @@ class ConversationController extends Controller
                     ])->values()->all(),
                 /* A call running now, so anybody who missed the ring can join. */
                 'call' => $this->callInProgress($active),
-                'messages' => $active->messages->map(fn (Message $message) => [
-                    'id' => $message->id,
-                    'body' => $message->body,
-                    'author' => $message->sender?->name ?? 'Removed account',
-                    'isMine' => $message->user_id === $user->id,
-                    'at' => $message->created_at?->diffForHumans(short: true),
-                    'isEdited' => $message->isEdited(),
-                    'isRemoved' => $message->isRemoved(),
-                    // The client counts down against this rather than being
-                    // told "too late" only on the next reload.
-                    'editableUntil' => $message->editableUntilMs(),
-                    'imageUrl' => $message->attachment_path === null
-                        ? null
-                        : route('messages.image', [
-                            'current_team' => $currentTeam,
-                            'conversation' => $active,
-                            'message' => $message,
-                        ]),
-                    'reactions' => $message->reactionSummary($user),
-                ])->values()->all(),
+                /*
+                 * Messages this viewer removed for themselves are not sent at
+                 * all, rather than sent and hidden in the browser: the body is
+                 * the thing they asked to stop seeing.
+                 */
+                'messages' => $active->messages
+                    ->reject(fn (Message $message) => $message->isHiddenFor($user))
+                    ->map(fn (Message $message) => [
+                        'id' => $message->id,
+                        'body' => $message->body,
+                        'author' => $message->sender?->name ?? 'Removed account',
+                        /*
+                     * Read through User::avatarUrl(), never off users.avatar:
+                     * the uploaded picture has to win over the one Google gave
+                     * us, here and on every other screen.
+                     */
+                        'authorAvatarUrl' => $message->sender?->avatarUrl(),
+                        'isMine' => $message->user_id === $user->id,
+                        'at' => $message->created_at?->diffForHumans(short: true),
+                        'isEdited' => $message->isEdited(),
+                        'isRemoved' => $message->isRemoved(),
+                        // The client counts down against this rather than being
+                        // told "too late" only on the next reload.
+                        'editableUntil' => $message->editableUntilMs(),
+                        'imageUrl' => $message->attachment_path === null
+                            ? null
+                            : route('messages.image', [
+                                'current_team' => $currentTeam,
+                                'conversation' => $active,
+                                'message' => $message,
+                            ]),
+                        'reactions' => $message->reactionSummary($user),
+                        'replyTo' => $message->replyPreview(),
+                    ])->values()->all(),
                 /*
                  * What the thread is actually about, beside it. Every figure
                  * here is read off the agreement — there is no panel of
@@ -337,6 +364,8 @@ class ConversationController extends Controller
                 'user_id' => $user->id,
                 'body' => $request->validated('body'),
                 'attachment_path' => $attachment,
+                // Validated against this thread, so it cannot quote another.
+                'reply_to_message_id' => $request->validated('reply_to_message_id'),
             ]);
 
             $conversation->forceFill(['last_message_at' => now()])->save();
@@ -427,6 +456,34 @@ class ConversationController extends Controller
         $this->announce->handle($message);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Message removed.')]);
+
+        return back();
+    }
+
+    /**
+     * Remove a message from this viewer's own thread.
+     *
+     * The other half of removal. remove() takes a message back from everybody
+     * and is the sender's alone; this hides one line for the person who asked
+     * and changes nothing for anybody else — so it is open to either side, and
+     * to somebody else's message as readily as your own.
+     *
+     * Nothing is broadcast: no other participant's screen has changed.
+     */
+    public function hide(
+        Request $request,
+        Team $currentTeam,
+        Conversation $conversation,
+        Message $message,
+    ): RedirectResponse {
+        $user = $request->user();
+
+        abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+        abort_unless($message->conversation_id === $conversation->id, HttpResponse::HTTP_NOT_FOUND);
+
+        $message->hides()->firstOrCreate(['user_id' => $user->id]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Message removed for you.')]);
 
         return back();
     }

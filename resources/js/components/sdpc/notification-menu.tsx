@@ -12,6 +12,11 @@ export type NotificationRow = {
     id: string;
     from: string;
     initials: string;
+    /**
+     * The actor's picture, from User::avatarUrl(). Null when nobody triggered
+     * the notification, or when the row predates the actor's id being stored.
+     */
+    avatarUrl: string | null;
     title: string;
     body: string | null;
     url: string | null;
@@ -203,7 +208,11 @@ function Row({
                 borderTop: first ? undefined : `1px solid ${MUTED(10)}`,
             }}
         >
-            <Avatar name={row.from} initials={row.initials} />
+            <Avatar
+                name={row.from}
+                initials={row.initials}
+                avatarUrl={row.avatarUrl}
+            />
 
             <Link
                 href={openHref}
@@ -283,20 +292,40 @@ function Row({
 /**
  * The circle in front of a row.
  *
- * Initials rather than a photograph: a notification payload stores the name of
- * whoever caused it and never their id, so there is no account to read an
- * avatar from — including for every row already in the table. The hue is
+ * The actor's picture when the payload named an account to read one from,
+ * and coloured initials when it did not — an event nobody triggered, or a row
+ * written before the actor's id was stored beside their name. The hue is
  * derived from the name so one person keeps one colour across the list.
  */
 export function Avatar({
     name,
     initials,
+    avatarUrl = null,
     size = 30,
 }: {
     name: string;
     initials: string;
+    /** The actor's picture, when the payload named an account to read. */
+    avatarUrl?: string | null;
     size?: number;
 }) {
+    if (avatarUrl !== null && avatarUrl !== '') {
+        return (
+            <img
+                src={avatarUrl}
+                alt=""
+                title={name}
+                style={{
+                    flexShrink: 0,
+                    width: size,
+                    height: size,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                }}
+            />
+        );
+    }
+
     let hash = 0;
 
     for (let i = 0; i < name.length; i++) {

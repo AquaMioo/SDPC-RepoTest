@@ -24,6 +24,8 @@ export type ProjectListItem = {
 export type StudentCard = {
     id: number;
     name: string;
+    /** Resolved by User::avatarUrl(); null when the account has no picture. */
+    avatarUrl: string | null;
     headline: string | null;
     school: string | null;
     course: string | null;

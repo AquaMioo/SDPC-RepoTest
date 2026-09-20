@@ -8,7 +8,7 @@ import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import InviteMemberModal from '@/components/invite-member-modal';
 import RemoveMemberModal from '@/components/remove-member-modal';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import UserAvatar from '@/components/sdpc/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,7 +31,6 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useInitials } from '@/hooks/use-initials';
 import TeamsIndex from '@/pages/teams/index';
 import { edit, index, update } from '@/routes/teams';
 import { update as updateMember } from '@/routes/teams/members';
@@ -61,8 +60,6 @@ export default function TeamEdit({
     availableRoles,
     background,
 }: Props) {
-    const getInitials = useInitials();
-
     const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
@@ -214,17 +211,11 @@ export default function TeamEdit({
                                         className="flex items-center justify-between rounded-lg border p-4"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <Avatar className="h-10 w-10">
-                                                {member.avatar ? (
-                                                    <AvatarImage
-                                                        src={member.avatar}
-                                                        alt={member.name}
-                                                    />
-                                                ) : null}
-                                                <AvatarFallback>
-                                                    {getInitials(member.name)}
-                                                </AvatarFallback>
-                                            </Avatar>
+                                            <UserAvatar
+                                                name={member.name}
+                                                avatarUrl={member.avatarUrl}
+                                                size={40}
+                                            />
                                             <div>
                                                 <div className="font-medium">
                                                     {member.name}

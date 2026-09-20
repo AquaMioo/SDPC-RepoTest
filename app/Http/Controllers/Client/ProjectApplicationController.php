@@ -129,6 +129,8 @@ class ProjectApplicationController extends Controller
             'student' => [
                 'id' => $application->student->id,
                 'name' => $application->student->name,
+                /* Through avatarUrl(), like every other face on the platform. */
+                'avatarUrl' => $application->student->avatarUrl(),
                 'headline' => $profile?->headline,
                 'school' => $profile?->school?->name,
                 'course' => $profile?->course?->abbreviation ?? $profile?->course?->name,

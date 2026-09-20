@@ -54,6 +54,8 @@ class NewMessage extends Notification
             'type' => 'message.received',
             'conversation_id' => $conversation->id,
             'message_id' => $this->message->id,
+            /* The id as well as the name, so the bell can draw their picture. */
+            'sender_id' => $this->message->sender->id,
             'sender_name' => $this->message->sender->name,
             'project_title' => $conversation->project->title,
             'preview' => $this->preview(),

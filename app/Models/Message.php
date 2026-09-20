@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $conversation_id
  * @property int|null $user_id
+ * @property int|null $reply_to_message_id
  * @property string|null $body
  * @property Carbon|null $edited_at
  * @property Carbon|null $removed_at
@@ -24,8 +25,10 @@ use Illuminate\Support\Carbon;
  * @property-read Conversation $conversation
  * @property-read User|null $sender
  * @property-read Collection<int, MessageReaction> $reactions
+ * @property-read Collection<int, MessageHide> $hides
+ * @property-read Message|null $replyTo
  */
-#[Fillable(['conversation_id', 'user_id', 'body', 'attachment_path'])]
+#[Fillable(['conversation_id', 'user_id', 'body', 'attachment_path', 'reply_to_message_id'])]
 class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -52,6 +55,77 @@ class Message extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(MessageReaction::class);
+    }
+
+    /**
+     * The accounts that have hidden this message from their own view.
+     *
+     * @return HasMany<MessageHide, $this>
+     */
+    public function hides(): HasMany
+    {
+        return $this->hasMany(MessageHide::class);
+    }
+
+    /**
+     * The message this one answers, if any.
+     *
+     * @return BelongsTo<Message, $this>
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'reply_to_message_id');
+    }
+
+    /**
+     * Whether this viewer has removed this message for themselves.
+     *
+     * Reads the loaded relation rather than querying, so a thread of a hundred
+     * messages asks once. Eager-load 'hides' wherever this runs over many.
+     */
+    public function isHiddenFor(User $user): bool
+    {
+        return $this->hides->contains('user_id', $user->id);
+    }
+
+    /**
+     * The quoted line shown above a reply.
+     *
+     * Just enough to recognise which message is being answered — who wrote it
+     * and the opening of what they said. A removed message still quotes, as
+     * "Message removed": the reply below it would otherwise dangle.
+     *
+     * @return array{id: int, author: string, excerpt: string}|null
+     */
+    public function replyPreview(): ?array
+    {
+        $parent = $this->replyTo;
+
+        if ($parent === null) {
+            return null;
+        }
+
+        return [
+            'id' => $parent->id,
+            'author' => $parent->sender?->name ?? 'Removed account',
+            'excerpt' => $parent->excerpt(),
+        ];
+    }
+
+    /**
+     * A one-line stand-in for this message's contents.
+     */
+    public function excerpt(): string
+    {
+        if ($this->isRemoved()) {
+            return 'Message removed';
+        }
+
+        if ($this->body !== null && $this->body !== '') {
+            return str($this->body)->squish()->limit(80)->value();
+        }
+
+        return $this->attachment_path !== null ? 'Photo' : '';
     }
 
     /**

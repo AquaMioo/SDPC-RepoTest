@@ -55,6 +55,7 @@ class AddedToConversation extends Notification
             'type' => 'conversation.member_added',
             'audience' => $this->audience,
             'conversation_id' => $this->conversation->id,
+            'inviter_id' => $this->inviter->id,
             'inviter_name' => $this->inviter->name,
             'member_name' => $this->member->name,
             'team_name' => $this->conversation->studentTeam?->name,

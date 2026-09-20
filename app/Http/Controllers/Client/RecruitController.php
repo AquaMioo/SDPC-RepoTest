@@ -359,6 +359,12 @@ class RecruitController extends Controller
         return [
             'id' => $profile->user_id,
             'name' => $profile->user->name,
+            /*
+             * Through avatarUrl(), so an uploaded picture wins over whatever
+             * Google last handed over. The grid drew a generic silhouette for
+             * everybody before this.
+             */
+            'avatarUrl' => $profile->user->avatarUrl(),
             'headline' => $profile->headline,
             'school' => $profile->school?->name,
             'course' => $profile->course?->abbreviation ?? $profile->course?->name,

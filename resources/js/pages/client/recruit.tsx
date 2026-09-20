@@ -5,13 +5,13 @@ import {
     SealCheckIcon,
     SparkleIcon,
     StarIcon,
-    UserIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelAccent, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
+import UserAvatar from '@/components/sdpc/user-avatar';
 import { Input } from '@/components/ui/input';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { store as messagesStore } from '@/routes/messages';
@@ -307,9 +307,11 @@ function StudentRow({
             }
         >
             <div className="flex flex-wrap items-start gap-3">
-                <span className="grid size-11 flex-none place-items-center rounded-full bg-primary/15 text-xl text-primary">
-                    <UserIcon />
-                </span>
+                <UserAvatar
+                    name={student.name}
+                    avatarUrl={student.avatarUrl}
+                    size={44}
+                />
 
                 <div className="mr-auto min-w-0">
                     <div className="flex items-center gap-1.5">

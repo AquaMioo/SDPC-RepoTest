@@ -107,20 +107,23 @@ export default function SkillPicker({
                 {value.map((skill) => (
                     <Tag key={skill} variant="neutral">
                         {skill}
+                        {/*
+                         * The ✕ that takes a skill back off the list. It used
+                         * to inherit the chip's own colour and had no hover,
+                         * so it read as punctuation rather than a control and
+                         * students reported being unable to delete a skill at
+                         * all (QA 2026-09-20). Its states live on
+                         * button[data-chip-remove] in nocturne.css, because an
+                         * inline colour cannot answer :hover.
+                         */}
                         <button
                             type="button"
                             onClick={() =>
                                 onChange(value.filter((s) => s !== skill))
                             }
+                            data-chip-remove=""
+                            title={`Remove ${skill}`}
                             aria-label={`Remove ${skill}`}
-                            style={{
-                                cursor: 'pointer',
-                                background: 'none',
-                                border: 0,
-                                padding: 0,
-                                marginLeft: 4,
-                                color: 'inherit',
-                            }}
                         >
                             <XIcon />
                         </button>

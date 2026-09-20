@@ -112,11 +112,13 @@ class HandleInertiaRequests extends Middleware
 
                 $presenter = app(PresentNotification::class);
 
-                return $user->notifications()
-                    ->latest()
-                    ->limit(6)
-                    ->get()
-                    ->map(fn (DatabaseNotification $row): array => $presenter->handle($row, $team))
+                $rows = $user->notifications()->latest()->limit(6)->get();
+
+                /* One query for the six faces, not one each. */
+                $avatars = $presenter->avatarsFor($rows);
+
+                return $rows
+                    ->map(fn (DatabaseNotification $row): array => $presenter->handle($row, $team, $avatars))
                     ->all();
             },
             /*

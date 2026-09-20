@@ -34,9 +34,12 @@ class NotificationController extends Controller
 
         $notifications = $user->notifications()->latest()->limit(100)->get();
 
+        /* Every actor's picture in one query rather than one per row. */
+        $avatars = $presenter->avatarsFor($notifications);
+
         return Inertia::render('notifications/index', [
             'notifications' => $notifications
-                ->map(fn (DatabaseNotification $notification) => $presenter->handle($notification, $currentTeam))
+                ->map(fn (DatabaseNotification $notification) => $presenter->handle($notification, $currentTeam, $avatars))
                 ->all(),
             /*
              * Counted against the whole table, not the hundred rows drawn

@@ -4,6 +4,7 @@ namespace Tests\Feature\Student;
 
 use App\Enums\LanguageProficiency;
 use App\Http\Requests\Student\SaveProfilePhotoRequest;
+use App\Models\Course;
 use App\Models\School;
 use App\Models\Skill;
 use App\Models\StudentEducation;
@@ -357,6 +358,125 @@ class StudentProfileSectionsTest extends TestCase
             ['Flutter', 'Laravel'],
             $profile->fresh()->skills->pluck('name')->sort()->values()->all(),
         );
+    }
+
+    /**
+     * Taking the last one off has to stick.
+     *
+     * The guard above only syncs when a `skills` key is present, and an empty
+     * list is the one submission where "present" and "empty" look alike — so a
+     * student clearing their last skill is exactly the case that could
+     * silently do nothing.
+     */
+    public function test_a_student_can_remove_every_skill(): void
+    {
+        $student = $this->student();
+        $profile = $student->studentProfile;
+
+        $profile->skills()->sync(Skill::idsForNames(['Laravel', 'React']));
+
+        $this->actingAs($student)
+            ->patch($this->route('student.profile.update', $student), [
+                'skills' => [],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([], $profile->fresh()->skills->pluck('name')->all());
+    }
+
+    /**
+     * Removing one skill leaves the rest exactly where they were.
+     */
+    public function test_removing_one_skill_keeps_the_others(): void
+    {
+        $student = $this->student();
+        $profile = $student->studentProfile;
+
+        $profile->skills()->sync(Skill::idsForNames(['Laravel', 'React', 'Figma']));
+
+        $this->actingAs($student)
+            ->patch($this->route('student.profile.update', $student), [
+                'skills' => ['Laravel', 'Figma'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            ['Figma', 'Laravel'],
+            $profile->fresh()->skills->pluck('name')->sort()->values()->all(),
+        );
+    }
+
+    /* ---------------------------------------------------------------------
+     | School, course and year level, now edited under Education
+     * ------------------------------------------------------------------ */
+
+    /**
+     * The three filterable columns moved dialogs, not endpoints.
+     *
+     * EnrolmentDialog patches the same route "Profile details" used to, so
+     * what matters is that a submission carrying only these three saves them.
+     */
+    public function test_the_enrolment_dialog_saves_school_course_and_year(): void
+    {
+        $student = $this->student();
+
+        $school = School::query()->create(['name' => 'STI College San Jose Del Monte']);
+        $course = Course::query()->create([
+            'name' => 'BS Information Technology',
+            'abbreviation' => 'BSIT',
+        ]);
+
+        $this->actingAs($student)
+            ->patch($this->route('student.profile.update', $student), [
+                'school_id' => $school->id,
+                'course_id' => $course->id,
+                'year_level' => 3,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $profile = $student->studentProfile->fresh();
+
+        $this->assertSame($school->id, $profile->school_id);
+        $this->assertSame($course->id, $profile->course_id);
+        $this->assertSame(3, $profile->year_level);
+    }
+
+    /**
+     * The fields the Links dialog no longer carries are not thereby erased.
+     *
+     * Hrs/week, replies-in, the availability note and the area line were taken
+     * out of that dialog (QA 2026-09-20). The columns stay, and
+     * client/students/show still reads them — so a save from the trimmed
+     * dialog has to leave whatever was already answered alone.
+     */
+    public function test_saving_the_trimmed_links_dialog_keeps_the_answers_it_no_longer_asks_for(): void
+    {
+        $student = $this->student();
+
+        $student->studentProfile->forceFill([
+            'location' => 'Towerville, Phase 2',
+            'weekly_hours' => 20,
+            'response_time_hours' => 4,
+            'availability_note' => 'Free after five on weekdays',
+        ])->save();
+
+        /* Exactly what the trimmed dialog posts now. */
+        $this->actingAs($student)
+            ->patch($this->route('student.profile.update', $student), [
+                'barangay' => null,
+                'github_url' => 'https://github.com/example',
+                'portfolio_url' => null,
+                'is_available' => true,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $profile = $student->studentProfile->fresh();
+
+        $this->assertSame('https://github.com/example', $profile->github_url);
+        $this->assertSame('Towerville, Phase 2', $profile->location);
+        $this->assertSame(20, $profile->weekly_hours);
+        $this->assertSame(4, $profile->response_time_hours);
+        $this->assertSame('Free after five on weekdays', $profile->availability_note);
     }
 
     public function test_more_skills_than_the_dialog_allows_are_refused(): void

@@ -271,6 +271,9 @@ export default function Notifications({ notifications, unreadCount }: Props) {
                                                     <Avatar
                                                         name={row.from}
                                                         initials={row.initials}
+                                                        avatarUrl={
+                                                            row.avatarUrl
+                                                        }
                                                         size={26}
                                                     />
                                                     <span
