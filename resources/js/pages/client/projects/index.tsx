@@ -32,7 +32,13 @@ export default function ProjectsIndex({ projects, canCreate }: Props) {
                             {projects.total === 1 ? '' : 's'} from {team.name}
                         </div>
                     </div>
-                    {canCreate && (
+                    {/*
+                     * Hidden while the list is empty: the card below is
+                     * nothing but this same button with the reason for it,
+                     * and two of them said the same thing twice
+                     * (QA 2026-09-20).
+                     */}
+                    {canCreate && projects.data.length > 0 && (
                         <Button asChild>
                             <Link href={projectsCreate.url(team.slug)}>
                                 <PlusIcon />
