@@ -94,7 +94,14 @@ export default function ClientDashboard({
                     )}
                 </div>
 
-                <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.2fr)_minmax(0,0.95fr)]">
+                {/*
+                 * No items-start: the three panels stretch to the tallest of
+                 * them — the calendar — so progress and team are the same
+                 * height as it rather than shrinking to their own text, which
+                 * is how the student dashboard has always drawn this row
+                 * (QA 2026-09-20).
+                 */}
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.2fr)_minmax(0,0.95fr)]">
                     <CalendarPanel
                         events={calendarEvents}
                         meetings={upcomingMeetings}
