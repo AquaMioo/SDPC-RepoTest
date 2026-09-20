@@ -17,6 +17,15 @@ import {
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
+/** The sender's picture beside their words. */
+const AVATAR = 28;
+
+/**
+ * How far the reactions and the meta line are inset so they start under the
+ * bubble rather than under the picture: the avatar plus .msg-row's gap.
+ */
+const AVATAR_LANE = AVATAR + 8;
+
 export type Reaction = { emoji: string; count: number; reacted: boolean };
 
 export type ChatMessage = {
@@ -72,11 +81,17 @@ export function isEmojiOnly(message: {
 /**
  * One message in the thread, with the actions that appear beside it.
  *
- * Laid out the way every chat app lays this out: the other side's picture, the
- * bubble, and — only once the pointer rests on the row — a react / reply /
- * more cluster. The reveal, the lift under the pointer and the pop a new
- * reaction makes are all in nocturne.css under .msg-row, because this screen
- * sets its geometry inline and an inline style beats every selector.
+ * Two stacked parts, and the split matters. `.msg-row` holds the picture, the
+ * bubble and the action cluster on one line, so all three sit level with the
+ * words; `.msg-foot` carries the reactions and the "You · 6h ago" line under
+ * it, inset past the avatar so it starts where the bubble does. While the meta
+ * line lived in the same flex row, align-items: flex-end measured to the
+ * bottom of that instead, which left the picture and the buttons hanging a
+ * line below the bubble (QA 2026-09-20).
+ *
+ * The reveal, the lift under the pointer and the pop a new reaction makes are
+ * in nocturne.css under .msg-group, because this screen sets its geometry
+ * inline and an inline style beats every selector.
  *
  * Removal is two different things and the menu says so. "Remove for everyone"
  * takes the message back from the thread and is the sender's alone; "Remove
@@ -157,151 +172,280 @@ export default function MessageRow({
 
     return (
         <div
-            className="msg-row"
+            className="msg-group"
             style={{
                 alignSelf: message.isMine ? 'flex-end' : 'flex-start',
                 maxWidth: '78%',
-                flexDirection: message.isMine ? 'row-reverse' : 'row',
             }}
         >
-            {/* Your own picture is not drawn beside your own words. */}
-            {!message.isMine && (
-                <UserAvatar
-                    name={message.author}
-                    avatarUrl={message.authorAvatarUrl}
-                    size={28}
-                />
-            )}
-
-            <div style={{ minWidth: 0 }}>
-                {/* What this message answers, above what it says. */}
-                {message.replyTo !== null && (
-                    <div
-                        className="msg-quote"
-                        style={{
-                            fontSize: 11,
-                            color: MUTED(60),
-                            marginBottom: 3,
-                            marginLeft: message.isMine ? 'auto' : undefined,
-                            width: 'fit-content',
-                            maxWidth: '100%',
-                        }}
-                    >
-                        <span style={{ fontWeight: 600 }}>
-                            {message.replyTo.author}
-                        </span>{' '}
-                        <span
-                            style={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                display: 'inline-block',
-                                maxWidth: 220,
-                                verticalAlign: 'bottom',
-                            }}
-                        >
-                            {message.replyTo.excerpt}
-                        </span>
-                    </div>
+            <div
+                className="msg-row"
+                style={{
+                    flexDirection: message.isMine ? 'row-reverse' : 'row',
+                }}
+            >
+                {/* Your own picture is not drawn beside your own words. */}
+                {!message.isMine && (
+                    <UserAvatar
+                        name={message.author}
+                        avatarUrl={message.authorAvatarUrl}
+                        size={AVATAR}
+                    />
                 )}
 
-                <div
-                    style={{
-                        /*
-                         * Hug the content. Without this the bubble is a block
-                         * and stretches to whatever the widest row below it
-                         * is — the meta line — so a one character message drew
-                         * a bubble wide enough for a sentence.
-                         */
-                        width: 'fit-content',
-                        maxWidth: '100%',
-                        marginLeft: message.isMine ? 'auto' : undefined,
-                        padding: emojiOnly ? 0 : '9px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: emojiOnly ? 34 : 13,
-                        lineHeight: emojiOnly ? 1.15 : 1.5,
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        fontStyle: message.isRemoved ? 'italic' : undefined,
-                        color: message.isRemoved ? MUTED(50) : undefined,
-                        background:
-                            message.isRemoved || emojiOnly
-                                ? 'transparent'
-                                : message.isMine
-                                  ? 'color-mix(in srgb, var(--color-accent) 16%, transparent)'
-                                  : 'color-mix(in srgb, var(--color-text) 6%, transparent)',
-                        border: message.isRemoved
-                            ? `1px dashed ${MUTED(20)}`
-                            : undefined,
-                    }}
-                >
-                    {message.isRemoved ? (
-                        'Message removed'
-                    ) : isEditing ? (
+                <div style={{ minWidth: 0 }}>
+                    {/* What this message answers, above what it says. */}
+                    {message.replyTo !== null && (
                         <div
+                            className="msg-quote"
                             style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
+                                fontSize: 11,
+                                color: MUTED(60),
+                                marginBottom: 3,
+                                marginLeft: message.isMine ? 'auto' : undefined,
+                                width: 'fit-content',
+                                maxWidth: '100%',
                             }}
                         >
-                            <textarea
-                                value={draft}
-                                rows={2}
-                                autoFocus
-                                onChange={(event) =>
-                                    onDraftChange(event.target.value)
-                                }
+                            <span style={{ fontWeight: 600 }}>
+                                {message.replyTo.author}
+                            </span>{' '}
+                            <span
                                 style={{
-                                    fontSize: 13,
-                                    padding: 6,
-                                    borderRadius: 6,
-                                    border: `1px solid ${MUTED(20)}`,
-                                    background: 'var(--color-surface, #fff)',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    display: 'inline-block',
+                                    maxWidth: 220,
+                                    verticalAlign: 'bottom',
                                 }}
-                            />
-                            <div style={{ display: 'flex', gap: 6 }}>
-                                <Btn
-                                    style={{
-                                        fontSize: 11.5,
-                                        padding: '3px 9px',
-                                    }}
-                                    onClick={onSaveEdit}
-                                >
-                                    Save
-                                </Btn>
-                                <Btn
-                                    variant="ghost"
-                                    style={{
-                                        fontSize: 11.5,
-                                        padding: '3px 9px',
-                                    }}
-                                    onClick={onCancelEdit}
-                                >
-                                    Cancel
-                                </Btn>
-                            </div>
+                            >
+                                {message.replyTo.excerpt}
+                            </span>
                         </div>
-                    ) : (
-                        <>
-                            {message.imageUrl && (
-                                <img
-                                    src={message.imageUrl}
-                                    alt=""
+                    )}
+
+                    <div
+                        style={{
+                            /*
+                             * Hug the content. Without this the bubble is a
+                             * block and stretches to whatever the widest row
+                             * beside it is, so a one character message drew a
+                             * bubble wide enough for a sentence.
+                             */
+                            width: 'fit-content',
+                            maxWidth: '100%',
+                            marginLeft: message.isMine ? 'auto' : undefined,
+                            padding: emojiOnly ? 0 : '9px 12px',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: emojiOnly ? 34 : 13,
+                            lineHeight: emojiOnly ? 1.15 : 1.5,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            fontStyle: message.isRemoved ? 'italic' : undefined,
+                            color: message.isRemoved ? MUTED(50) : undefined,
+                            background:
+                                message.isRemoved || emojiOnly
+                                    ? 'transparent'
+                                    : message.isMine
+                                      ? 'color-mix(in srgb, var(--color-accent) 16%, transparent)'
+                                      : 'color-mix(in srgb, var(--color-text) 6%, transparent)',
+                            border: message.isRemoved
+                                ? `1px dashed ${MUTED(20)}`
+                                : undefined,
+                        }}
+                    >
+                        {message.isRemoved ? (
+                            'Message removed'
+                        ) : isEditing ? (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 6,
+                                }}
+                            >
+                                <textarea
+                                    value={draft}
+                                    rows={2}
+                                    autoFocus
+                                    onChange={(event) =>
+                                        onDraftChange(event.target.value)
+                                    }
                                     style={{
-                                        maxWidth: '100%',
-                                        borderRadius: 8,
-                                        marginBottom: message.body ? 6 : 0,
-                                        display: 'block',
+                                        fontSize: 13,
+                                        padding: 6,
+                                        borderRadius: 6,
+                                        border: `1px solid ${MUTED(20)}`,
+                                        background:
+                                            'var(--color-surface, #fff)',
                                     }}
                                 />
-                            )}
-                            {message.body}
-                        </>
-                    )}
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <Btn
+                                        style={{
+                                            fontSize: 11.5,
+                                            padding: '3px 9px',
+                                        }}
+                                        onClick={onSaveEdit}
+                                    >
+                                        Save
+                                    </Btn>
+                                    <Btn
+                                        variant="ghost"
+                                        style={{
+                                            fontSize: 11.5,
+                                            padding: '3px 9px',
+                                        }}
+                                        onClick={onCancelEdit}
+                                    >
+                                        Cancel
+                                    </Btn>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {message.imageUrl && (
+                                    <img
+                                        src={message.imageUrl}
+                                        alt=""
+                                        style={{
+                                            maxWidth: '100%',
+                                            borderRadius: 8,
+                                            marginBottom: message.body ? 6 : 0,
+                                            display: 'block',
+                                        }}
+                                    />
+                                )}
+                                {message.body}
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                {/* Reactions already left. The picker is in the cluster now. */}
+                {/*
+                 * React / reply / more. Hidden until the pointer rests on the
+                 * message or it takes focus, and held open while one of its
+                 * own menus is — see .msg-actions in nocturne.css.
+                 */}
+                {!message.isRemoved && !isEditing && (
+                    <div
+                        className="msg-actions"
+                        data-open={menuOpen || pickerOpen ? 'true' : undefined}
+                    >
+                        {/*
+                         * modal={false} on both menus, and no focus returned
+                         * on close.
+                         *
+                         * A modal Radix menu locks the document's scroll while
+                         * it is open and pads the body to make up for the
+                         * scrollbar it just hid, which shunted the whole page
+                         * sideways the moment you pressed one of these — and
+                         * handing focus back to the trigger afterwards made
+                         * the thread scroll the bubble into view. Neither is
+                         * wanted for a menu this small (QA 2026-09-20).
+                         */}
+                        <DropdownMenu
+                            open={pickerOpen}
+                            onOpenChange={setPickerOpen}
+                            modal={false}
+                        >
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="msg-action"
+                                    title="React"
+                                    aria-label="React to this message"
+                                >
+                                    <SmileyIcon size={16} />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align={message.isMine ? 'end' : 'start'}
+                                className="nocturne flex min-w-0 gap-1 p-1"
+                                onCloseAutoFocus={(event) =>
+                                    event.preventDefault()
+                                }
+                            >
+                                {reactionChoices.map((emoji) => (
+                                    <button
+                                        key={emoji}
+                                        type="button"
+                                        className="msg-emoji"
+                                        title={`React ${emoji}`}
+                                        aria-label={`React ${emoji}`}
+                                        onClick={() => react(emoji)}
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <button
+                            type="button"
+                            className="msg-action"
+                            title="Reply"
+                            aria-label="Reply to this message"
+                            onClick={onReply}
+                        >
+                            <ArrowBendUpLeftIcon size={16} />
+                        </button>
+
+                        <DropdownMenu
+                            open={menuOpen}
+                            onOpenChange={setMenuOpen}
+                            modal={false}
+                        >
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="msg-action"
+                                    title="More"
+                                    aria-label="More actions for this message"
+                                >
+                                    <DotsThreeVerticalIcon size={16} />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align={message.isMine ? 'end' : 'start'}
+                                className="nocturne"
+                                onCloseAutoFocus={(event) =>
+                                    event.preventDefault()
+                                }
+                            >
+                                {canEdit && (
+                                    <DropdownMenuItem onSelect={onStartEdit}>
+                                        Edit
+                                    </DropdownMenuItem>
+                                )}
+                                {canRemoveForEveryone && (
+                                    <DropdownMenuItem
+                                        onSelect={() => setConfirming(true)}
+                                    >
+                                        Remove for everyone
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onSelect={onRemoveForMe}>
+                                    Remove for you
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
+            </div>
+
+            {/*
+             * Under the bubble: the reactions it carries and who said it when.
+             * Inset past the avatar so it starts where the words do.
+             */}
+            <div
+                className="msg-foot"
+                style={{
+                    paddingLeft: message.isMine ? 0 : AVATAR_LANE,
+                    alignItems: message.isMine ? 'flex-end' : 'flex-start',
+                }}
+            >
                 {!message.isRemoved && message.reactions.length > 0 && (
                     <div
                         style={{
@@ -309,9 +453,6 @@ export default function MessageRow({
                             flexWrap: 'wrap',
                             gap: 4,
                             marginTop: 4,
-                            justifyContent: message.isMine
-                                ? 'flex-end'
-                                : 'flex-start',
                         }}
                     >
                         {message.reactions.map((reaction) => (
@@ -350,9 +491,6 @@ export default function MessageRow({
                         display: 'flex',
                         gap: 6,
                         alignItems: 'center',
-                        justifyContent: message.isMine
-                            ? 'flex-end'
-                            : 'flex-start',
                     }}
                 >
                     <span>
@@ -392,93 +530,6 @@ export default function MessageRow({
                     )}
                 </div>
             </div>
-
-            {/*
-             * React / reply / more. Hidden until the row is hovered or
-             * focused, and held open while its own menu is — see .msg-actions.
-             */}
-            {!message.isRemoved && !isEditing && (
-                <div
-                    className="msg-actions"
-                    data-open={menuOpen || pickerOpen ? 'true' : undefined}
-                >
-                    <DropdownMenu
-                        open={pickerOpen}
-                        onOpenChange={setPickerOpen}
-                    >
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                className="msg-action"
-                                title="React"
-                                aria-label="React to this message"
-                            >
-                                <SmileyIcon size={16} />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            align={message.isMine ? 'end' : 'start'}
-                            className="nocturne flex min-w-0 gap-1 p-1"
-                        >
-                            {reactionChoices.map((emoji) => (
-                                <button
-                                    key={emoji}
-                                    type="button"
-                                    className="msg-emoji"
-                                    title={`React ${emoji}`}
-                                    aria-label={`React ${emoji}`}
-                                    onClick={() => react(emoji)}
-                                >
-                                    {emoji}
-                                </button>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <button
-                        type="button"
-                        className="msg-action"
-                        title="Reply"
-                        aria-label="Reply to this message"
-                        onClick={onReply}
-                    >
-                        <ArrowBendUpLeftIcon size={16} />
-                    </button>
-
-                    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                className="msg-action"
-                                title="More"
-                                aria-label="More actions for this message"
-                            >
-                                <DotsThreeVerticalIcon size={16} />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            align={message.isMine ? 'end' : 'start'}
-                            className="nocturne"
-                        >
-                            {canEdit && (
-                                <DropdownMenuItem onSelect={onStartEdit}>
-                                    Edit
-                                </DropdownMenuItem>
-                            )}
-                            {canRemoveForEveryone && (
-                                <DropdownMenuItem
-                                    onSelect={() => setConfirming(true)}
-                                >
-                                    Remove for everyone
-                                </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onSelect={onRemoveForMe}>
-                                Remove for you
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-            )}
         </div>
     );
 }

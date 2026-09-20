@@ -1255,23 +1255,38 @@ button[data-attachment-remove]:focus-visible { background: var(--color-accent); 
    instead of in the component. Same reasoning as .app-bar above.
    ———————————————————————————————————————————————————————————————————— */
 
+/* One whole message: the bubble's own line, then anything that hangs under
+   it. Splitting the two is what keeps the picture and the action cluster
+   level with the words — while the meta line ("You · 6h ago") lived in the
+   same flex row, flex-end aligned them to the bottom of that instead, which
+   left the avatar and the buttons sitting a line below the bubble. */
+.msg-group { display: flex; flex-direction: column; min-width: 0; }
+
+/* Picture, bubble, actions. flex-end puts the picture at the foot of the
+   bubble, the way every chat app draws it; the cluster overrides that to
+   centre itself against the bubble instead. */
 .msg-row { display: flex; align-items: flex-end; gap: 8px; }
 
-/* Hidden until the pointer rests on the row — but never hidden from the
+/* Reactions and the meta line, under the bubble rather than under the
+   picture — the lane is the avatar's width plus the row's gap. */
+.msg-foot { display: flex; flex-direction: column; }
+
+/* Hidden until the pointer rests on the message — but never hidden from the
    keyboard, which is what :focus-within is for, and never while its own menu
    is open, which is what [data-open] is for. Opacity rather than display, so
    the row does not reflow as the cluster appears. */
 .msg-actions {
   display: flex;
   align-items: center;
+  align-self: center;
   gap: 2px;
   opacity: 0;
   transform: translateY(2px);
   transition: opacity .12s ease, transform .12s ease;
   pointer-events: none;
 }
-.msg-row:hover .msg-actions,
-.msg-row:focus-within .msg-actions,
+.msg-group:hover .msg-actions,
+.msg-group:focus-within .msg-actions,
 .msg-actions[data-open='true'] {
   opacity: 1;
   transform: none;

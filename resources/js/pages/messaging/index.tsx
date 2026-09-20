@@ -10,7 +10,7 @@ import {
     VideoCameraIcon,
     XIcon,
 } from '@phosphor-icons/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import InputError from '@/components/input-error';
@@ -213,6 +213,13 @@ export default function Messages({
     const team = useCurrentTeam();
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    /*
+     * How far the thread was from its own bottom when the reply quote went
+     * up or came down. The quote makes the composer taller, the composer
+     * shortens the thread, and without holding this the conversation slid
+     * out from under whoever was reading it (QA 2026-09-20).
+     */
+    const keepFromBottom = useRef(0);
     const imageRef = useRef<HTMLInputElement>(null);
 
     /*
@@ -572,6 +579,22 @@ export default function Messages({
         box.scrollTop = box.scrollHeight;
     }, [active?.messages.length, active?.id]);
 
+    /*
+     * Put the thread back where it was looking after the quote changed the
+     * composer's height. Before paint, so the conversation is never seen to
+     * move — a plain effect would show one frame of the jump.
+     */
+    useLayoutEffect(() => {
+        const box = scrollRef.current;
+
+        if (box === null) {
+            return;
+        }
+
+        box.scrollTop =
+            box.scrollHeight - box.clientHeight - keepFromBottom.current;
+    }, [replyingTo]);
+
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
 
@@ -651,12 +674,24 @@ export default function Messages({
      * The whole message is kept rather than its id, so the quote above the
      * composer can be drawn without hunting through the thread for it.
      */
+    /** Where the thread is looking, before the composer changes height. */
+    const rememberScroll = () => {
+        const box = scrollRef.current;
+
+        keepFromBottom.current =
+            box === null
+                ? 0
+                : box.scrollHeight - box.scrollTop - box.clientHeight;
+    };
+
     const startReply = (message: ChatMessage) => {
+        rememberScroll();
         setReplyingTo(message);
         form.setData('reply_to_message_id', message.id);
     };
 
     const cancelReply = () => {
+        rememberScroll();
         setReplyingTo(null);
         form.setData('reply_to_message_id', null);
     };
