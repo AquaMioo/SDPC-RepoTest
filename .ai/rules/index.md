@@ -13,7 +13,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Controllers/Client/StudentProfileController.php | .ai/rules/client.md |
 | resources/js/components/** | .ai/rules/components.md |
 | app/Concerns/RegistrationValidationRules.php | .ai/rules/concerns.md |
-| config/billing.php, config/trustedproxy.php, config/database.php | .ai/rules/config.md |
+| config/billing.php, config/trustedproxy.php, config/database.php, config/broadcasting.php | .ai/rules/config.md |
 | app/Http/Controllers/Agreements/** | .ai/rules/controllers-agreements.md |
 | app/Http/Controllers/HomeController.php | .ai/rules/controllers.md |
 | resources/css/** | .ai/rules/css.md |

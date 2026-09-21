@@ -25,3 +25,25 @@ The model is pinned to a version rather than gemini-flash-latest on purpose: a r
 
 ## Gemini: a 503 means busy, not down — hand over to the next model
 Google sheds load per model with 429/503 "high demand" between successful calls. Giving up on the first one put the whole site on keyword matching for the 5-minute cooldown several times a day (sdpc.tech, 2026-09-19). ask() now walks gemini.model then gemini.fallback_models (default gemini-3.5-flash-lite, then gemini-3.1-flash-lite; the flash models 503 together) on 429/500/502/503/504 only, all inside ONE gemini.timeout budget; a refusal (4xx) or a timeout never moves on. Measured that day: newer models (3.7, 3.8) were busier than 3.6, so do not "upgrade" the fallback to the newest listed model without calling it first. Also: rank()/rankBriefs() union the computed scores so anyone past max_candidates keeps a score instead of vanishing.
+
+## Gemini is geo-blocked from the Azure demo VM (eastasia / Hong Kong)
+On demo.sdpc.tech (Azure `eastasia`, egress from Hong Kong) every Gemini model returns
+HTTP 400 `FAILED_PRECONDITION` — "User location is not supported for the API use."
+The key is fine: the same key, verified by SHA-256, succeeds from Manila. Google does not
+serve the Gemini API to Hong Kong, and Azure policy `sys.regionrestriction` blocks
+`southeastasia`, so the region cannot simply be changed.
+
+Two failures look alike and are not. HTTP 400 `FAILED_PRECONDITION` is the location block;
+isBusy() does not count it, so the service gives up without asking the fallback models.
+HTTP 429 `GenerateRequestsPerDayPerProjectPerModel-FreeTier` is real: gemini-3.6-flash allows
+20 requests a day on the free tier, and sdpc.tech and demo.sdpc.tech share one key, so they
+share the 20. A 429 is "busy", and the flash-lite fallbacks answer it.
+
+The fix is the Cloudflare Worker `sdpc-gemini` (https://sdpc-gemini.sdpcccapstone.workers.dev),
+set on the VM only as GEMINI_BASE_URL=<that URL>/v1beta. It works only because of targeted
+placement (`placement.region = "aws:ap-southeast-1"`): a Worker called from Hong Kong otherwise
+runs in HKG and gets the same 400. A redeploy that drops the placement metadata silently brings
+the block back; the response header `cf-placement: remote-SIN` proves it is on. The Worker
+relays only POST .../models/<model>:generateContent and only for SDPC's key, which it holds as a
+SHA-256, so rotating GEMINI_API_KEY means updating KEY_SHA256 in the Worker too. Its source
+lives on Cloudflare (Workers & Pages -> sdpc-gemini), not in this repo.
