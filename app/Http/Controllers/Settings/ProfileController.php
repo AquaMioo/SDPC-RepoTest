@@ -3,18 +3,22 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Actions\Auth\LinkGoogleAccount;
+use App\Actions\Profile\StoreProfilePicture;
 use App\Enums\AppealStatus;
+use App\Enums\OneTimePasswordPurpose;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Models\User;
 use App\Rules\SchoolEmailAddress;
+use App\Services\Verification\OneTimePasswordService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,6 +52,8 @@ class ProfileController extends Controller
                 'mayAppeal' => $user->mayAppeal(),
             ],
             'appeal' => $this->appealState($user),
+            /* Deleting confirms with the password, or with a mailed code when there is none. */
+            'hasPassword' => $user->password !== null,
         ]);
     }
 
@@ -98,7 +104,7 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request, StoreProfilePicture $storeProfilePicture): RedirectResponse
     {
         $user = $request->user();
 
@@ -114,10 +120,7 @@ class ProfileController extends Controller
         if ($request->hasFile('avatar')) {
             $replaced = $user->avatar_path;
 
-            $user->avatar_path = $request->file('avatar')->store(
-                'avatars/'.$user->id,
-                'public',
-            );
+            $user->avatar_path = $storeProfilePicture->handle($request->file('avatar'), $user);
 
             // Replacing a picture should not leave the old one on disk.
             if ($replaced !== null) {
@@ -139,9 +142,18 @@ class ProfileController extends Controller
     /**
      * Delete the user's profile.
      */
-    public function destroy(ProfileDeleteRequest $request): RedirectResponse
+    public function destroy(ProfileDeleteRequest $request, OneTimePasswordService $passwords): RedirectResponse
     {
         $user = $request->user();
+
+        /* No password to confirm with: the mailed code stands in for it. */
+        if ($user->password === null) {
+            $result = $passwords->check($user->email, OneTimePasswordPurpose::DeleteAccount, $request->validated('code'));
+
+            if (! $result->isValid()) {
+                throw ValidationException::withMessages(['code' => $result->message()]);
+            }
+        }
 
         Auth::logout();
 

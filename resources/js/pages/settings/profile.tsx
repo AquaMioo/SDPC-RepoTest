@@ -44,6 +44,7 @@ export default function Profile({
     signInMethods,
     accountStatus,
     appeal,
+    hasPassword,
 }: {
     mustVerifyEmail: boolean;
     status?: string;
@@ -52,6 +53,8 @@ export default function Profile({
     accountStatus: AccountStatus;
     /** The most recent appeal this account filed, if it filed one. */
     appeal: AppealState | null;
+    /** Without one, deleting the account confirms with a mailed code. */
+    hasPassword: boolean;
 }) {
     const { auth } = usePage<PageProps>().props;
 
@@ -144,7 +147,7 @@ export default function Profile({
             <AccountAppealCard accountStatus={accountStatus} appeal={appeal} />
 
             <div style={{ marginTop: 24 }}>
-                <DeleteUser />
+                <DeleteUser hasPassword={hasPassword} />
             </div>
         </>
     );

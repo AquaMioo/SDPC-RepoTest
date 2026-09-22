@@ -42,4 +42,14 @@ enum OneTimePasswordPurpose: string
      * cannot be replayed to take over the password.
      */
     case SetPassword = 'set_password';
+
+    /**
+     * Confirming the deletion of an account that has no password.
+     *
+     * Deleting asks for the current password, which an account made by a
+     * school-email code or through Google never had. A code to the account's
+     * address stands in for it. Its own case so no other code can delete an
+     * account.
+     */
+    case DeleteAccount = 'delete_account';
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\AccountDeletionCodeController;
 use App\Http\Controllers\Settings\AppealController;
 use App\Http\Controllers\Settings\PasswordSetupController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -42,6 +43,14 @@ Route::middleware(['auth'])->group(function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('settings/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    /*
+     * Deleting an account that has no password to confirm with: a mailed code
+     * stands in for it. See AccountDeletionCodeController.
+     */
+    Route::post('settings/profile/delete-code', AccountDeletionCodeController::class)
+        ->middleware('throttle:6,1')
+        ->name('profile.destroy.code');
 
     Route::get('settings/security', [SecurityController::class, 'edit'])
         ->middleware(RequirePassword::class)

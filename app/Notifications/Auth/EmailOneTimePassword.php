@@ -67,6 +67,7 @@ class EmailOneTimePassword extends Notification
             OneTimePasswordPurpose::SchoolEmail => __('Confirm your school email'),
             OneTimePasswordPurpose::Login => __('Your SDPC log in code'),
             OneTimePasswordPurpose::SetPassword => __('Your code to set an SDPC password'),
+            OneTimePasswordPurpose::DeleteAccount => __('Your code to delete your SDPC account'),
         };
     }
 
@@ -81,6 +82,7 @@ class EmailOneTimePassword extends Notification
             OneTimePasswordPurpose::SchoolEmail => __('Somebody asked to confirm this school address on an SDPC student account. Enter the code below to confirm it.'),
             OneTimePasswordPurpose::Login => __('Somebody asked to log in to the SDPC account at this address. Enter the code below to log in.'),
             OneTimePasswordPurpose::SetPassword => __('Somebody asked to set a password on the SDPC account at this address. Enter the code below to choose it.'),
+            OneTimePasswordPurpose::DeleteAccount => __('Somebody asked to permanently delete the SDPC account at this address. Enter the code below only if that was you; ignore this email otherwise.'),
         };
     }
 }

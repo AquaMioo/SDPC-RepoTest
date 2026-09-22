@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Actions\Profile\StoreProfilePicture;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Student\SaveProfilePhotoRequest;
 use App\Models\Team;
@@ -24,13 +25,13 @@ class StudentPhotoController extends Controller
     /**
      * Replace the photo.
      */
-    public function update(SaveProfilePhotoRequest $request, Team $currentTeam): RedirectResponse
+    public function update(SaveProfilePhotoRequest $request, Team $currentTeam, StoreProfilePicture $storeProfilePicture): RedirectResponse
     {
         $user = $request->user();
 
         $replaced = $user->avatar_path;
 
-        $user->avatar_path = $request->file('photo')->store('avatars/'.$user->id, 'public');
+        $user->avatar_path = $storeProfilePicture->handle($request->file('photo'), $user);
         $user->save();
 
         $this->forget($replaced);
