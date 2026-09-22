@@ -70,8 +70,22 @@ return [
     |
     | This is the budget for the whole question, not for each model: when the
     | first model is busy, the next one gets whatever time is left.
+    |
+    | Twelve, down from twenty: the ranking arrives behind a skeleton, and on
+    | 2026-09-22 both sites showed that skeleton for twenty seconds on every
+    | reader who started a cooldown window, only to fall back anyway.
     */
-    'timeout' => (int) env('GEMINI_TIMEOUT', 20),
+    'timeout' => (int) env('GEMINI_TIMEOUT', 12),
+
+    /*
+    | The most any one model gets out of that budget before the next is asked.
+    |
+    | Overloaded, Google holds a request 17-21 seconds before answering 503
+    | (measured from sdpc.tech and demo.sdpc.tech, 2026-09-22), so without a
+    | slice the first model's refusal arrived with no time left for the
+    | fallbacks. A healthy answer takes 2-4 seconds.
+    */
+    'attempt_timeout' => (int) env('GEMINI_ATTEMPT_TIMEOUT', 6),
 
     /*
     | How hard the model is allowed to think before answering.

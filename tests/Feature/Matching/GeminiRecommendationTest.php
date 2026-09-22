@@ -229,6 +229,71 @@ class GeminiRecommendationTest extends TestCase
         $this->assertSame(77, $scores[$student->id]['compatibility']);
     }
 
+    public function test_a_model_that_stalls_hands_the_question_to_the_next_one(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        /*
+         * What both sites saw on 2026-09-22: the pinned model holding the
+         * request until the timeout, which used to end the question there.
+         */
+        Http::fake([
+            '*/models/'.config('gemini.model').':*' => Http::failedConnection('cURL error 28: Operation timed out after 6000 milliseconds with 0 bytes received'),
+            '*/models/gemini-backup:*' => Http::response($this->reply([
+                ['id' => $student->id, 'compatibility' => 81, 'insight' => 'Has built stock systems in Laravel.'],
+            ])),
+        ]);
+
+        $scores = $this->app->make(RecommendationService::class)->scoresFor($project);
+
+        $this->assertSame(81, $scores[$student->id]['compatibility']);
+        $this->assertSame('gemini', $scores[$student->id]['reason']['source']);
+        Http::assertSentCount(2);
+        $this->assertFalse(Cache::has('gemini.cooldown'));
+    }
+
+    public function test_each_model_gets_a_slice_of_the_budget_not_all_of_it(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+        config()->set('gemini.timeout', 12);
+        config()->set('gemini.attempt_timeout', 6);
+
+        [$project] = $this->briefAndStudent();
+
+        $timeouts = [];
+
+        Http::fake(function (Request $request, array $options) use (&$timeouts) {
+            $timeouts[] = $options['timeout'];
+
+            return Http::response('This model is currently experiencing high demand.', 503);
+        });
+
+        $this->app->make(RecommendationService::class)->scoresFor($project);
+
+        $this->assertCount(2, $timeouts);
+
+        foreach ($timeouts as $timeout) {
+            $this->assertLessThanOrEqual(6, $timeout);
+        }
+    }
+
+    public function test_every_model_stalling_falls_back_and_cools_down(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project] = $this->briefAndStudent();
+
+        Http::fake(['*' => Http::failedConnection('cURL error 28: Operation timed out')]);
+
+        $service = $this->app->make(RecommendationService::class);
+
+        $this->assertEquals($this->computedScoresFor($project), $service->scoresFor($project)->all());
+        Http::assertSentCount(2);
+        $this->assertTrue(Cache::has('gemini.cooldown'));
+    }
+
     public function test_a_refusal_is_not_put_to_the_next_model(): void
     {
         config()->set('gemini.fallback_models', ['gemini-backup']);

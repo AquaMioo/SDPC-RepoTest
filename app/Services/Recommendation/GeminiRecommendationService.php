@@ -485,6 +485,8 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         $deadline = microtime(true) + (int) config('gemini.timeout');
         $models = $this->models();
         $tried = [];
+        $stalled = null;
+        $busyStatus = 0;
 
         /* Every model resting on a spent quota: fall back at once, asking nobody. */
         if ($models === []) {
@@ -502,7 +504,14 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
 
             try {
                 $response = Http::asJson()
-                    ->timeout($secondsLeft)
+                    /*
+                     * One slice of the budget per model, never all of it. When
+                     * Google is overloaded it holds a request for 17-21 seconds
+                     * before answering 503, so a single model given the whole
+                     * budget spent it on a refusal and the backups, which
+                     * answer in 2-4 seconds, were never asked.
+                     */
+                    ->timeout(min($secondsLeft, $this->attemptTimeout()))
                     /*
                      * The key travels in a header, never in the query string.
                      * A URL is logged by proxies, kept in history and repeated
@@ -511,8 +520,10 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                     ->withHeaders(['x-goog-api-key' => (string) config('gemini.api_key')])
                     ->post($this->endpoint($model), $payload);
             } catch (ConnectionException $exception) {
-                /* A timeout has already spent the budget; there is no next model. */
-                return $this->logFailure('unreachable', $exception->getMessage(), implode(', ', $tried));
+                /* A model that has not answered inside its slice is as good as busy. */
+                $stalled = $exception->getMessage();
+
+                continue;
             } catch (Throwable $exception) {
                 return $this->logFailure('threw', $exception->getMessage(), implode(', ', $tried));
             }
@@ -533,10 +544,23 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                 $this->restUntilQuotaResets($model, $response->body());
             }
 
+            $stalled = null;
             $busyStatus = $response->status();
         }
 
-        return $this->logFailure('rejected', 'HTTP '.($busyStatus ?? 0).' from every model', implode(', ', $tried));
+        if ($stalled !== null) {
+            return $this->logFailure('unreachable', $stalled, implode(', ', $tried));
+        }
+
+        return $this->logFailure('rejected', 'HTTP '.$busyStatus.' from every model', implode(', ', $tried));
+    }
+
+    /**
+     * Seconds one model may take before the next one is asked.
+     */
+    protected function attemptTimeout(): float
+    {
+        return max(1, (int) config('gemini.attempt_timeout'));
     }
 
     /**
