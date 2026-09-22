@@ -135,4 +135,23 @@ return [
 
     'cooldown_minutes' => (int) env('GEMINI_COOLDOWN_MINUTES', 5),
 
+    /*
+    |------------------------------------------------------------------
+    | How long one busy model is left alone
+    |------------------------------------------------------------------
+    |
+    | Google sheds load per model, not across the board: measured from
+    | sdpc.tech on 2026-09-22, gemini-3.6-flash answered every probe in 1-2
+    | seconds while the lite models 503'd or held the connection open for 30
+    | seconds. A model that answers that way is put aside for this long, so
+    | the next question goes straight to one that is answering instead of
+    | spending the budget rediscovering the same busy model. Only when every
+    | model is resting does the cooldown above stop the asking altogether.
+    |
+    | Ignored when the cooldown is disabled: zero there means ask every time.
+    |
+    */
+
+    'busy_rest_seconds' => (int) env('GEMINI_BUSY_REST_SECONDS', 120),
+
 ];

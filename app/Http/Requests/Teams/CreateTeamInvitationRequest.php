@@ -4,6 +4,8 @@ namespace App\Http\Requests\Teams;
 
 use App\Enums\TeamRole;
 use App\Models\Team;
+use App\Rules\RegisteredStudent;
+use App\Rules\UnclaimedTeamRole;
 use App\Rules\UniqueTeamInvitation;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,10 +25,12 @@ class CreateTeamInvitationRequest extends FormRequest
         abort_if(! $team instanceof Team, 404);
 
         return [
-            'email' => ['required', 'string', 'email', 'max:255', new UniqueTeamInvitation($team)],
+            // Only somebody who already has a student account: an invitation
+            // cannot be accepted by an address nobody has signed up with.
+            'email' => ['required', 'string', 'email', 'max:255', new RegisteredStudent, new UniqueTeamInvitation($team)],
             // Only the job titles a team hands out. Rule::enum would also
             // accept 'owner' and the two legacy values.
-            'role' => ['required', 'string', Rule::enum(TeamRole::class)->only(TeamRole::assignableCases())],
+            'role' => ['required', 'string', Rule::enum(TeamRole::class)->only(TeamRole::assignableCases()), new UnclaimedTeamRole($team)],
         ];
     }
 }

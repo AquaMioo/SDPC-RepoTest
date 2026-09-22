@@ -177,6 +177,12 @@ class TeamController extends Controller
                 ]),
             'permissions' => $user->toTeamPermissions($team),
             'availableRoles' => TeamRole::assignable(),
+            /*
+             * The job titles already spoken for, members and pending
+             * invitations together. Both pickers grey these out rather than
+             * offering a choice the server refuses (App\Rules\UnclaimedTeamRole).
+             */
+            'takenRoles' => $team->takenRoles(),
         ]);
     }
 

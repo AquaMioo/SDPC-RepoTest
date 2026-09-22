@@ -124,12 +124,27 @@ class BuildStudentDashboard
             'phases' => $summary['phases'] ?? [],
             'dueDate' => $agreement?->ends_on?->format('j M Y'),
             'agreementId' => $agreement?->id,
+            /*
+             * Everyone building it: the students the client accepted, and the
+             * teammates each of them invited. A teammate reading their own
+             * dashboard has to find themselves here — they are on this build
+             * as much as the person who signed for it.
+             */
             'team' => $project->members
-                ->map(fn (User $member): array => [
-                    'name' => $member->name,
-                    'role' => $member->studentProfile?->headline,
-                    'isAvailable' => (bool) ($member->studentProfile?->is_available ?? false),
+                ->flatMap(fn (User $member): array => [
+                    [
+                        'name' => $member->name,
+                        'role' => $member->studentProfile?->headline,
+                        'isAvailable' => (bool) ($member->studentProfile?->is_available ?? false),
+                    ],
+                    ...$member->teammates()->map(fn (User $teammate): array => [
+                        'name' => $teammate->name,
+                        'role' => $teammate->studentProfile?->headline
+                            ?? $teammate->getRelation('pivot')->role->label(),
+                        'isAvailable' => (bool) ($teammate->studentProfile?->is_available ?? false),
+                    ])->all(),
                 ])
+                ->unique('name')
                 ->values()
                 ->all(),
         ];

@@ -20,6 +20,7 @@ class TeamInvitationTest extends TestCase
         Notification::fake();
 
         $owner = User::factory()->student()->create();
+        User::factory()->student()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -63,7 +64,7 @@ class TeamInvitationTest extends TestCase
         );
     }
 
-    public function test_inviting_an_address_with_no_account_stays_email_only()
+    public function test_an_address_with_no_account_cannot_be_invited()
     {
         Notification::fake();
 
@@ -72,21 +73,43 @@ class TeamInvitationTest extends TestCase
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
 
+        /*
+         * Invitations used to go out to any address, mailing whoever owned it
+         * something they could only act on by registering first — and a team
+         * lead who mistyped an address was told "Invitation sent" and then
+         * waited on somebody who was never coming (testers, 2026-09-23). Only
+         * students who are already on the platform can be invited now.
+         */
         $this->actingAs($owner)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'nobody@example.com',
                 'role' => TeamRole::LeadProgrammer->value,
-            ]);
+            ])
+            ->assertSessionHasErrors('email');
 
-        /*
-         * There is no account to hang a row on, so the database channel has to
-         * drop out — asking for it on an AnonymousNotifiable is what would
-         * break the invitation for everybody who has not registered yet.
-         */
-        Notification::assertSentOnDemand(
-            TeamInvitationNotification::class,
-            fn (TeamInvitationNotification $notification, array $channels, object $notifiable): bool => $notification->via($notifiable) === ['mail'],
-        );
+        $this->assertDatabaseMissing('team_invitations', ['email' => 'nobody@example.com']);
+
+        Notification::assertNothingSent();
+    }
+
+    public function test_a_client_account_cannot_be_invited_to_a_student_team()
+    {
+        Notification::fake();
+
+        $owner = User::factory()->student()->create();
+        $client = User::factory()->client()->create();
+        $team = Team::factory()->create();
+
+        $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+        $this->actingAs($owner)
+            ->post(route('teams.invitations.store', $team), [
+                'email' => $client->email,
+                'role' => TeamRole::LeadProgrammer->value,
+            ])
+            ->assertSessionHasErrors('email');
+
+        Notification::assertNothingSent();
     }
 
     public function test_invitation_email_for_existing_users_uses_login_route()
@@ -134,6 +157,7 @@ class TeamInvitationTest extends TestCase
 
         $owner = User::factory()->student()->create();
         $admin = User::factory()->student()->create();
+        User::factory()->student()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -154,7 +178,7 @@ class TeamInvitationTest extends TestCase
         Notification::fake();
 
         $owner = User::factory()->student()->create();
-        $member = User::factory()->create(['email' => 'member@example.com']);
+        $member = User::factory()->student()->create(['email' => 'member@example.com']);
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -175,6 +199,7 @@ class TeamInvitationTest extends TestCase
         Notification::fake();
 
         $owner = User::factory()->student()->create();
+        User::factory()->student()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
 
@@ -198,6 +223,7 @@ class TeamInvitationTest extends TestCase
     {
         $owner = User::factory()->student()->create();
         $member = User::factory()->student()->create();
+        User::factory()->student()->create(['email' => 'invited@example.com']);
         $team = Team::factory()->create();
 
         $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);

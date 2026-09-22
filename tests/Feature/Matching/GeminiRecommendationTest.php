@@ -294,6 +294,39 @@ class GeminiRecommendationTest extends TestCase
         $this->assertTrue(Cache::has('gemini.cooldown'));
     }
 
+    public function test_a_busy_model_rests_while_a_healthy_one_keeps_answering(): void
+    {
+        config()->set('gemini.fallback_models', ['gemini-backup']);
+
+        [$project, $student] = $this->briefAndStudent();
+
+        /*
+         * Measured from sdpc.tech on 2026-09-22: overload is per model, not
+         * across the board — the pinned model answered every probe in 1-2
+         * seconds while the lite models 503'd. The busy one is put aside so
+         * the next question does not spend the budget rediscovering it, and
+         * nothing is cooled down, because a model is still answering.
+         */
+        Http::fake([
+            '*/models/'.config('gemini.model').':*' => Http::response('This model is currently experiencing high demand.', 503),
+            '*/models/gemini-backup:*' => Http::response($this->reply([
+                ['id' => $student->id, 'compatibility' => 77, 'insight' => 'Has shipped stockroom tooling.'],
+            ])),
+        ]);
+
+        $service = $this->app->make(RecommendationService::class);
+
+        $this->assertSame(77, $service->scoresFor($project)[$student->id]['compatibility']);
+        Http::assertSentCount(2);
+        $this->assertFalse(Cache::has('gemini.cooldown'));
+
+        /* The next question skips the resting model and goes straight to the one answering. */
+        Cache::forget('gemini.project.'.$project->id.'.'.$project->updated_at?->timestamp);
+        $service->scoresFor($project->fresh());
+
+        Http::assertSentCount(3);
+    }
+
     public function test_a_refusal_is_not_put_to_the_next_model(): void
     {
         config()->set('gemini.fallback_models', ['gemini-backup']);

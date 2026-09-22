@@ -240,9 +240,17 @@ export default function SignatureForm({
                         marginRight: 'auto',
                     }}
                 >
-                    {viewer.hasSigned
-                        ? 'You have signed. Your name, account ID and timestamp are on the contract log.'
-                        : 'Signing records your name, account ID and timestamp to the contract log.'}
+                    {/*
+                     * A teammate on the signing student's team reads the
+                     * contract but never signs it, so neither line above is
+                     * true for them — the one signature on the student side is
+                     * the person the client took on.
+                     */}
+                    {viewer.party === null
+                        ? 'You are reading this as a teammate on the project. Only the student the client took on signs it.'
+                        : viewer.hasSigned
+                          ? 'You have signed. Your name, account ID and timestamp are on the contract log.'
+                          : 'Signing records your name, account ID and timestamp to the contract log.'}
                 </span>
 
                 {leading}

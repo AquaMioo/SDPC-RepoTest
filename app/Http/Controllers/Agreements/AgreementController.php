@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Agreements;
 
 use App\Actions\Agreements\PresentAgreement;
 use App\Enums\AgreementParty;
+use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
+use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Agreements\SaveAgreementRequest;
 use App\Models\Agreement;
+use App\Models\Membership;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -78,10 +81,16 @@ class AgreementController extends Controller
                     'statusLabel' => $agreement->status->label(),
                     'statusVariant' => $agreement->status->tagVariant(),
                     'projectTitle' => $agreement->project->title,
-                    'counterparty' => $user->id === $agreement->student_id
-                        ? ($agreement->project->team->clientProfile?->business_name
-                            ?? $agreement->project->team->name)
-                        : $agreement->student->name,
+                    /*
+                     * Who the reader is looking at across the table. Decided
+                     * by the side they sit on, not by whether they signed:
+                     * a teammate reads the signer's contract and the business
+                     * is still the other party for them.
+                     */
+                    'counterparty' => $user->belongsToTeam($agreement->project->team)
+                        ? $agreement->student->name
+                        : ($agreement->project->team->clientProfile?->business_name
+                            ?? $agreement->project->team->name),
                     'totalAmount' => $agreement->total_amount,
                 ])
                 ->values()
@@ -223,10 +232,23 @@ class AgreementController extends Controller
      */
     protected function visibleTo(User $user)
     {
+        /*
+         * The leaders of the teams this user is on. Their signed contracts are
+         * the ones the user is building against as a teammate — see
+         * AgreementPolicy::view, which decides the same thing for one row.
+         */
+        $teamLeaders = Membership::query()
+            ->select('user_id')
+            ->where('role', TeamRole::Owner->value)
+            ->whereIn('team_id', $user->teams()->select('teams.id'));
+
         return Agreement::query()
             ->where(fn ($query) => $query
                 ->where('student_id', $user->id)
-                ->orWhereIn('team_id', $user->teams()->select('teams.id')));
+                ->orWhereIn('team_id', $user->teams()->select('teams.id'))
+                ->orWhere(fn ($teammate) => $teammate
+                    ->whereIn('student_id', $teamLeaders)
+                    ->whereIn('status', [AgreementStatus::Active, AgreementStatus::Completed])));
     }
 
     /**

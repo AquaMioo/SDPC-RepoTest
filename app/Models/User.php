@@ -386,6 +386,31 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * The students building alongside this one: their own team, minus them.
+     *
+     * A student leads exactly one team, so this is the group a client's build
+     * is actually carried out by. Each row keeps its membership in `pivot`,
+     * so a caller can show the job title the team gave them. Empty for a
+     * student who works alone, and for a teammate — the build belongs to the
+     * leader, and User::projectHolder() is how you get from one to the other.
+     *
+     * @return Collection<int, self>
+     */
+    public function teammates(): Collection
+    {
+        $team = $this->ownedTeams()->first();
+
+        if ($team === null) {
+            return new Collection;
+        }
+
+        return $team->members()
+            ->where('users.id', '!=', $this->id)
+            ->with('studentProfile')
+            ->get();
+    }
+
+    /**
      * Determine if the student is tied to a build and may not take another.
      *
      * Holding one yourself (holdsProjectInHand) or being on the team of the

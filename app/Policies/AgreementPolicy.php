@@ -15,13 +15,26 @@ class AgreementPolicy
     /**
      * Determine whether the user can read the agreement.
      *
-     * Only the two parties. An agreement carries money, scope and signatures,
-     * so there is no "anyone on the platform" case here the way there is for a
-     * posting — not even another member of the student's school.
+     * The two parties, and — once the contract is signed — the teammates on
+     * the signing student's team. They build what it describes, so they have
+     * to be able to read the scope, the dates and the terms they are working
+     * under; reading is all they get, because update/sign/requestChanges below
+     * each ask for a party of their own.
+     *
+     * Active and Completed only: a draft still being negotiated is between the
+     * two people whose names go on it, and a teammate who joined later has no
+     * business in a version nobody signed. Beyond that there is no "anyone on
+     * the platform" case here the way there is for a posting — an agreement
+     * carries scope and signatures.
      */
     public function view(User $user, Agreement $agreement): bool
     {
-        return $this->partyFor($user, $agreement) !== null;
+        if ($this->partyFor($user, $agreement) !== null) {
+            return true;
+        }
+
+        return in_array($agreement->status, [AgreementStatus::Active, AgreementStatus::Completed], true)
+            && $this->isStudentsTeammate($user, $agreement);
     }
 
     /**

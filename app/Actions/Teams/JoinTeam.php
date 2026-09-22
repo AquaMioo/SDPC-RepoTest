@@ -2,6 +2,7 @@
 
 namespace App\Actions\Teams;
 
+use App\Actions\Messaging\SeatTeammatesInProjectChat;
 use App\Models\Conversation;
 use App\Models\Team;
 use App\Models\TeamInvitation;
@@ -31,6 +32,8 @@ use Throwable;
  */
 class JoinTeam
 {
+    public function __construct(private readonly SeatTeammatesInProjectChat $seatTeammates) {}
+
     /**
      * Accept an invitation for the user.
      *
@@ -40,7 +43,7 @@ class JoinTeam
     {
         $team = $invitation->team;
 
-        return DB::transaction(function () use ($user, $invitation, $team): Team {
+        $joined = DB::transaction(function () use ($user, $invitation, $team): Team {
             $replaced = $this->replaceableTeams($user, $team);
 
             $team->memberships()->firstOrCreate(
@@ -60,6 +63,19 @@ class JoinTeam
 
             return $team;
         });
+
+        /*
+         * Joining a team that is already building puts the newcomer in the
+         * chat with that client, after the commit so a messaging fault cannot
+         * undo the join.
+         */
+        $owner = $joined->owner();
+
+        if ($owner instanceof User) {
+            $this->seatTeammates->handle($owner);
+        }
+
+        return $joined;
     }
 
     /**

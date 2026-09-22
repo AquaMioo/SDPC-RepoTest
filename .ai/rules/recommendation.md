@@ -58,3 +58,10 @@ temperature 0, so the same inputs give the same ranking. Board and capstone cach
 A 429 whose body says `PerDay` rests that model until midnight America/Los_Angeles (when Google resets the daily quota); any other 429 rests for the body's retryDelay (default 60s). Rests are cache keys `gemini.exhausted.<model>`. When every model is resting, ask() falls back to computed matching immediately with log reason `exhausted` — no HTTP call.
 
 No background pre-warming: the free quota (20/day on gemini-3.6-flash, shared by sdpc.tech and demo.sdpc.tech) would be spent on rankings nobody opens.
+
+## Overload is per model: rest the busy one, stop everything only when none is left
+Measured from sdpc.tech and the VM on 2026-09-22/23: gemini-3.6-flash answered every probe in 1.3-4.5 s while gemini-3.5-flash-lite returned 503 or held the connection open with 0 bytes until the 30 s cap. Google sheds load per model, so a fault is rarely an outage.
+
+A model that 503s or stalls now rests for gemini.busy_rest_seconds (120) under the `gemini.busy.<model>` key, which models() filters like the quota key. beginCooldown() is skipped while models() still returns somebody: the global 5-minute cooldown used to start on any failed question, so one busy lite model put the whole site on keyword matching for five minutes — that is what "sometimes the AI works, sometimes it doesn't" was. A cooldown of zero still means ask every time: it disables the busy rests too.
+
+Only a refusal (4xx) or an exception is treated as everyone's problem, because those are about the key, the location or the payload. tests/Feature/Matching/GeminiRecommendationTest pins both halves.

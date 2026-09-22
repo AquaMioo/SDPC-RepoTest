@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Notifications\Teams\TeamInvitation as TeamInvitationNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -27,11 +26,18 @@ class TeamInvitationController extends Controller
         Gate::authorize('inviteMember', $team);
 
         /*
+         * The address belongs to a student account — CreateTeamInvitationRequest
+         * refuses anything else (App\Rules\RegisteredStudent), so there is
+         * always somebody here to check and, below, to notify.
+         *
          * One team per student. An account that could never accept is told
          * now, rather than their invitation failing when they try.
          */
-        $existing = User::query()->firstWhere('email', $request->validated('email'));
-        $refusal = $existing === null ? null : $joinTeam->refusal($existing, $team);
+        $invitee = User::query()
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($request->validated('email'))])
+            ->firstOrFail();
+
+        $refusal = $joinTeam->refusal($invitee, $team);
 
         if ($refusal !== null) {
             throw ValidationException::withMessages(['email' => $refusal]);
@@ -54,18 +60,8 @@ class TeamInvitationController extends Controller
             'expires_at' => now()->addDays(3),
         ]);
 
-        /*
-         * Invitations are addressed to an email, which may or may not belong
-         * to somebody who has registered. When it does, notify the account so
-         * the invitation reaches their bell as well as their inbox; when it
-         * does not, there is nowhere to store a row and mail is all there is.
-         */
-        $invitee = User::query()->firstWhere('email', $invitation->email);
-
-        $invitee !== null
-            ? $invitee->notify(new TeamInvitationNotification($invitation))
-            : Notification::route('mail', $invitation->email)
-                ->notify(new TeamInvitationNotification($invitation));
+        /* Their inbox and their bell: the row is what makes it openable later. */
+        $invitee->notify(new TeamInvitationNotification($invitation));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Invitation sent.')]);
 

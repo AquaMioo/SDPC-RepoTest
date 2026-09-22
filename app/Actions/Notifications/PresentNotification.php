@@ -225,7 +225,16 @@ class PresentNotification
                     'team' => $this->text($data, 'team_name') ?? __('a team'),
                 ]),
                 __('Accept or decline it from your dashboard.'),
-                null,
+                /*
+                 * The dashboard, where the invitation dialog opens by itself
+                 * while one is waiting. This row used to carry no link at all,
+                 * so an invitation that had been dismissed once was unreachable
+                 * from the bell — the one place someone goes looking for it.
+                 */
+                route('dashboard', [
+                    'current_team' => $team->slug,
+                    'invitation' => $this->text($data, 'invitation_id') ?? '1',
+                ]),
             ],
             'invitation.accepted' => [
                 __(':student accepted your invitation', [

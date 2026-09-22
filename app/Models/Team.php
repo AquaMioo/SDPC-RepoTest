@@ -108,6 +108,44 @@ class Team extends Model
     }
 
     /**
+     * The job titles this team has already handed out.
+     *
+     * A team holds one of each: one Project Manager, one Quality Assurance,
+     * one System Analyst, one Lead Programmer. Invitations still waiting for
+     * an answer count as taken, because the seat is promised and carries its
+     * role with it — otherwise two people could be invited as the same thing
+     * and whoever accepted second would land on a duplicate.
+     *
+     * Owner and the two legacy values are not job titles, so they never
+     * appear here. Teams that already carry a duplicate from before this rule
+     * are left alone; this only stops new ones.
+     *
+     * @param  int|null  $exceptUserId  Leave this member's own role out, so re-picking it is not a clash.
+     * @return list<string>
+     */
+    public function takenRoles(?int $exceptUserId = null): array
+    {
+        $assignable = array_map(fn (TeamRole $role): string => $role->value, TeamRole::assignableCases());
+
+        $held = $this->memberships()
+            ->when($exceptUserId !== null, fn ($query) => $query->where('user_id', '!=', $exceptUserId))
+            ->pluck('role')
+            ->map(fn (TeamRole|string $role): string => $role instanceof TeamRole ? $role->value : $role);
+
+        $promised = $this->invitations()
+            ->whereNull('accepted_at')
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>=', now()))
+            ->pluck('role')
+            ->map(fn (TeamRole|string $role): string => $role instanceof TeamRole ? $role->value : $role);
+
+        return $held->merge($promised)
+            ->unique()
+            ->filter(fn (string $role): bool => in_array($role, $assignable, true))
+            ->values()
+            ->all();
+    }
+
+    /**
      * Determine if the team is working on a client's build.
      *
      * A student team works on its leader's project: the leader holds the

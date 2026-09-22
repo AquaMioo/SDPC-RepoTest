@@ -17,6 +17,7 @@ import { Tag } from '@/components/sdpc/tag';
 import { UpcomingMeetingsPanel } from '@/components/sdpc/upcoming-meetings';
 import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { usePendingInvitations } from '@/hooks/use-pending-invitations';
 import { localDateKey, whenLabel } from '@/lib/meeting-time';
 import { projectManagement } from '@/routes';
 import { index as studentBoard } from '@/routes/student/board';
@@ -116,9 +117,8 @@ export default function StudentDashboard({
 }: Props) {
     const page = usePage<{ auth?: { user?: { name: string } | null } }>();
     const currentTeam = useCurrentTeam();
-    const [showInvitations, setShowInvitations] = useState(
-        pendingInvitations.length > 0,
-    );
+    const [showInvitations, setShowInvitations] =
+        usePendingInvitations(pendingInvitations);
 
     return (
         <>
@@ -126,7 +126,7 @@ export default function StudentDashboard({
 
             <PendingInvitationsModal
                 invitations={pendingInvitations}
-                open={pendingInvitations.length > 0 && showInvitations}
+                open={showInvitations}
                 onOpenChange={setShowInvitations}
             />
 

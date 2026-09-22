@@ -14,10 +14,12 @@ use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
 use App\Models\Application;
+use App\Models\Membership;
 use App\Models\Project;
 use App\Models\SiteContent;
 use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -133,17 +135,53 @@ class ClientDashboardController extends Controller
             ->withStatus(ApplicationStatus::Accepted)
             ->with(['student.studentProfile', 'project'])
             ->get()
-            ->map(fn (Application $application): array => [
-                'id' => $application->student->id,
-                'name' => $application->student->name,
-                'avatarUrl' => $application->student->avatarUrl(),
-                'role' => $application->student->studentProfile?->headline
-                    ?? $application->project->title,
-                /* Presence, not membership: see User::isOnline(). */
-                'isOnline' => $application->student->isOnline(),
-            ])
+            ->flatMap(function (Application $application): array {
+                $student = $application->student;
+
+                /*
+                 * The student the business took on, and the teammates they
+                 * invited. The whole group builds this project — they are
+                 * locked to it (User::isLockedToProject) and they write the
+                 * checklist together — so a client looking at "Project team"
+                 * has to see all of them, not only the name on the contract.
+                 */
+                $rows = [$this->teamMember(
+                    $student,
+                    $student->studentProfile?->headline ?? $application->project->title,
+                )];
+
+                foreach ($student->teammates() as $teammate) {
+                    /** @var Membership $membership */
+                    $membership = $teammate->getRelation('pivot');
+
+                    $rows[] = $this->teamMember(
+                        $teammate,
+                        $membership->role->label(),
+                    );
+                }
+
+                return $rows;
+            })
+            ->unique('id')
             ->values()
             ->all();
+    }
+
+    /**
+     * Shape one person for the Project team panel.
+     *
+     * @return array<string, mixed>
+     */
+    protected function teamMember(User $student, string $role): array
+    {
+        return [
+            'id' => $student->id,
+            'name' => $student->name,
+            'avatarUrl' => $student->avatarUrl(),
+            'role' => $role,
+            /* Presence, not membership: see User::isOnline(). */
+            'isOnline' => $student->isOnline(),
+        ];
     }
 
     /**

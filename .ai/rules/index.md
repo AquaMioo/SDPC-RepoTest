@@ -15,6 +15,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Concerns/RegistrationValidationRules.php | .ai/rules/concerns.md |
 | config/billing.php, config/trustedproxy.php, config/database.php, config/broadcasting.php | .ai/rules/config.md |
 | app/Http/Controllers/Agreements/** | .ai/rules/controllers-agreements.md |
+| app/Http/Controllers/Teams/** | .ai/rules/controllers-teams.md |
 | app/Http/Controllers/HomeController.php | .ai/rules/controllers.md |
 | resources/css/** | .ai/rules/css.md |
 | tests/Feature/** | .ai/rules/feature.md |
@@ -27,7 +28,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Actions/Notifications/** | .ai/rules/notifications.md |
 | resources/js/pages/agreements/** | .ai/rules/pages-agreements.md |
 | resources/js/pages/** | .ai/rules/pages.md |
-| app/Policies/ProjectPolicy.php | .ai/rules/policies.md |
+| app/Policies/ProjectPolicy.php, app/Policies/AgreementPolicy.php | .ai/rules/policies.md |
 | app/Services/Recommendation/** | .ai/rules/recommendation.md |
 | app/Http/Requests/Client/UpdateClientProfileRequest.php | .ai/rules/requests-client.md |
 | app/Http/Responses/** | .ai/rules/responses.md |

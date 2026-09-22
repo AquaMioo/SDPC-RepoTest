@@ -51,6 +51,17 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      */
     protected const EXHAUSTED_KEY = 'gemini.exhausted.';
 
+    /**
+     * Prefix for "this model is busy just now", one key per model.
+     *
+     * Overload is per model: on 2026-09-22 the main model answered in 1-2
+     * seconds while both lite models were refusing with 503 or holding the
+     * connection open until the timeout. Resting the one that misbehaved
+     * keeps the next question away from it, instead of spending the budget
+     * on it again and falling back with nothing asked.
+     */
+    protected const BUSY_KEY = 'gemini.busy.';
+
     public function __construct(
         protected ComputedRecommendationService $fallback,
         protected SkillInference $inference,
@@ -224,9 +235,41 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     {
         $minutes = (int) config('gemini.cooldown_minutes');
 
-        if ($minutes > 0) {
-            Cache::put(self::COOLDOWN_KEY, true, now()->addMinutes($minutes));
+        if ($minutes <= 0) {
+            return;
         }
+
+        /*
+         * Only when there is nobody left to ask. A question can fail because
+         * the models it reached were busy — and those are resting now
+         * (restWhileBusy) — while another model is answering in two seconds.
+         * Stopping everything for five minutes over that is what made matching
+         * look like it worked on one page load and not the next.
+         */
+        if ($this->models() !== []) {
+            return;
+        }
+
+        Cache::put(self::COOLDOWN_KEY, true, now()->addMinutes($minutes));
+    }
+
+    /**
+     * Leave one busy model alone for a while.
+     *
+     * Not a quota rest: the model is overloaded, not spent, so this is short
+     * and measured in seconds. Tied to the cooldown switch, because a
+     * cooldown of zero means "ask every time" and that has to mean every
+     * model too.
+     */
+    protected function restWhileBusy(string $model): void
+    {
+        $seconds = (int) config('gemini.busy_rest_seconds');
+
+        if ($seconds <= 0 || (int) config('gemini.cooldown_minutes') <= 0) {
+            return;
+        }
+
+        Cache::put(self::BUSY_KEY.$model, true, now()->addSeconds($seconds));
     }
 
     /**
@@ -488,9 +531,9 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         $stalled = null;
         $busyStatus = 0;
 
-        /* Every model resting on a spent quota: fall back at once, asking nobody. */
+        /* Every model resting — busy or out of quota: fall back at once, asking nobody. */
         if ($models === []) {
-            return $this->logFailure('exhausted', 'every model is out of quota until it resets', '');
+            return $this->logFailure('exhausted', 'every model is resting: busy, or out of quota until it resets', '');
         }
 
         foreach ($models as $model) {
@@ -522,6 +565,7 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             } catch (ConnectionException $exception) {
                 /* A model that has not answered inside its slice is as good as busy. */
                 $stalled = $exception->getMessage();
+                $this->restWhileBusy($model);
 
                 continue;
             } catch (Throwable $exception) {
@@ -542,6 +586,8 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
 
             if ($response->status() === 429) {
                 $this->restUntilQuotaResets($model, $response->body());
+            } else {
+                $this->restWhileBusy($model);
             }
 
             $stalled = null;
@@ -587,7 +633,8 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                 (string) config('gemini.model'),
                 ...(array) config('gemini.fallback_models'),
             ])),
-            fn (string $model): bool => ! Cache::has(self::EXHAUSTED_KEY.$model),
+            fn (string $model): bool => ! Cache::has(self::EXHAUSTED_KEY.$model)
+                && ! Cache::has(self::BUSY_KEY.$model),
         ));
     }
 

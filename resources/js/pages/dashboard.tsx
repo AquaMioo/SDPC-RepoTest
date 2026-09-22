@@ -1,7 +1,7 @@
 import { Head } from '@inertiajs/react';
-import { useState } from 'react';
 import PendingInvitationsModal from '@/components/pending-invitations-modal';
 import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
+import { usePendingInvitations } from '@/hooks/use-pending-invitations';
 import { dashboard } from '@/routes';
 import type { DashboardInvitation } from '@/types';
 
@@ -10,16 +10,15 @@ type Props = {
 };
 
 export default function Dashboard({ pendingInvitations = [] }: Props) {
-    const [showInvitations, setShowInvitations] = useState(
-        pendingInvitations.length > 0,
-    );
+    const [showInvitations, setShowInvitations] =
+        usePendingInvitations(pendingInvitations);
 
     return (
         <>
             <Head title="Dashboard" />
             <PendingInvitationsModal
                 invitations={pendingInvitations}
-                open={pendingInvitations.length > 0 && showInvitations}
+                open={showInvitations}
                 onOpenChange={setShowInvitations}
             />
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">

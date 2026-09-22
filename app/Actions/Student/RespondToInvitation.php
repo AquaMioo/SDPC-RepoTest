@@ -3,6 +3,7 @@
 namespace App\Actions\Student;
 
 use App\Actions\Agreements\DraftAgreement;
+use App\Actions\Messaging\SeatTeammatesInProjectChat;
 use App\Enums\ApplicationStatus;
 use App\Models\Application;
 use App\Notifications\Client\InvitationAccepted;
@@ -28,6 +29,7 @@ class RespondToInvitation
     public function __construct(
         private DraftAgreement $draftAgreement,
         private CloseOtherInvitations $closeOtherInvitations,
+        private SeatTeammatesInProjectChat $seatTeammates,
     ) {}
 
     /**
@@ -62,6 +64,12 @@ class RespondToInvitation
 
             /* Acceptance produces the contract, not the start of the work. */
             $this->draftAgreement->handle($application);
+
+            /*
+             * The student's own team joins the thread the invitation opened:
+             * from here they all build this project together.
+             */
+            $this->seatTeammates->handle($application->student);
 
             /*
              * One project at a time: every other invitation is closed now, and

@@ -48,6 +48,8 @@ type Props = {
     invitations: TeamInvitation[];
     permissions: TeamPermissions;
     availableRoles: RoleOption[];
+    /** Job titles somebody already holds, or a pending invitation promises. */
+    takenRoles: string[];
     /** The Team page, drawn behind this floating window. */
     background: ComponentProps<typeof TeamsIndex>;
 };
@@ -58,6 +60,7 @@ export default function TeamEdit({
     invitations,
     permissions,
     availableRoles,
+    takenRoles,
     background,
 }: Props) {
     const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -244,22 +247,47 @@ export default function TeamEdit({
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
                                                         {availableRoles.map(
-                                                            (role) => (
-                                                                <DropdownMenuItem
-                                                                    key={
-                                                                        role.value
-                                                                    }
-                                                                    data-test="member-role-option"
-                                                                    onSelect={() =>
-                                                                        updateMemberRole(
-                                                                            member,
-                                                                            role.value,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    {role.label}
-                                                                </DropdownMenuItem>
-                                                            ),
+                                                            (role) => {
+                                                                /*
+                                                                 * One holder
+                                                                 * per title —
+                                                                 * except the
+                                                                 * one this
+                                                                 * member
+                                                                 * already has.
+                                                                 */
+                                                                const taken =
+                                                                    takenRoles.includes(
+                                                                        role.value,
+                                                                    ) &&
+                                                                    role.value !==
+                                                                        member.role;
+
+                                                                return (
+                                                                    <DropdownMenuItem
+                                                                        key={
+                                                                            role.value
+                                                                        }
+                                                                        data-test="member-role-option"
+                                                                        disabled={
+                                                                            taken
+                                                                        }
+                                                                        onSelect={() =>
+                                                                            updateMemberRole(
+                                                                                member,
+                                                                                role.value,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            role.label
+                                                                        }
+                                                                        {taken
+                                                                            ? ' · taken'
+                                                                            : ''}
+                                                                    </DropdownMenuItem>
+                                                                );
+                                                            },
                                                         )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -393,6 +421,7 @@ export default function TeamEdit({
                         <InviteMemberModal
                             team={team}
                             availableRoles={availableRoles}
+                            takenRoles={takenRoles}
                             open={inviteDialogOpen}
                             onOpenChange={setInviteDialogOpen}
                         />

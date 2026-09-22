@@ -3,6 +3,7 @@
 namespace App\Actions\Client;
 
 use App\Actions\Agreements\DraftAgreement;
+use App\Actions\Messaging\SeatTeammatesInProjectChat;
 use App\Actions\Student\CloseOtherInvitations;
 use App\Enums\ApplicationStatus;
 use App\Models\Application;
@@ -20,6 +21,7 @@ class RespondToApplication
     public function __construct(
         private DraftAgreement $draftAgreement,
         private CloseOtherInvitations $closeOtherInvitations,
+        private SeatTeammatesInProjectChat $seatTeammates,
     ) {}
 
     /**
@@ -80,6 +82,13 @@ class RespondToApplication
                     'project_id' => $application->project_id,
                     'user_id' => $application->user_id,
                 ]);
+
+                /*
+                 * The team the student already leads comes into that thread
+                 * with them: they are all tied to this build from here on, so
+                 * the client is talking to the group, not to one member of it.
+                 */
+                $this->seatTeammates->handle($application->student);
 
                 /*
                  * Acceptance no longer starts the project. It produces the

@@ -1,6 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
 import { PlusIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
 
 import {
     AnnouncementsPanel,
@@ -19,6 +18,7 @@ import { UpcomingMeetingsPanel } from '@/components/sdpc/upcoming-meetings';
 import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { usePendingInvitations } from '@/hooks/use-pending-invitations';
 import { projectManagement } from '@/routes';
 import { create as projectsCreate } from '@/routes/projects';
 import type { DashboardInvitation } from '@/types';
@@ -54,9 +54,8 @@ export default function ClientDashboard({
     upcomingMeetings = [],
 }: Props) {
     const team = useCurrentTeam();
-    const [showInvitations, setShowInvitations] = useState(
-        pendingInvitations.length > 0,
-    );
+    const [showInvitations, setShowInvitations] =
+        usePendingInvitations(pendingInvitations);
 
     // Both the progress panel and the team panel open the build on Project
     // Management, and neither has anywhere to go before one exists.
@@ -71,7 +70,7 @@ export default function ClientDashboard({
             <Head title="Dashboard" />
             <PendingInvitationsModal
                 invitations={pendingInvitations}
-                open={pendingInvitations.length > 0 && showInvitations}
+                open={showInvitations}
                 onOpenChange={setShowInvitations}
             />
 

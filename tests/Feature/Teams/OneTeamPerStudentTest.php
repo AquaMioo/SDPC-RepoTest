@@ -87,11 +87,13 @@ class OneTeamPerStudentTest extends TestCase
         [, , $otherMember] = $this->groupLedBy();
         $client = User::factory()->client()->create();
 
+        /* A role the team has not handed out, so the refusal under test is
+         * the invitee's own situation and not the one-per-role rule. */
         foreach ([$otherLeader, $otherMember, $client] as $invitee) {
             $this->actingAs($leader)
                 ->post(route('teams.invitations.store', $team), [
                     'email' => $invitee->email,
-                    'role' => TeamRole::LeadProgrammer->value,
+                    'role' => TeamRole::ProjectManager->value,
                 ])
                 ->assertSessionHasErrors('email');
         }

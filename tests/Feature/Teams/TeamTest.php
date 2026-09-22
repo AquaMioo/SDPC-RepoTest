@@ -130,20 +130,28 @@ class TeamTest extends TestCase
         $team->members()->attach($leader, ['role' => TeamRole::Owner->value]);
         $leader->switchTeam($team);
 
+        /* Real accounts and a role each: only students on the platform can be
+         * invited, and a team hands each job title out once. */
+        $roles = TeamRole::assignableCases();
+
         foreach (range(1, Team::MAX_MEMBERS - 1) as $seat) {
+            $mate = User::factory()->student()->create(['email' => "mate{$seat}@example.com"]);
+
             $this->actingAs($leader)
                 ->post(route('teams.invitations.store', $team), [
-                    'email' => "mate{$seat}@example.com",
-                    'role' => TeamRole::LeadProgrammer->value,
+                    'email' => $mate->email,
+                    'role' => $roles[$seat - 1]->value,
                 ])
                 ->assertSessionHasNoErrors();
         }
 
         /* The fourth invitation would seat a fifth person. */
+        User::factory()->student()->create(['email' => 'onetoomany@example.com']);
+
         $this->actingAs($leader)
             ->post(route('teams.invitations.store', $team), [
                 'email' => 'onetoomany@example.com',
-                'role' => TeamRole::LeadProgrammer->value,
+                'role' => $roles[Team::MAX_MEMBERS - 1]->value,
             ])
             ->assertSessionHasErrors('email');
 
@@ -165,9 +173,11 @@ class TeamTest extends TestCase
 
         $this->assertSame(Team::MAX_MEMBERS - 1, $team->remainingSeats());
 
+        $invitee = User::factory()->student()->create(['email' => 'pending@example.com']);
+
         $this->actingAs($leader)
             ->post(route('teams.invitations.store', $team), [
-                'email' => 'pending@example.com',
+                'email' => $invitee->email,
                 'role' => TeamRole::LeadProgrammer->value,
             ])
             ->assertSessionHasNoErrors();
@@ -237,6 +247,8 @@ class TeamTest extends TestCase
     public function test_a_client_may_not_invite_anybody_into_their_team(): void
     {
         $client = User::factory()->client()->create();
+        /* A real student, so validation passes and the Gate is what refuses. */
+        User::factory()->student()->create(['email' => 'someone@example.com']);
 
         $this->actingAs($client)
             ->post(route('teams.invitations.store', $client->currentTeam), [

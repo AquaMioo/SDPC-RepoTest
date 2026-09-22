@@ -26,6 +26,8 @@ import type { RoleOption, Team } from '@/types';
 type Props = {
     team: Team;
     availableRoles: RoleOption[];
+    /** Job titles somebody already holds, or a pending invitation promises. */
+    takenRoles?: string[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
@@ -33,14 +35,21 @@ type Props = {
 export default function InviteMemberModal({
     team,
     availableRoles,
+    takenRoles = [],
     open,
     onOpenChange,
 }: Props) {
     /*
-     * Default to whatever the server offers first rather than a hardcoded
-     * value, so the modal cannot preselect a role that is no longer assignable.
+     * Default to the first role still going rather than a hardcoded value or
+     * the first in the list, so the modal cannot preselect one the server
+     * refuses. A team of four holds at most three job titles, so there is
+     * always one left to offer.
      */
-    const defaultRole = availableRoles[0]?.value ?? '';
+    const defaultRole =
+        availableRoles.find((role) => !takenRoles.includes(role.value))
+            ?.value ??
+        availableRoles[0]?.value ??
+        '';
 
     const [inviteRole, setInviteRole] =
         useState<RoleOption['value']>(defaultRole);
@@ -101,14 +110,25 @@ export default function InviteMemberModal({
                                             <SelectValue placeholder="Select a role" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {availableRoles.map((role) => (
-                                                <SelectItem
-                                                    key={role.value}
-                                                    value={role.value}
-                                                >
-                                                    {role.label}
-                                                </SelectItem>
-                                            ))}
+                                            {availableRoles.map((role) => {
+                                                const taken =
+                                                    takenRoles.includes(
+                                                        role.value,
+                                                    );
+
+                                                return (
+                                                    <SelectItem
+                                                        key={role.value}
+                                                        value={role.value}
+                                                        disabled={taken}
+                                                    >
+                                                        {role.label}
+                                                        {taken
+                                                            ? ' · taken'
+                                                            : ''}
+                                                    </SelectItem>
+                                                );
+                                            })}
                                         </SelectContent>
                                     </Select>
                                     <InputError message={errors.role} />
