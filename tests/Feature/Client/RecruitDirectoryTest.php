@@ -47,10 +47,11 @@ class RecruitDirectoryTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('client/recruit')
-                ->where('students.data.0.name', $unproven->user->name)
-                ->where('students.data.0.isVerified', false)
-                ->where('students.data.1.name', 'Pia Reyes')
-                ->where('students.data.1.isVerified', true),
+                ->loadDeferredProps('ranking', fn (Assert $reload) => $reload
+                    ->where('students.data.0.name', $unproven->user->name)
+                    ->where('students.data.0.isVerified', false)
+                    ->where('students.data.1.name', 'Pia Reyes')
+                    ->where('students.data.1.isVerified', true)),
             );
     }
 
@@ -68,10 +69,10 @@ class RecruitDirectoryTest extends TestCase
 
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (Assert $page) => $page
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps('ranking', fn (Assert $reload) => $reload
                 ->has('students.data.0.highlights', 2)
                 ->where('students.data.0.highlights.0', 'Inventory system')
-                ->where('students.data.0.highlights.1', 'Booking board'),
+                ->where('students.data.0.highlights.1', 'Booking board')),
             );
     }
 
@@ -82,9 +83,9 @@ class RecruitDirectoryTest extends TestCase
 
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (Assert $page) => $page
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps('ranking', fn (Assert $reload) => $reload
                 ->where('students.data.0.highlights', [])
-                ->where('students.data.0.location', null),
+                ->where('students.data.0.location', null)),
             );
     }
 
@@ -100,9 +101,9 @@ class RecruitDirectoryTest extends TestCase
 
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (Assert $page) => $page
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps('ranking', fn (Assert $reload) => $reload
                 ->where('matchingEnabled', false)
-                ->where('highlight', null),
+                ->where('highlight', null)),
             );
     }
 
@@ -118,13 +119,13 @@ class RecruitDirectoryTest extends TestCase
                 'current_team' => $client->currentTeam,
                 'search' => 'A point of sale system with payments for my store',
             ]))
-            ->assertInertia(fn (Assert $page) => $page
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps('ranking', fn (Assert $reload) => $reload
                 ->where('matchingEnabled', true)
                 ->where('highlight.name', 'Pia Reyes')
                 // Every bar on the rail is a factor the engine actually
                 // computed, not a label the design asked for.
                 ->has('highlight.factors')
-                ->has('highlight.matchedSkills'),
+                ->has('highlight.matchedSkills')),
             );
     }
 

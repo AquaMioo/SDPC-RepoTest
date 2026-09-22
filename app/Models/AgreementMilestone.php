@@ -94,6 +94,29 @@ class AgreementMilestone extends Model
     }
 
     /**
+     * Determine if this is the Turnover phase: the last one.
+     *
+     * Found by position, never by title — a client may rename the phases. Its
+     * end is the final deadline, which ends the project (Agreement::finalDeadline).
+     */
+    public function isTurnover(): bool
+    {
+        return $this->position === (int) static::query()
+            ->where('agreement_id', $this->agreement_id)
+            ->max('position');
+    }
+
+    /**
+     * Get the asks to move the final deadline, when this is the Turnover phase.
+     *
+     * @return HasMany<DeadlineChangeRequest, $this>
+     */
+    public function deadlineRequests(): HasMany
+    {
+        return $this->hasMany(DeadlineChangeRequest::class)->latest('id');
+    }
+
+    /**
      * When the phase starts on the student's working schedule.
      *
      * The plan when the student has moved it, the agreed date otherwise.

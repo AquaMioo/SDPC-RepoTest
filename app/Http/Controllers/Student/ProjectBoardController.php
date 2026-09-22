@@ -61,8 +61,6 @@ class ProjectBoardController extends Controller
             ? $request->query('sort')
             : self::SORT_RECOMMENDED;
 
-        $applied = $this->appliedProjectIds($student);
-
         /*
          * The advanced search. A student describes the capstone they are
          * building this term and the board ranks against that instead of
@@ -77,6 +75,64 @@ class ProjectBoardController extends Controller
         ];
         $hasCapstone = $capstone['title'] !== '' || $capstone['description'] !== '';
 
+        /*
+         * The list is the slow half: ranking asks the model, which takes
+         * seconds when nothing is cached. So the board paints first — the
+         * search, the sort, the capstone dialog — and the ranked postings
+         * arrive as one deferred group behind a skeleton. The group's props
+         * share one computation, so the model is asked at most once.
+         */
+        $list = null;
+        $resolveList = function () use (&$list, $request, $recommendations, $student, $search, $sort, $capstone, $hasCapstone): array {
+            return $list ??= $this->boardList($request, $recommendations, $student, $search, $sort, $capstone, $hasCapstone);
+        };
+
+        return Inertia::render('student/find-clients', [
+            'projects' => Inertia::defer(fn () => $resolveList()['projects'], 'ranking'),
+            'filters' => [
+                'search' => $search,
+                'sort' => $sort,
+            ],
+            /*
+             * Echoed back so the dialog reopens with what was typed, and the
+             * board can say it is ranking against a capstone rather than a
+             * profile without the screen having to guess.
+             */
+            'capstone' => $capstone,
+            'sorts' => [
+                ['value' => self::SORT_RECOMMENDED, 'label' => 'Recommended'],
+                ['value' => self::SORT_NEWEST, 'label' => 'Newest'],
+            ],
+            'canApply' => $student->isVerifiedForOperating(),
+            /* One build at a time, teammates included, so the board says so before they try. */
+            'holdsProjectInHand' => $student->isLockedToProject(),
+            /*
+             * Drives the analysis panel. True only when something was actually
+             * scored on this request — a brief with nothing to go on gets no
+             * ring rather than a zeroed-out one that reads as a failed match.
+             */
+            'matchingEnabled' => Inertia::defer(fn () => $resolveList()['matchingEnabled'], 'ranking'),
+            'highlight' => Inertia::defer(fn () => $resolveList()['highlight'], 'ranking'),
+        ]);
+    }
+
+    /**
+     * Score, filter, order and page the board, and pick the best match.
+     *
+     * @param  array{title: string, description: string}  $capstone
+     * @return array{projects: LengthAwarePaginator<int, array<string, mixed>>, matchingEnabled: bool, highlight: array<string, mixed>|null}
+     */
+    protected function boardList(
+        Request $request,
+        RecommendationService $recommendations,
+        User $student,
+        string $search,
+        string $sort,
+        array $capstone,
+        bool $hasCapstone,
+    ): array {
+        $applied = $this->appliedProjectIds($student);
+
         $scores = $hasCapstone && $recommendations instanceof ScoresProjectsForText
             ? $recommendations->projectScoresForText($capstone['title'], $capstone['description'], $student)
             : $recommendations->scoresForStudent($student);
@@ -89,6 +145,14 @@ class ProjectBoardController extends Controller
         $query = $this->visibleTo($student)
             ->where('applications_open', true)
             ->where('status', ProjectStatus::Open)
+            /*
+             * Nor one whose client has already taken a student on. Signing
+             * moves a posting to in progress, but acceptance is when the
+             * student starts working with them, so the posting leaves the
+             * board then rather than while the agreement is being drawn up.
+             */
+            ->whereDoesntHave('applications', fn (Builder $applications) => $applications
+                ->where('status', ApplicationStatus::Accepted))
             ->when($search !== '', fn (Builder $query) => $query
                 ->where(fn (Builder $inner) => $inner
                     ->where('title', 'like', "%{$search}%")
@@ -109,33 +173,11 @@ class ProjectBoardController extends Controller
 
         $projects->through(fn (Project $project) => $this->toCard($project, $applied, $scores));
 
-        return Inertia::render('student/find-clients', [
+        return [
             'projects' => $projects,
-            'filters' => [
-                'search' => $search,
-                'sort' => $sort,
-            ],
-            /*
-             * Echoed back so the dialog reopens with what was typed, and the
-             * board can say it is ranking against a capstone rather than a
-             * profile without the screen having to guess.
-             */
-            'capstone' => $capstone,
-            'sorts' => [
-                ['value' => self::SORT_RECOMMENDED, 'label' => 'Recommended'],
-                ['value' => self::SORT_NEWEST, 'label' => 'Newest'],
-            ],
-            'canApply' => $student->isVerifiedForOperating(),
-            /* One build at a time, so the board says so before they try. */
-            'holdsProjectInHand' => $student->holdsProjectInHand(),
-            /*
-             * Drives the analysis panel. True only when something was actually
-             * scored on this request — a brief with nothing to go on gets no
-             * ring rather than a zeroed-out one that reads as a failed match.
-             */
             'matchingEnabled' => $scores->isNotEmpty(),
             'highlight' => $this->highlight($projects->getCollection(), $scores),
-        ]);
+        ];
     }
 
     /**
@@ -247,7 +289,7 @@ class ProjectBoardController extends Controller
                 'appliedAt' => $application->created_at?->format('j M Y'),
             ],
             'canApply' => $student->isVerifiedForOperating(),
-            'holdsProjectInHand' => $student->holdsProjectInHand(),
+            'holdsProjectInHand' => $student->isLockedToProject(),
             /*
              * Reporting a posting is open to any signed in student, verified
              * or not — a misleading listing is worth hearing about before the
@@ -273,10 +315,10 @@ class ProjectBoardController extends Controller
             ]);
         }
 
-        /* One student, one build. See User::holdsProjectInHand(). */
-        if ($student->holdsProjectInHand()) {
+        /* One student, one build, teammates included. See User::isLockedToProject(). */
+        if ($student->isLockedToProject()) {
             throw ValidationException::withMessages([
-                'application' => 'You already have a project in hand. Finish it before taking on another.',
+                'application' => "You are already working on a project, your own or your team's. You can apply again once the client completes it.",
             ]);
         }
 

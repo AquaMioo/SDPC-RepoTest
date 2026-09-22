@@ -40,6 +40,17 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     /** Set while the model is known to be unwell; see isCoolingDown(). */
     protected const COOLDOWN_KEY = 'gemini.cooldown';
 
+    /**
+     * Prefix for "this model is out of quota", one key per model.
+     *
+     * The free tier gives each model a small daily allowance — 20 requests for
+     * gemini-3.6-flash, shared by every site on the key. Once it is spent
+     * Google answers 429 until the quota resets at midnight Pacific time, and
+     * asking anyway cost a failed round trip on every ranking before the
+     * fallback model was tried. The model now rests until the reset.
+     */
+    protected const EXHAUSTED_KEY = 'gemini.exhausted.';
+
     public function __construct(
         protected ComputedRecommendationService $fallback,
         protected SkillInference $inference,
@@ -91,15 +102,19 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
 
         $profile->loadMissing(['skills', 'course', 'educations.course', 'languages']);
 
+        $briefs = $this->openBriefs();
+
         return $this->rankBriefs(
             reader: "STUDENT:\n".$this->encode($this->describe($profile)),
-            briefs: $this->openBriefs(),
+            briefs: $briefs,
             /*
              * Keyed on the profile's own timestamp, so editing your skills
              * re-asks rather than serving an hour-old judgement of the person
-             * you used to be.
+             * you used to be — and on the briefs the model was shown, so a
+             * posting published since is ranked by the same judge as the rest
+             * rather than slotted in with a keyword score on another scale.
              */
-            cacheKey: 'gemini.student.'.$student->id.'.'.$profile->updated_at?->timestamp,
+            cacheKey: 'gemini.student.'.$student->id.'.'.$profile->updated_at?->timestamp.'.'.$this->fingerprint($briefs),
             fallback: fn (): Collection => $this->fallback->scoresForStudent($student),
         );
     }
@@ -122,14 +137,16 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             return collect();
         }
 
+        $briefs = $this->openBriefs();
+
         return $this->rankBriefs(
             reader: "The student is building this capstone project this term:\n"
                 .$this->encode(array_filter([
                     'capstone_title' => trim($title) ?: null,
                     'capstone_description' => trim($description) ?: null,
                 ])),
-            briefs: $this->openBriefs(),
-            cacheKey: 'gemini.capstone.'.md5($capstone),
+            briefs: $briefs,
+            cacheKey: 'gemini.capstone.'.md5($capstone).'.'.$this->fingerprint($briefs),
             /*
              * Without a model there is no sensible reading of two sentences,
              * so the board falls back to ranking against the saved profile —
@@ -237,8 +254,13 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
     protected function generationConfig(): array
     {
         return [
-            /* A ranking should not wander between page loads. */
-            'temperature' => 0.2,
+            /*
+             * A ranking should not wander between page loads: the same
+             * profile against the same briefs gets the same order. Zero, not
+             * 0.2 — the small amount of variety showed up as a student's top
+             * match changing when nothing about them had.
+             */
+            'temperature' => 0,
             /*
              * Gemini 3 reasons by default and it costs seconds, not
              * milliseconds — enough to blow the request timeout on its own.
@@ -464,6 +486,11 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
         $models = $this->models();
         $tried = [];
 
+        /* Every model resting on a spent quota: fall back at once, asking nobody. */
+        if ($models === []) {
+            return $this->logFailure('exhausted', 'every model is out of quota until it resets', '');
+        }
+
         foreach ($models as $model) {
             $secondsLeft = $deadline - microtime(true);
 
@@ -502,6 +529,10 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
                 return $this->logFailure('rejected', 'HTTP '.$response->status(), implode(', ', $tried));
             }
 
+            if ($response->status() === 429) {
+                $this->restUntilQuotaResets($model, $response->body());
+            }
+
             $busyStatus = $response->status();
         }
 
@@ -527,10 +558,47 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
      */
     protected function models(): array
     {
-        return array_values(array_unique(array_filter([
-            (string) config('gemini.model'),
-            ...(array) config('gemini.fallback_models'),
-        ])));
+        return array_values(array_filter(
+            array_unique(array_filter([
+                (string) config('gemini.model'),
+                ...(array) config('gemini.fallback_models'),
+            ])),
+            fn (string $model): bool => ! Cache::has(self::EXHAUSTED_KEY.$model),
+        ));
+    }
+
+    /**
+     * Leave a model alone until its quota comes back.
+     *
+     * A daily quota (GenerateRequestsPerDay...) resets at midnight Pacific
+     * time, so the model rests until then. Any other 429 is a per-minute
+     * limit, and rests for as long as Google's retryDelay says — a minute
+     * when it says nothing.
+     */
+    protected function restUntilQuotaResets(string $model, string $body): void
+    {
+        if (str_contains($body, 'PerDay')) {
+            Cache::put(self::EXHAUSTED_KEY.$model, true, now('America/Los_Angeles')->addDay()->startOfDay());
+
+            return;
+        }
+
+        $seconds = preg_match('/"retryDelay":\s*"(\d+)(?:\.\d+)?s"/', $body, $match) === 1 ? (int) $match[1] : 60;
+
+        Cache::put(self::EXHAUSTED_KEY.$model, true, now()->addSeconds(max(1, $seconds)));
+    }
+
+    /**
+     * A short digest of which briefs were put to the model, and as of when.
+     *
+     * @param  Collection<int, Project>  $briefs
+     */
+    protected function fingerprint(Collection $briefs): string
+    {
+        return md5($briefs
+            ->map(fn (Project $project): string => $project->id.':'.$project->updated_at?->timestamp)
+            ->sort()
+            ->join(','));
     }
 
     /**

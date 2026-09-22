@@ -65,7 +65,7 @@ class InviteStudentRequest extends FormRequest
 
             $student = User::query()->find($this->integer('user_id'));
 
-            if ($student?->holdsProjectInHand()) {
+            if ($student?->isLockedToProject()) {
                 $validator->errors()->add(
                     'user_id',
                     __(':name has already accepted an invitation from another client, so they cannot be invited right now. They become available again once that project is finished.', ['name' => $student->name]),

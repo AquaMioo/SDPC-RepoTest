@@ -108,6 +108,20 @@ class Team extends Model
     }
 
     /**
+     * Determine if the team is working on a client's build.
+     *
+     * A student team works on its leader's project: the leader holds the
+     * accepted application and signed the agreement, and everyone on the team
+     * is tied to that build until the client completes it.
+     */
+    public function isBuilding(): bool
+    {
+        $owner = $this->owner();
+
+        return $owner instanceof User && $owner->holdsProjectInHand();
+    }
+
+    /**
      * Get all members of this team.
      *
      * @return BelongsToMany<User, $this, Membership, 'pivot'>

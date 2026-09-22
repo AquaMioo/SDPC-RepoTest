@@ -1538,6 +1538,7 @@ export default function Messages({
                                     <Btn
                                         variant="primary"
                                         type="submit"
+                                        className="composer-send"
                                         disabled={
                                             form.processing ||
                                             (form.data.body.trim() === '' &&

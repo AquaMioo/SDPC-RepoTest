@@ -1,5 +1,5 @@
 import { PencilSimpleIcon } from '@phosphor-icons/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 
 import type { Phase, TaskStatus } from '@/components/project-management/types';
@@ -8,8 +8,8 @@ import { Panel } from '@/components/sdpc/panel';
 import {
     dayNumber,
     isoFromDayNumber,
-    monthLabel,
-    monthStarts,
+    minimumAxisWidth,
+    monthTicks,
     shortDate,
     todayDayNumber,
 } from '@/lib/calendar-days';
@@ -58,10 +58,29 @@ export function PhaseTimeline({
 }) {
     const [drag, setDrag] = useState<Drag | null>(null);
     const trackRef = useRef<HTMLDivElement | null>(null);
+    /* Measured, so the month axis knows how much room each label really has. */
+    const [trackWidth, setTrackWidth] = useState(0);
 
     const dated = phases.filter(
         (phase) => phase.startsOn !== null && phase.endsOn !== null,
     );
+    const hasChart = dated.length > 0;
+
+    useEffect(() => {
+        const track = trackRef.current;
+
+        if (!hasChart || track === null) {
+            return;
+        }
+
+        const observer = new ResizeObserver(([entry]) =>
+            setTrackWidth(entry.contentRect.width),
+        );
+
+        observer.observe(track);
+
+        return () => observer.disconnect();
+    }, [hasChart]);
 
     if (dated.length === 0) {
         return (
@@ -140,6 +159,56 @@ export function PhaseTimeline({
 
     const today = todayDayNumber();
 
+    /*
+     * The month axis. Labels are thinned to fit the measured width (every 2nd,
+     * 3rd, 6th or 12th month on a long build) and carry the year where it
+     * changes, and the chart keeps a minimum width per month, scrolling in its
+     * own box rather than squeezing, so far-apart Design, Build and Turnover
+     * dates no longer print their months on top of each other.
+     */
+    const ticks = monthTicks(from, to, trackWidth > 0 ? trackWidth / total : 2);
+    const chartMinWidth = Math.max(
+        560,
+        84 + 150 + 24 + minimumAxisWidth(total),
+    );
+
+    /* Keep the first and last labels inside the chart instead of half off it. */
+    const tickShift = (day: number) => {
+        const x = ((day - from) / total) * trackWidth;
+
+        if (x < 28) {
+            return 'translateX(0)';
+        }
+
+        if (x > trackWidth - 28) {
+            return 'translateX(-100%)';
+        }
+
+        return 'translateX(-50%)';
+    };
+
+    /*
+     * Where a task's dot sits on its bar: at its deadline when it has one, so
+     * the bar reads as a schedule; evenly spaced when it has none.
+     */
+    const dotLeft = (
+        phase: Phase,
+        index: number,
+        start: number,
+        end: number,
+    ) => {
+        const task = phase.tasks[index];
+
+        if (task.dueOn === null) {
+            return `${((index + 1) / (phase.tasks.length + 1)) * 100}%`;
+        }
+
+        const fraction =
+            (dayNumber(task.dueOn) - start + 0.5) / (end - start + 1);
+
+        return `${Math.min(Math.max(fraction, 0.06), 0.94) * 100}%`;
+    };
+
     const beginDrag = (
         event: ReactPointerEvent<HTMLElement>,
         phase: Phase,
@@ -194,9 +263,10 @@ export function PhaseTimeline({
         <Panel padding="lg" gap="md">
             <TimelineTitle canEdit={canEdit} />
 
-            {/* Too wide to shrink onto a phone: it scrolls in its own box. */}
+            {/* Too wide to shrink onto a phone, or to fit a long build: it
+                scrolls in its own box. */}
             <div className="scroll-x">
-                <div style={{ minWidth: 560 }}>
+                <div style={{ minWidth: chartMinWidth }}>
                     <div
                         style={{
                             display: 'grid',
@@ -212,19 +282,20 @@ export function PhaseTimeline({
                             ref={trackRef}
                             style={{ position: 'relative', height: 16 }}
                         >
-                            {monthStarts(from, to).map((day) => (
+                            {ticks.map((tick) => (
                                 <span
-                                    key={day}
+                                    key={tick.day}
                                     style={{
                                         position: 'absolute',
-                                        left: pct(day),
+                                        left: pct(tick.day),
                                         fontSize: 10.5,
                                         letterSpacing: '0.06em',
+                                        whiteSpace: 'nowrap',
                                         color: MUTED(50),
-                                        transform: 'translateX(-50%)',
+                                        transform: tickShift(tick.day),
                                     }}
                                 >
-                                    {monthLabel(day)}
+                                    {tick.label}
                                 </span>
                             ))}
                         </div>
@@ -279,6 +350,20 @@ export function PhaseTimeline({
                                             background: MUTED(6),
                                         }}
                                     >
+                                        {/* A faint line under each labelled month. */}
+                                        {ticks.map((tick) => (
+                                            <span
+                                                key={tick.day}
+                                                aria-hidden="true"
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: pct(tick.day),
+                                                    top: 0,
+                                                    bottom: 0,
+                                                    borderLeft: `1px solid ${MUTED(8)}`,
+                                                }}
+                                            />
+                                        ))}
                                         {today >= from && today <= to && (
                                             <span
                                                 aria-hidden="true"
@@ -295,8 +380,16 @@ export function PhaseTimeline({
 
                                         <div
                                             role={canEdit ? 'slider' : 'img'}
+                                            className="pm-bar"
                                             aria-label={`${phase.title}: ${shortDate(isoFromDayNumber(start))} to ${shortDate(isoFromDayNumber(end))}, ${phase.progress}% verified`}
                                             onPointerDown={(event) =>
+                                                /*
+                                                 * Turnover's end is the final
+                                                 * deadline, which only the
+                                                 * client moves: its bar cannot
+                                                 * be slid, only its start.
+                                                 */
+                                                !phase.isTurnover &&
                                                 beginDrag(event, phase, 'move')
                                             }
                                             onPointerMove={moveDrag}
@@ -318,11 +411,12 @@ export function PhaseTimeline({
                                                 boxShadow: isDragging
                                                     ? '0 0 0 2px var(--color-accent)'
                                                     : undefined,
-                                                cursor: canEdit
-                                                    ? isDragging
-                                                        ? 'grabbing'
-                                                        : 'grab'
-                                                    : 'default',
+                                                cursor:
+                                                    canEdit && !phase.isTurnover
+                                                        ? isDragging
+                                                            ? 'grabbing'
+                                                            : 'grab'
+                                                        : 'default',
                                                 touchAction: canEdit
                                                     ? 'none'
                                                     : undefined,
@@ -349,8 +443,13 @@ export function PhaseTimeline({
                                                 <TaskDot
                                                     key={task.id}
                                                     status={task.status}
-                                                    left={`${((index + 1) / (phase.tasks.length + 1)) * 100}%`}
-                                                    title={`${task.title} — ${task.statusLabel}`}
+                                                    left={dotLeft(
+                                                        phase,
+                                                        index,
+                                                        start,
+                                                        end,
+                                                    )}
+                                                    title={`${task.title} — ${task.statusLabel}${task.dueOn ? ` · due ${shortDate(task.dueOn)}` : ''}`}
                                                 />
                                             ))}
 
@@ -373,23 +472,27 @@ export function PhaseTimeline({
                                                             endDrag(phase)
                                                         }
                                                     />
-                                                    <Handle
-                                                        side="right"
-                                                        label={`Change when ${phase.title} ends`}
-                                                        onPointerDown={(
-                                                            event,
-                                                        ) =>
-                                                            beginDrag(
+                                                    {!phase.isTurnover && (
+                                                        <Handle
+                                                            side="right"
+                                                            label={`Change when ${phase.title} ends`}
+                                                            onPointerDown={(
                                                                 event,
-                                                                phase,
-                                                                'end',
-                                                            )
-                                                        }
-                                                        onPointerMove={moveDrag}
-                                                        onPointerUp={() =>
-                                                            endDrag(phase)
-                                                        }
-                                                    />
+                                                            ) =>
+                                                                beginDrag(
+                                                                    event,
+                                                                    phase,
+                                                                    'end',
+                                                                )
+                                                            }
+                                                            onPointerMove={
+                                                                moveDrag
+                                                            }
+                                                            onPointerUp={() =>
+                                                                endDrag(phase)
+                                                            }
+                                                        />
+                                                    )}
                                                 </>
                                             )}
                                         </div>

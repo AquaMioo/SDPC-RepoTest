@@ -47,3 +47,14 @@ the block back; the response header `cf-placement: remote-SIN` proves it is on. 
 relays only POST .../models/<model>:generateContent and only for SDPC's key, which it holds as a
 SHA-256, so rotating GEMINI_API_KEY means updating KEY_SHA256 in the Worker too. Its source
 lives on Cloudflare (Workers & Pages -> sdpc-gemini), not in this repo.
+
+## Gemini speed: deferred ranking, quota rest, fingerprinted cache, temperature 0
+Board and Recruit paint first; the ranked list (projects/students, highlight, matchingEnabled) arrives as ONE deferred group named `ranking` behind components/sdpc/list-skeleton.tsx. Tests read it with loadDeferredProps('ranking', …) — asserting those props on the first response fails.
+
+rankedByScope returns its scores with the page so the cards reuse them; do not score a brief twice (it used to call Gemini twice per Recruit search).
+
+temperature 0, so the same inputs give the same ranking. Board and capstone cache keys include fingerprint($briefs) of the current postings, so a new or edited posting misses the cache instead of being invisible until expiry.
+
+A 429 whose body says `PerDay` rests that model until midnight America/Los_Angeles (when Google resets the daily quota); any other 429 rests for the body's retryDelay (default 60s). Rests are cache keys `gemini.exhausted.<model>`. When every model is resting, ask() falls back to computed matching immediately with log reason `exhausted` — no HTTP call.
+
+No background pre-warming: the free quota (20/day on gemini-3.6-flash, shared by sdpc.tech and demo.sdpc.tech) would be spent on rankings nobody opens.

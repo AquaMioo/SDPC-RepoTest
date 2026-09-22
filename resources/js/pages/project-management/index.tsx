@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { LockSimpleIcon } from '@phosphor-icons/react';
+import { FlagCheckeredIcon, LockSimpleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -54,7 +54,9 @@ export default function ProjectManagement({
     side,
     agreements,
     agreement,
+    completedAgreements,
     can,
+    isLocked,
     pendingAgreementId,
     applications,
 }: ProjectManagementProps) {
@@ -67,6 +69,7 @@ export default function ProjectManagement({
 
             <div
                 className="page-shell"
+                data-motion=""
                 style={{
                     maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
@@ -126,7 +129,9 @@ export default function ProjectManagement({
 
                     {/* Only once there is an agreement. Before that the locked
                         panel below carries the same link, and three buttons to
-                        one page read as three different things (QA). */}
+                        one page read as three different things (QA). A student
+                        tied to a build is offered no way to more work: they
+                        cannot take any until the client completes it. */}
                     {agreement !== null &&
                         (side === 'client' ? (
                             <Btn asChild variant="secondary">
@@ -135,11 +140,13 @@ export default function ProjectManagement({
                                 </Link>
                             </Btn>
                         ) : (
-                            <Btn asChild variant="secondary">
-                                <Link href={boardIndex.url(team.slug)}>
-                                    Find more work
-                                </Link>
-                            </Btn>
+                            !isLocked && (
+                                <Btn asChild variant="secondary">
+                                    <Link href={boardIndex.url(team.slug)}>
+                                        Find more work
+                                    </Link>
+                                </Btn>
+                            )
                         ))}
 
                     {agreement !== null && (
@@ -157,6 +164,7 @@ export default function ProjectManagement({
                         side={side}
                         teamSlug={team.slug}
                         pendingAgreementId={pendingAgreementId}
+                        isLocked={isLocked}
                     />
                 ) : (
                     <Workspace
@@ -164,13 +172,24 @@ export default function ProjectManagement({
                         teamSlug={team.slug}
                         canManage={can.manage}
                         canVerify={can.verify}
+                        canComplete={can.complete}
                         onEditDates={setScheduling}
                     />
                 )}
 
-                {side === 'student' && (
+                {/* Like "Your postings" for a client with a build running: a
+                    student on one has no applications to manage. */}
+                {side === 'student' && !isLocked && (
                     <ApplicationsSection
                         applications={applications}
+                        teamSlug={team.slug}
+                    />
+                )}
+
+                {completedAgreements.length > 0 && (
+                    <CompletedProjects
+                        projects={completedAgreements}
+                        selectedId={agreement?.id ?? null}
                         teamSlug={team.slug}
                     />
                 )}
@@ -197,15 +216,18 @@ function Workspace({
     teamSlug,
     canManage,
     canVerify,
+    canComplete,
     onEditDates,
 }: {
     agreement: ManagedAgreement;
     teamSlug: string;
     canManage: boolean;
     canVerify: boolean;
+    canComplete: boolean;
     onEditDates: (phase: Phase) => void;
 }) {
     const { summary } = agreement;
+    const daysLeft = summary.daysToFinalDeadline;
 
     /*
      * Dragging a bar moves it at once and asks the server afterwards: a bar
@@ -255,6 +277,31 @@ function Workspace({
 
     return (
         <>
+            {agreement.isCompleted && (
+                <Panel
+                    padding="lg"
+                    gap="sm"
+                    className="pm-reveal"
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 12,
+                        background:
+                            'color-mix(in srgb, var(--color-accent) 9%, transparent)',
+                    }}
+                >
+                    <FlagCheckeredIcon style={{ fontSize: 20, flex: 'none' }} />
+                    <span style={{ fontSize: 13.5 }}>
+                        Completed
+                        {agreement.completedOn
+                            ? ` on ${agreement.completedOn}`
+                            : ''}
+                        . This is the record of what was delivered, so nothing
+                        here can be changed.
+                    </span>
+                </Panel>
+            )}
+
             <div
                 style={{
                     display: 'flex',
@@ -270,6 +317,32 @@ function Workspace({
                     </strong>{' '}
                     tasks verified
                 </span>
+                {summary.finalDeadline && !agreement.isCompleted && (
+                    <span
+                        style={{
+                            color:
+                                daysLeft !== null && daysLeft < 0
+                                    ? 'var(--destructive)'
+                                    : undefined,
+                        }}
+                    >
+                        Final deadline {shortDate(summary.finalDeadline)}
+                        {daysLeft === null
+                            ? ''
+                            : daysLeft > 1
+                              ? ` · ${daysLeft} days left`
+                              : daysLeft === 1
+                                ? ' · 1 day left'
+                                : daysLeft === 0
+                                  ? ' · today'
+                                  : ` · ${Math.abs(daysLeft)} days over`}
+                    </span>
+                )}
+                {summary.overdueTaskCount > 0 && !agreement.isCompleted && (
+                    <span style={{ color: 'var(--destructive)' }}>
+                        {summary.overdueTaskCount} overdue
+                    </span>
+                )}
                 {summary.submittedCount > 0 && (
                     <span>{summary.submittedCount} pending client review</span>
                 )}
@@ -362,9 +435,81 @@ function Workspace({
                     agreementId={agreement.id}
                     canManage={canManage}
                     canVerify={canVerify}
+                    finalDeadline={agreement.finalDeadline}
+                    finalDeadlineRequest={agreement.finalDeadlineRequest}
+                    completion={
+                        phase.isTurnover && canComplete
+                            ? {
+                                  projectTitle: agreement.projectTitle,
+                                  unverifiedCount:
+                                      summary.taskCount - summary.verifiedCount,
+                              }
+                            : null
+                    }
                 />
             ))}
         </>
+    );
+}
+
+/**
+ * Builds the client completed, kept as the record of what was delivered.
+ */
+function CompletedProjects({
+    projects,
+    selectedId,
+    teamSlug,
+}: {
+    projects: ProjectManagementProps['completedAgreements'];
+    selectedId: number | null;
+    teamSlug: string;
+}) {
+    return (
+        <Panel padding="lg" gap="sm" className="pm-reveal">
+            <span
+                style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                }}
+            >
+                Completed projects
+            </span>
+            <div style={{ display: 'grid', gap: 6 }}>
+                {projects.map((project) => (
+                    <Link
+                        key={project.id}
+                        href={projectManagement.url(teamSlug, {
+                            query: { agreement: project.id },
+                        })}
+                        preserveScroll={false}
+                        data-quiet=""
+                        className="pm-task"
+                        aria-current={
+                            project.id === selectedId ? 'page' : undefined
+                        }
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                        }}
+                    >
+                        <FlagCheckeredIcon style={{ flex: 'none' }} />
+                        <span style={{ fontSize: 13, marginRight: 'auto' }}>
+                            {project.projectTitle} · {project.counterpart}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: MUTED(58) }}>
+                            {project.reference}
+                            {project.completedOn
+                                ? ` · completed ${project.completedOn}`
+                                : ''}
+                        </span>
+                    </Link>
+                ))}
+            </div>
+        </Panel>
     );
 }
 
@@ -372,10 +517,13 @@ function LockedPanel({
     side,
     teamSlug,
     pendingAgreementId,
+    isLocked,
 }: {
     side: 'student' | 'client';
     teamSlug: string;
     pendingAgreementId: number | null;
+    /** A student already taken on, waiting for the agreement to be signed. */
+    isLocked: boolean;
 }) {
     return (
         <Panel padding="lg" gap="md" style={{ alignItems: 'flex-start' }}>
@@ -428,11 +576,13 @@ function LockedPanel({
                         </Link>
                     </Btn>
                 ) : (
-                    <Btn asChild variant="secondary">
-                        <Link href={boardIndex.url(teamSlug)}>
-                            Find clients
-                        </Link>
-                    </Btn>
+                    !isLocked && (
+                        <Btn asChild variant="secondary">
+                            <Link href={boardIndex.url(teamSlug)}>
+                                Find clients
+                            </Link>
+                        </Btn>
+                    )
                 )}
             </div>
         </Panel>

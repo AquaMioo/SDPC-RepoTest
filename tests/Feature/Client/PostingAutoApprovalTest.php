@@ -110,9 +110,9 @@ class PostingAutoApprovalTest extends TestCase
         // No admin step in between — that is the whole point of the flag.
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->has('projects.data', 1)
-                ->where('projects.data.0.title', 'Inventory System'));
+                ->where('projects.data.0.title', 'Inventory System')));
     }
 
     /**

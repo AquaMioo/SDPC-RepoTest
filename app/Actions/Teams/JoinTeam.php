@@ -106,6 +106,17 @@ class JoinTeam
             return __('Only students can be invited to a team.');
         }
 
+        /*
+         * A student on a build stays with it. A teammate is also caught below
+         * (they already sit on someone else's team); this is for the student
+         * who holds the project with a team of one.
+         */
+        if ($user->isLockedToProject() && ! ($joining !== null && $user->belongsToTeam($joining))) {
+            return $toThemselves
+                ? __('You are working on a project, so you cannot join another team until the client completes it.')
+                : __(':name is working on a project, so they cannot join another team until the client completes it.', ['name' => $user->name]);
+        }
+
         foreach ($user->teams()->get() as $current) {
             if ($joining !== null && $current->is($joining)) {
                 continue;

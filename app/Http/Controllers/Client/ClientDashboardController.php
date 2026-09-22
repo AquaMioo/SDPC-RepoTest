@@ -8,9 +8,11 @@ use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\SiteContentKey;
+use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementTask;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -145,7 +147,7 @@ class ClientDashboardController extends Controller
     }
 
     /**
-     * Dated milestones, so the calendar marks something real.
+     * Dated phases and task deadlines, so the calendar marks something real.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -157,7 +159,7 @@ class ClientDashboardController extends Controller
          * when the work is actually expected, the same dates Project
          * Management draws.
          */
-        return AgreementMilestone::query()
+        $phases = AgreementMilestone::query()
             ->whereHas(
                 'agreement',
                 fn (Builder $query) => $query
@@ -167,15 +169,55 @@ class ClientDashboardController extends Controller
             ->where(fn (Builder $query) => $query->whereNotNull('ends_on')->orWhereNotNull('planned_ends_on'))
             ->with('agreement.project:id,slug')
             ->get()
-            ->sortBy(fn (AgreementMilestone $milestone): string => (string) $milestone->scheduledEndsOn()?->toDateString())
             ->map(fn (AgreementMilestone $milestone): array => [
                 'id' => $milestone->id,
+                'kind' => 'phase',
                 'title' => $milestone->title,
                 'date' => $milestone->scheduledEndsOn()?->toDateString(),
                 'label' => $milestone->scheduledEndsOn()?->format('j M Y'),
                 'projectSlug' => $milestone->agreement->project->slug,
                 'isDone' => $milestone->status === MilestoneStatus::Approved,
-            ])
+            ]);
+
+        /*
+         * Every task deadline too, and every date the student is asking to
+         * move one to, so an approval shows up here the moment it is given
+         * rather than only inside Project Management.
+         */
+        $tasks = AgreementTask::query()
+            ->whereNotNull('due_on')
+            ->whereHas('milestone.agreement', fn (Builder $query) => $query
+                ->where('team_id', $team->id)
+                ->where('status', AgreementStatus::Active))
+            ->with(['milestone.agreement.project:id,slug', 'pendingDeadlineRequest'])
+            ->get();
+
+        $taskEvents = $tasks->map(fn (AgreementTask $task): array => [
+            'id' => $task->id,
+            'kind' => 'task',
+            'title' => $task->title,
+            'date' => $task->due_on?->toDateString(),
+            'label' => $task->due_on?->format('j M Y'),
+            'projectSlug' => $task->milestone->agreement->project->slug,
+            'isDone' => $task->status === TaskStatus::Verified,
+        ]);
+
+        $requestEvents = $tasks
+            ->filter(fn (AgreementTask $task): bool => $task->pendingDeadlineRequest !== null)
+            ->map(fn (AgreementTask $task): array => [
+                'id' => $task->pendingDeadlineRequest->id,
+                'kind' => 'request',
+                'title' => __(':task (new date asked for)', ['task' => $task->title]),
+                'date' => $task->pendingDeadlineRequest->proposed_on->toDateString(),
+                'label' => $task->pendingDeadlineRequest->proposed_on->format('j M Y'),
+                'projectSlug' => $task->milestone->agreement->project->slug,
+                'isDone' => false,
+            ]);
+
+        return $phases
+            ->concat($taskEvents)
+            ->concat($requestEvents)
+            ->sortBy(fn (array $event): string => (string) $event['date'])
             ->values()
             ->all();
     }

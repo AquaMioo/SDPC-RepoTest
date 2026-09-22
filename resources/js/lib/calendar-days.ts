@@ -74,3 +74,69 @@ export function monthStarts(from: number, to: number): number[] {
 
     return starts;
 }
+
+/** Roughly how many days a month spans, for spacing an axis. */
+const DAYS_PER_MONTH = 30.44;
+
+/** Every nth month an axis may label, from densest to sparsest. */
+const MONTH_STEPS = [1, 2, 3, 6, 12] as const;
+
+/** "2026" for a day count. */
+function yearOf(days: number): number {
+    return new Date(days * MS_PER_DAY).getUTCFullYear();
+}
+
+/** 0 for January … 11 for December, for a day count. */
+function monthIndexOf(days: number): number {
+    return new Date(days * MS_PER_DAY).getUTCMonth();
+}
+
+/**
+ * The month starts worth labelling on an axis of a given density.
+ *
+ * Every month when there is room for it; otherwise every 2nd, 3rd, 6th or
+ * 12th, always on calendar-aligned months (Jan/Apr/Jul/Oct for quarters) so a
+ * reader can count along them. Labels never come closer than `minGapPx`, which
+ * is what stopped a two-year build from printing 24 labels on top of each
+ * other. The year is written on the first label and on every January, so an
+ * axis that crosses New Year says which one.
+ */
+export function monthTicks(
+    from: number,
+    to: number,
+    pxPerDay: number,
+    minGapPx = 56,
+): { day: number; label: string }[] {
+    const starts = monthStarts(from, to);
+
+    if (starts.length === 0) {
+        return [];
+    }
+
+    const monthPx = pxPerDay * DAYS_PER_MONTH;
+    const step =
+        MONTH_STEPS.find((each) => monthPx * each >= minGapPx) ??
+        MONTH_STEPS[MONTH_STEPS.length - 1];
+
+    const chosen = starts.filter((day) => monthIndexOf(day) % step === 0);
+    const ticks = chosen.length > 0 ? chosen : [starts[0]];
+
+    return ticks.map((day, index) => {
+        const needsYear =
+            index === 0 ||
+            monthIndexOf(day) === 0 ||
+            yearOf(day) !== yearOf(ticks[index - 1]);
+
+        return {
+            day,
+            label: needsYear
+                ? `${monthLabel(day)} ${yearOf(day)}`
+                : monthLabel(day),
+        };
+    });
+}
+
+/** The pixel width an axis needs so no month gets less than `pxPerMonth`. */
+export function minimumAxisWidth(totalDays: number, pxPerMonth = 64): number {
+    return Math.ceil((totalDays / DAYS_PER_MONTH) * pxPerMonth);
+}

@@ -97,11 +97,16 @@ class CreateNewUser implements CreatesNewUsers
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'email' => $email,
-                // An account made through Google, Microsoft or a school-email
-                // code never gets a password. A student signs back in with a
-                // code or a bound Google account; anyone may still set one
-                // through the password reset flow.
-                'password' => $google !== null || $microsoft !== null || $schoolEmail !== null ? null : $input['password'],
+                // An account made through Google or Microsoft never gets a
+                // password. A student who proved their school address with a
+                // code gets one only if they chose it on the last step, and
+                // may set one later from Settings; otherwise they sign back
+                // in with a code or a bound Google account.
+                'password' => match (true) {
+                    $google !== null, $microsoft !== null => null,
+                    $schoolEmail !== null => filled($input['password'] ?? null) ? $input['password'] : null,
+                    default => $input['password'],
+                },
                 'role' => $role,
                 'google_id' => $google['google_id'] ?? null,
                 'google_email' => $google['email'] ?? null,

@@ -41,6 +41,9 @@ class SummariseProgress
      *     currentPhase: array{id: int, title: string}|null,
      *     nextMilestone: array{title: string, dueOn: string|null}|null,
      *     dueOn: string|null,
+     *     finalDeadline: string|null,
+     *     daysToFinalDeadline: int|null,
+     *     overdueTaskCount: int,
      *     phases: list<array{id: int, title: string, progress: int, verifiedCount: int, taskCount: int, state: string, isDone: bool}>
      * }
      */
@@ -74,11 +77,20 @@ class SummariseProgress
                 'title' => $next->title,
                 'dueOn' => $next->scheduledEndsOn()?->format('j M Y'),
             ],
-            'dueOn' => $milestones
-                ->map(fn (AgreementMilestone $milestone) => $milestone->scheduledEndsOn())
-                ->filter()
-                ->max()
-                ?->format('j M Y'),
+            /*
+             * The final deadline: the end of Turnover, the last phase. It ends
+             * the project, every task is due on or before it, and it only
+             * moves with the client's approval (DeadlineChangeRequestController).
+             */
+            'dueOn' => $agreement->finalDeadline()?->format('j M Y'),
+            'finalDeadline' => $agreement->finalDeadline()?->toDateString(),
+            /* Negative once it has passed with the project still running. */
+            'daysToFinalDeadline' => $agreement->finalDeadline() === null
+                ? null
+                : (int) today()->diffInDays($agreement->finalDeadline(), absolute: false),
+            'overdueTaskCount' => $milestones->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks
+                ->filter(fn (AgreementTask $task): bool => $task->isOverdue())
+                ->count()),
             'phases' => $milestones
                 ->map(fn (AgreementMilestone $milestone): array => [
                     'id' => $milestone->id,

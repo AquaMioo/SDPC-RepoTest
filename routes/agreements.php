@@ -5,7 +5,9 @@ use App\Http\Controllers\Agreements\AgreementController;
 use App\Http\Controllers\Agreements\AgreementMilestoneController;
 use App\Http\Controllers\Agreements\AgreementSignatureController;
 use App\Http\Controllers\Agreements\AgreementTaskController;
+use App\Http\Controllers\Agreements\DeadlineChangeRequestController;
 use App\Http\Controllers\Agreements\PhaseScheduleController;
+use App\Http\Controllers\Agreements\ProjectCompletionController;
 use App\Http\Controllers\Agreements\ProjectManagementController;
 use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -100,4 +102,23 @@ Route::prefix('{current_team}')
 
         Route::get('agreements/{agreement}/tasks/{task}/proof', [AgreementTaskController::class, 'proof'])
             ->name('agreements.tasks.proof');
+
+        /*
+         * Moving a deadline once it is set: the student side asks, the client
+         * decides. See DeadlineChangeRequestController.
+         */
+        Route::post('agreements/{agreement}/tasks/{task}/deadline-requests', [DeadlineChangeRequestController::class, 'storeForTask'])
+            ->name('agreements.tasks.deadline-requests.store');
+        Route::post('agreements/{agreement}/milestones/{milestone}/deadline-requests', [DeadlineChangeRequestController::class, 'storeForFinalDeadline'])
+            ->name('agreements.milestones.deadline-requests.store');
+        Route::post('agreements/{agreement}/deadline-requests/{deadlineRequest}/approval', [DeadlineChangeRequestController::class, 'approve'])
+            ->name('agreements.deadline-requests.approve');
+        Route::post('agreements/{agreement}/deadline-requests/{deadlineRequest}/decline', [DeadlineChangeRequestController::class, 'decline'])
+            ->name('agreements.deadline-requests.decline');
+        Route::delete('agreements/{agreement}/deadline-requests/{deadlineRequest}', [DeadlineChangeRequestController::class, 'destroy'])
+            ->name('agreements.deadline-requests.destroy');
+
+        /* The client accepts the turnover. Final: see ProjectCompletionController. */
+        Route::post('agreements/{agreement}/completion', [ProjectCompletionController::class, 'store'])
+            ->name('agreements.completion.store');
     });

@@ -10,7 +10,7 @@ const MUTED = (pct: number) =>
 type SkillPickerProps = {
     value: string[];
     onChange: (skills: string[]) => void;
-    /** The catalogue typing is matched against. */
+    /** The technologies a student may pick from — nothing else is accepted. */
     suggestions: { name: string }[];
     /** The ceiling the server enforces, mirrored here so it can be said. */
     max: number;
@@ -25,8 +25,10 @@ type SkillPickerProps = {
  * cannot show that a skill is already picked or that the ceiling is reached.
  * This draws its own list so all three are visible in the same place.
  *
- * Free text is still allowed on Enter. The catalogue is a convenience, not a
- * gate — a student whose skill is not on the list is not thereby without it.
+ * Technologies only, picked from the list. Free text used to be accepted on
+ * Enter, which is how "Microsoft Word" reached profiles; now Enter takes the
+ * closest technology on the list, and a word that matches none says so rather
+ * than being added. The server refuses anything off the list either way.
  */
 export default function SkillPicker({
     value,
@@ -36,6 +38,7 @@ export default function SkillPicker({
     id,
 }: SkillPickerProps) {
     const [draft, setDraft] = useState('');
+    const [notOnList, setNotOnList] = useState<string | null>(null);
 
     const full = value.length >= max;
 
@@ -58,11 +61,24 @@ export default function SkillPicker({
     }, [draft, suggestions, value]);
 
     const commit = (raw: string) => {
-        const skill = raw.trim();
+        const typed = raw.trim();
 
-        if (skill === '' || full) {
+        if (typed === '' || full) {
             return;
         }
+
+        /* Only what is on the list, spelled the way the list spells it. */
+        const skill = suggestions.find(
+            (each) => each.name.toLowerCase() === typed.toLowerCase(),
+        )?.name;
+
+        if (skill === undefined) {
+            setNotOnList(typed);
+
+            return;
+        }
+
+        setNotOnList(null);
 
         /* Case-insensitive, so "laravel" and "Laravel" are not both listed. */
         const already = value.some(
@@ -134,8 +150,11 @@ export default function SkillPicker({
                     id={id}
                     value={draft}
                     disabled={full}
-                    placeholder={full ? '' : 'Add a skill'}
-                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder={full ? '' : 'Add a technology'}
+                    onChange={(event) => {
+                        setDraft(event.target.value);
+                        setNotOnList(null);
+                    }}
                     onKeyDown={handleKeyDown}
                     style={{
                         flex: 1,
@@ -171,8 +190,22 @@ export default function SkillPicker({
             <div style={{ marginTop: 6, fontSize: 11.5, color: MUTED(55) }}>
                 {full
                     ? `That is the maximum of ${max} skills. Remove one to add another.`
-                    : `Maximum ${max} skills.`}
+                    : `Languages, frameworks, databases and tools. Maximum ${max} skills.`}
             </div>
+
+            {notOnList !== null && (
+                <div
+                    role="alert"
+                    style={{
+                        marginTop: 6,
+                        fontSize: 11.5,
+                        color: 'var(--destructive)',
+                    }}
+                >
+                    “{notOnList}” is not on the list. Only technologies can be
+                    added — pick one of the suggestions.
+                </div>
+            )}
 
             {matches.length > 0 && (
                 <ul

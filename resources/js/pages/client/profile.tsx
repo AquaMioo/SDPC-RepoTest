@@ -110,7 +110,10 @@ export default function ClientProfilePage({
         <>
             <Head title="Business profile" />
 
-            <div className="mx-auto max-w-[clamp(1320px,100vw_-_320px,1600px)] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8">
+            <div
+                data-motion=""
+                className="mx-auto max-w-[clamp(1320px,100vw_-_320px,1600px)] px-4 pt-[30px] pb-[72px] sm:px-6 lg:px-8"
+            >
                 <div className="mb-5 flex items-end gap-3">
                     <div className="mr-auto">
                         <h4 className="m-0">Business profile</h4>
@@ -238,7 +241,7 @@ export default function ClientProfilePage({
                             });
                         }}
                     >
-                        <Panel padding="lg" gap="lg">
+                        <Panel padding="lg" gap="lg" className="profile-card">
                             <div className="flex items-end gap-4">
                                 <div className="mr-auto">
                                     <h6 className="m-0">
@@ -431,7 +434,7 @@ function SectionCard({
     children: ReactNode;
 }) {
     return (
-        <Panel style={{ padding: 22, gap: 18 }}>
+        <Panel style={{ padding: 22, gap: 18 }} className="profile-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span
                     style={{

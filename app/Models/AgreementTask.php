@@ -5,9 +5,12 @@ namespace App\Models;
 use App\Enums\TaskStatus;
 use Database\Factories\AgreementTaskFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
@@ -22,6 +25,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int $position
  * @property string $title
  * @property string|null $description
+ * @property Carbon|null $due_on
  * @property TaskStatus $status
  * @property string|null $proof_note
  * @property string|null $proof_url
@@ -37,9 +41,11 @@ use Illuminate\Support\Facades\Storage;
  * @property-read AgreementMilestone $milestone
  * @property-read User|null $submitter
  * @property-read User|null $verifier
+ * @property-read Collection<int, DeadlineChangeRequest> $deadlineRequests
+ * @property-read DeadlineChangeRequest|null $pendingDeadlineRequest
  */
 #[Fillable([
-    'agreement_milestone_id', 'position', 'title', 'description', 'status',
+    'agreement_milestone_id', 'position', 'title', 'description', 'due_on', 'status',
     'proof_note', 'proof_url', 'proof_path', 'proof_name', 'submitted_at',
     'submitted_by', 'verified_at', 'verified_by', 'review_note',
 ])]
@@ -88,6 +94,38 @@ class AgreementTask extends Model
     }
 
     /**
+     * Get every ask to move this task's deadline, newest first.
+     *
+     * @return HasMany<DeadlineChangeRequest, $this>
+     */
+    public function deadlineRequests(): HasMany
+    {
+        return $this->hasMany(DeadlineChangeRequest::class)->latest('id');
+    }
+
+    /**
+     * Get the ask to move this task's deadline that is still waiting, if any.
+     *
+     * @return HasOne<DeadlineChangeRequest, $this>
+     */
+    public function pendingDeadlineRequest(): HasOne
+    {
+        return $this->hasOne(DeadlineChangeRequest::class)->pending()->latestOfMany();
+    }
+
+    /**
+     * Determine if the task's deadline has passed without the work being done.
+     *
+     * Verified work is never late: the client accepted it.
+     */
+    public function isOverdue(): bool
+    {
+        return $this->due_on !== null
+            && $this->status !== TaskStatus::Verified
+            && $this->due_on->lt(today());
+    }
+
+    /**
      * Determine if the task belongs to the given agreement.
      *
      * Checked by every task route: the URL names the agreement, and a task id
@@ -119,6 +157,7 @@ class AgreementTask extends Model
     {
         return [
             'status' => TaskStatus::class,
+            'due_on' => 'date',
             'submitted_at' => 'datetime',
             'verified_at' => 'datetime',
         ];

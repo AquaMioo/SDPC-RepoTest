@@ -83,13 +83,16 @@ class AgreementPolicy
      * agreement is active. Before that there is no work to track and nothing
      * anybody agreed to track it against.
      *
-     * Beyond the two parties, the signing student's own teammates may watch:
-     * a capstone group builds together. They read; they never write — see
-     * manageTasks().
+     * Beyond the two parties, the signing student's own teammates: a capstone
+     * group builds together.
+     *
+     * A completed agreement stays readable, as the record of what was
+     * delivered. Nothing on it can be written any more — every write ability
+     * below still requires Active.
      */
     public function viewProgress(User $user, Agreement $agreement): bool
     {
-        if ($agreement->status !== AgreementStatus::Active) {
+        if (! in_array($agreement->status, [AgreementStatus::Active, AgreementStatus::Completed], true)) {
             return false;
         }
 
@@ -100,15 +103,18 @@ class AgreementPolicy
     /**
      * Determine whether the user can write the checklist and move the timeline.
      *
-     * The student who signed, and only them: adding, editing, reordering and
-     * checking off tasks, and planning phase dates. A client is read-only here
-     * by design — the side that verifies work must not also be the side that
-     * defines and reports it.
+     * The student side: the student who signed and the teammates on their team,
+     * who are tied to this build (User::isLockedToProject) and so share the
+     * work of it — adding, editing, reordering and checking off tasks,
+     * planning phase dates and asking for a deadline to move. A client is
+     * read-only here by design: the side that verifies work must not also be
+     * the side that defines and reports it.
      */
     public function manageTasks(User $user, Agreement $agreement): bool
     {
         return $agreement->status === AgreementStatus::Active
-            && $this->partyFor($user, $agreement) === AgreementParty::Student;
+            && ($this->partyFor($user, $agreement) === AgreementParty::Student
+                || $this->isStudentsTeammate($user, $agreement));
     }
 
     /**
@@ -121,6 +127,20 @@ class AgreementPolicy
     {
         return $agreement->status === AgreementStatus::Active
             && $this->partyFor($user, $agreement) === AgreementParty::Client;
+    }
+
+    /**
+     * Determine whether the user can end the collaboration.
+     *
+     * The client accepts the turnover. Someone on the business who may manage
+     * its projects, on an agreement still in flight — completing is final, so
+     * it is not open to every member of the team.
+     */
+    public function complete(User $user, Agreement $agreement): bool
+    {
+        return $agreement->status === AgreementStatus::Active
+            && $this->partyFor($user, $agreement) === AgreementParty::Client
+            && $user->hasTeamPermission($agreement->team, TeamPermission::ManageProjects);
     }
 
     /**

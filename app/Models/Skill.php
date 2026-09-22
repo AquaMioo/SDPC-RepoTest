@@ -19,12 +19,13 @@ use Illuminate\Support\Str;
  * @property string $name
  * @property string $slug
  * @property SkillType $type
+ * @property bool $is_technology
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Collection<int, Project> $projects
  * @property-read Collection<int, StudentProfile> $studentProfiles
  */
-#[Fillable(['name', 'slug', 'type'])]
+#[Fillable(['name', 'slug', 'type', 'is_technology'])]
 class Skill extends Model
 {
     /** @use HasFactory<SkillFactory> */
@@ -119,7 +120,23 @@ class Skill extends Model
     {
         return [
             'type' => SkillType::class,
+            'is_technology' => 'boolean',
         ];
+    }
+
+    /**
+     * Scope to the skills a student may claim: technologies.
+     *
+     * Languages, frameworks, databases, the technical practices and the tools
+     * a build uses. A student's Skills card only offers these, so it says what
+     * someone can build with rather than which office programs they know.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function technology(Builder $query): void
+    {
+        $query->where('is_technology', true);
     }
 
     /**

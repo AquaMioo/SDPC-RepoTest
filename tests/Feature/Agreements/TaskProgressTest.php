@@ -86,7 +86,7 @@ class TaskProgressTest extends TestCase
         $design->update(['status' => MilestoneStatus::Approved, 'approved_at' => now()]);
 
         $this->actingAs($student)
-            ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design])), ['title' => 'Late addition'])
+            ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design])), ['title' => 'Late addition', 'due_on' => '2026-02-20'])
             ->assertSessionHasNoErrors();
 
         $design->refresh();

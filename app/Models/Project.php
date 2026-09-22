@@ -31,6 +31,7 @@ use Illuminate\Support\Str;
  * @property ProjectStatus $status
  * @property bool $applications_open
  * @property Carbon|null $published_at
+ * @property Carbon|null $completed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -44,7 +45,7 @@ use Illuminate\Support\Str;
 #[Fillable([
     'team_id', 'created_by', 'title', 'slug', 'description', 'objectives',
     'category', 'industry',
-    'status', 'applications_open', 'published_at',
+    'status', 'applications_open', 'published_at', 'completed_at',
 ])]
 class Project extends Model
 {
@@ -266,6 +267,7 @@ class Project extends Model
             'status' => ProjectStatus::class,
             'applications_open' => 'boolean',
             'published_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 

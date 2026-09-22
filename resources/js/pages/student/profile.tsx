@@ -11,11 +11,10 @@ import type { ReactNode } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
-import { Input, Select } from '@/components/sdpc/input';
+import { Input, Select, Textarea } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import {
-    AboutDialog,
     AccountDialog,
     EducationDialog,
     LanguageDialog,
@@ -68,7 +67,6 @@ type Props = {
         educationStartedOn: string | null;
         educationNote: string | null;
         githubUrl: string | null;
-        portfolioUrl: string | null;
         isAvailable: boolean;
         weeklyHours: number | null;
         availabilityNote: string | null;
@@ -110,7 +108,6 @@ export default function StudentProfilePage({
 }: Props) {
     const [photoOpen, setPhotoOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
-    const [aboutOpen, setAboutOpen] = useState(false);
     const [skillsOpen, setSkillsOpen] = useState(false);
     /* School, course and year level — the three filterable columns. */
     const [enrolmentOpen, setEnrolmentOpen] = useState(false);
@@ -158,6 +155,7 @@ export default function StudentProfilePage({
             <Head title="My profile" />
 
             <div
+                data-motion=""
                 style={{
                     maxWidth: 'clamp(1060px, 100vw - 320px, 1600px)',
                     margin: '0 auto',
@@ -398,51 +396,16 @@ export default function StudentProfilePage({
                     </div>
 
                     <div style={{ display: 'grid', gap: 16 }}>
-                        <Panel style={{ padding: 20, gap: 12 }}>
-                            <Heading
-                                editable={editable}
-                                onEdit={() => setAboutOpen(true)}
-                                label="Edit your introduction"
-                            >
-                                Student
-                            </Heading>
+                        <DescriptionCard
+                            editable={editable}
+                            headline={profile.headline}
+                            biography={profile.biography}
+                        />
 
-                            {profile.headline && (
-                                <div
-                                    style={{
-                                        fontSize: 13,
-                                        color: 'var(--color-accent)',
-                                    }}
-                                >
-                                    {profile.headline}
-                                </div>
-                            )}
-
-                            {profile.biography ? (
-                                profile.biography
-                                    .split(/\n{2,}/)
-                                    .map((paragraph, index) => (
-                                        <p
-                                            key={index}
-                                            style={{
-                                                margin: 0,
-                                                fontSize: 13,
-                                                lineHeight: 1.7,
-                                                color: MUTED(78),
-                                            }}
-                                        >
-                                            {paragraph}
-                                        </p>
-                                    ))
-                            ) : (
-                                <Empty>
-                                    Say what you build and who you build it for.
-                                    This is the first thing a client reads.
-                                </Empty>
-                            )}
-                        </Panel>
-
-                        <Panel style={{ padding: 20, gap: 12 }}>
+                        <Panel
+                            style={{ padding: 20, gap: 12 }}
+                            className="profile-card"
+                        >
                             <Heading
                                 editable={editable}
                                 onEdit={() => setSkillsOpen(true)}
@@ -481,7 +444,10 @@ export default function StudentProfilePage({
                             )}
                         </Panel>
 
-                        <Panel style={{ padding: 20, gap: 10 }}>
+                        <Panel
+                            style={{ padding: 20, gap: 10 }}
+                            className="profile-card"
+                        >
                             <Heading
                                 editable={editable}
                                 onEdit={() => setDetailsOpen(true)}
@@ -490,20 +456,13 @@ export default function StudentProfilePage({
                                 Links
                             </Heading>
 
-                            {profile.githubUrl === null &&
-                            profile.portfolioUrl === null ? (
+                            {profile.githubUrl === null ? (
                                 <Empty>No links yet.</Empty>
                             ) : (
-                                <>
-                                    <ExternalLink
-                                        label="GitHub"
-                                        href={profile.githubUrl}
-                                    />
-                                    <ExternalLink
-                                        label="Portfolio"
-                                        href={profile.portfolioUrl}
-                                    />
-                                </>
+                                <ExternalLink
+                                    label="GitHub"
+                                    href={profile.githubUrl}
+                                />
                             )}
                         </Panel>
                     </div>
@@ -524,13 +483,6 @@ export default function StudentProfilePage({
                 onOpenChange={setAccountOpen}
                 name={profile.name}
                 email={profile.email}
-            />
-
-            <AboutDialog
-                open={aboutOpen}
-                onOpenChange={setAboutOpen}
-                headline={profile.headline}
-                biography={profile.biography}
             />
 
             <EnrolmentDialog
@@ -569,6 +521,167 @@ export default function StudentProfilePage({
                 options={options}
             />
         </>
+    );
+}
+
+/**
+ * "Description" — the headline and the paragraphs under it, the card a client
+ * reads first.
+ *
+ * Edited in place: the pencil turns the card itself into the form, so a
+ * student writes their introduction where it will be read rather than in a
+ * dialog over it. It posts only these two fields.
+ */
+function DescriptionCard({
+    editable,
+    headline,
+    biography,
+}: {
+    editable: boolean;
+    headline: string | null;
+    biography: string | null;
+}) {
+    const team = useCurrentTeam();
+    const [editing, setEditing] = useState(false);
+
+    const form = useForm({
+        headline: headline ?? '',
+        biography: biography ?? '',
+    });
+
+    const start = () => {
+        /* Always from what is saved, not from an abandoned edit. */
+        form.setData({ headline: headline ?? '', biography: biography ?? '' });
+        form.clearErrors();
+        setEditing(true);
+    };
+
+    const save = () =>
+        form.patch(profileUpdate.url(team.slug), {
+            preserveScroll: true,
+            onSuccess: () => setEditing(false),
+        });
+
+    return (
+        <Panel
+            style={{ padding: 20, gap: 12 }}
+            className="profile-card"
+            data-editing={editing ? '' : undefined}
+        >
+            <Heading
+                editable={editable && !editing}
+                onEdit={start}
+                label="Edit your description"
+            >
+                Description
+            </Heading>
+
+            {editing ? (
+                <form
+                    className="profile-inline-form"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        save();
+                    }}
+                    style={{ display: 'grid', gap: 12 }}
+                >
+                    <div className="field">
+                        <label htmlFor="headline">Headline</label>
+                        <Input
+                            id="headline"
+                            value={form.data.headline}
+                            maxLength={255}
+                            autoFocus
+                            placeholder="Ex: Laravel and React developer · 4th year BSIT"
+                            onChange={(event) =>
+                                form.setData('headline', event.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.headline}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="biography">About you</label>
+                        <Textarea
+                            id="biography"
+                            rows={7}
+                            maxLength={5000}
+                            value={form.data.biography}
+                            placeholder="What you build, who you build it for, and how you work."
+                            onChange={(event) =>
+                                form.setData('biography', event.target.value)
+                            }
+                        />
+                        <InputError
+                            message={form.errors.biography}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 8,
+                            justifyContent: 'flex-end',
+                        }}
+                    >
+                        <Btn
+                            type="button"
+                            variant="ghost"
+                            disabled={form.processing}
+                            onClick={() => setEditing(false)}
+                        >
+                            Cancel
+                        </Btn>
+                        <Btn
+                            type="submit"
+                            variant="secondary"
+                            disabled={form.processing}
+                            data-test="save-description-button"
+                        >
+                            Save
+                        </Btn>
+                    </div>
+                </form>
+            ) : (
+                <>
+                    {headline && (
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: 'var(--color-accent)',
+                            }}
+                        >
+                            {headline}
+                        </div>
+                    )}
+
+                    {biography ? (
+                        biography.split(/\n{2,}/).map((paragraph, index) => (
+                            <p
+                                key={index}
+                                style={{
+                                    margin: 0,
+                                    fontSize: 13,
+                                    lineHeight: 1.7,
+                                    color: MUTED(78),
+                                }}
+                            >
+                                {paragraph}
+                            </p>
+                        ))
+                    ) : (
+                        <Empty>
+                            Say what you build and who you build it for. This is
+                            the first thing a client reads.
+                        </Empty>
+                    )}
+                </>
+            )}
+        </Panel>
     );
 }
 
@@ -637,7 +750,7 @@ function Card({
     children: ReactNode;
 }) {
     return (
-        <Panel style={{ padding: 16, gap: 10 }}>
+        <Panel style={{ padding: 16, gap: 10 }} className="profile-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span
                     style={{
@@ -839,7 +952,6 @@ function DetailsDialog({
     const form = useForm({
         barangay: profile.barangay ?? '',
         github_url: profile.githubUrl ?? '',
-        portfolio_url: profile.portfolioUrl ?? '',
         is_available: profile.isAvailable,
     });
 
@@ -908,22 +1020,6 @@ function DetailsDialog({
                         />
                         <InputError
                             message={form.errors.github_url}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
-
-                    <div className="field">
-                        <label htmlFor="portfolio_url">Portfolio site</label>
-                        <Input
-                            id="portfolio_url"
-                            value={form.data.portfolio_url}
-                            placeholder="https://you.dev"
-                            onChange={(e) =>
-                                form.setData('portfolio_url', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={form.errors.portfolio_url}
                             className="mt-1 text-[11px]"
                         />
                     </div>

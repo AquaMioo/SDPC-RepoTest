@@ -64,9 +64,9 @@ class AvatarEverywhereTest extends TestCase
 
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('students.data.0.avatarUrl', $this->uploadedUrl($student))
-            );
+            ));
     }
 
     public function test_the_applicant_list_draws_an_uploaded_picture_over_the_google_one(): void

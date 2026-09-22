@@ -426,6 +426,12 @@ function ProgressCard({ project }: { project: Props['project'] }) {
                             strokeDashoffset={
                                 circumference * (1 - progress / 100)
                             }
+                            className="progress-ring-offset"
+                            style={
+                                {
+                                    '--ring-circumference': circumference,
+                                } as React.CSSProperties
+                            }
                         />
                     )}
                 </svg>

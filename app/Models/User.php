@@ -7,6 +7,7 @@ use App\Concerns\HasTeams;
 use App\Contracts\StudentVerifier;
 use App\Enums\ApplicationStatus;
 use App\Enums\CredentialStatus;
+use App\Enums\TeamRole;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
@@ -382,6 +383,76 @@ class User extends Authenticatable implements PasskeyUser
             ->where('status', ApplicationStatus::Accepted)
             ->whereHas('project', fn (Builder $query) => $query->unfinished())
             ->exists();
+    }
+
+    /**
+     * Determine if the student is tied to a build and may not take another.
+     *
+     * Holding one yourself (holdsProjectInHand) or being on the team of the
+     * student who does. A teammate works on that same build, so they are spoken
+     * for too until the client completes it: no applying, no accepting an
+     * invitation, and no appearing on a client's Recruit list.
+     */
+    public function isLockedToProject(): bool
+    {
+        return static::query()->whereKey($this->id)->lockedToProject()->exists();
+    }
+
+    /**
+     * Get the student whose build this student is tied to.
+     *
+     * Themselves when they hold it, otherwise the leader of the team they are
+     * on. Null when they are free. The dashboard reads it, so a teammate sees
+     * the project they are working on rather than an empty page.
+     */
+    public function projectHolder(): ?self
+    {
+        if ($this->holdsProjectInHand()) {
+            return $this;
+        }
+
+        return static::query()
+            ->whereIn('id', static::projectHolderIds())
+            ->whereIn('id', Membership::query()
+                ->select('user_id')
+                ->where('role', TeamRole::Owner->value)
+                ->whereIn('team_id', Membership::query()->select('team_id')->where('user_id', $this->id)))
+            ->first();
+    }
+
+    /**
+     * Scope the query to students tied to a build, as isLockedToProject() means it.
+     *
+     * Written as subqueries so a list — the Recruit screen — can leave every
+     * locked student out in one query instead of asking each row.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeLockedToProject(Builder $query): void
+    {
+        $holdingTeams = Membership::query()
+            ->select('team_id')
+            ->where('role', TeamRole::Owner->value)
+            ->whereIn('user_id', static::projectHolderIds());
+
+        $query->where(fn (Builder $inner) => $inner
+            ->whereIn($query->qualifyColumn('id'), static::projectHolderIds())
+            ->orWhereIn($query->qualifyColumn('id'), Membership::query()
+                ->select('user_id')
+                ->whereIn('team_id', $holdingTeams)));
+    }
+
+    /**
+     * The ids of students accepted onto a posting that is not finished.
+     *
+     * @return Builder<Application>
+     */
+    protected static function projectHolderIds(): Builder
+    {
+        return Application::query()
+            ->select('user_id')
+            ->where('status', ApplicationStatus::Accepted)
+            ->whereHas('project', fn (Builder $query) => $query->unfinished());
     }
 
     /**

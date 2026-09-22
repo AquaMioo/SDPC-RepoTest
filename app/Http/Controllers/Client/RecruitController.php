@@ -74,26 +74,21 @@ class RecruitController extends Controller
             && $scope !== null
             && $recommendations instanceof ScoresFreeText;
 
-        $students = $isScopeSearch
-            ? $this->rankedByScope($filters, $scope, $recommendations, $request)
-            : $this->query($filters)->paginate(self::PER_PAGE)->withQueryString();
-
-        $scores = match (true) {
-            $project !== null => $recommendations->scoresFor($project),
-            $isScopeSearch => $recommendations->scoresForSearch($scopeText, $students->getCollection()),
-            default => collect(),
+        /*
+         * The list is the slow half: ranking asks the model, which takes
+         * seconds when nothing is cached. So the screen paints first — the
+         * search box, the brief, the skills the scope implies — and the
+         * ranked students arrive as one deferred group behind a skeleton.
+         * The group's props share one computation (resolved once per request),
+         * so the model is asked at most once.
+         */
+        $list = null;
+        $resolveList = function () use (&$list, $request, $recommendations, $filters, $project, $scope, $scopeText, $isScopeSearch): array {
+            return $list ??= $this->rankedList($request, $recommendations, $filters, $project, $scope, $scopeText, $isScopeSearch);
         };
 
-        $threads = $this->openThreads($request->user()->currentTeam, $students->getCollection());
-
-        $students->through(fn (StudentProfile $profile) => $this->toCard(
-            $profile,
-            $scores->get($profile->user_id),
-            $threads->get($profile->user_id),
-        ));
-
         return Inertia::render('client/recruit', [
-            'students' => $students,
+            'students' => Inertia::defer(fn () => $resolveList()['students'], 'ranking'),
             'filters' => $filters->toArray(),
             /*
              * Echoed back so the dialog reopens with what was written, and the
@@ -105,10 +100,52 @@ class RecruitController extends Controller
                 'title' => $project->title,
             ],
             /* True only when something was actually scored on this request. */
-            'matchingEnabled' => $scores->isNotEmpty(),
+            'matchingEnabled' => Inertia::defer(fn () => $resolveList()['matchingEnabled'], 'ranking'),
             'scopeSkills' => $this->scopeSkills($project, $scopeText),
-            'highlight' => $this->highlight($students->getCollection(), $scores),
+            'highlight' => Inertia::defer(fn () => $resolveList()['highlight'], 'ranking'),
         ]);
+    }
+
+    /**
+     * Find, rank and page the students, and describe the best match.
+     *
+     * A scope search is scored once, across every candidate, before paging
+     * (rankedByScope) and those same scores label the cards. It used to be
+     * scored a second time for the page alone — a different candidate list,
+     * so a different cache key and a second call to the model on every
+     * search, and percentages that could disagree with the order.
+     *
+     * @return array{students: LengthAwarePaginator<int, array<string, mixed>>, matchingEnabled: bool, highlight: array<string, mixed>|null}
+     */
+    protected function rankedList(
+        Request $request,
+        RecommendationService $recommendations,
+        StudentFilters $filters,
+        ?Project $project,
+        ?ScopeProfile $scope,
+        ?string $scopeText,
+        bool $isScopeSearch,
+    ): array {
+        [$students, $scores] = $isScopeSearch
+            ? $this->rankedByScope($filters, $scope, $recommendations, $request)
+            : [
+                $this->query($filters)->paginate(self::PER_PAGE)->withQueryString(),
+                $project !== null ? $recommendations->scoresFor($project) : collect(),
+            ];
+
+        $threads = $this->openThreads($request->user()->currentTeam, $students->getCollection());
+
+        $students->through(fn (StudentProfile $profile) => $this->toCard(
+            $profile,
+            $scores->get($profile->user_id),
+            $threads->get($profile->user_id),
+        ));
+
+        return [
+            'students' => $students,
+            'matchingEnabled' => $scores->isNotEmpty(),
+            'highlight' => $this->highlight($students->getCollection(), $scores),
+        ];
     }
 
     /**
@@ -153,6 +190,12 @@ class RecruitController extends Controller
     protected function query(StudentFilters $filters, bool $applySearch = true): Builder
     {
         return StudentProfile::query()
+            /*
+             * Nobody already on a build — their own or their team's. They
+             * cannot be taken on, so listing them is a dead end for the client
+             * (User::isLockedToProject). One subquery, never a check per row.
+             */
+            ->whereNotIn('student_profiles.user_id', User::query()->lockedToProject()->select('users.id'))
             /*
              * The credential and the third-party check are both read by
              * User::isVerifiedStudent(), which the row draws a badge off —
@@ -244,7 +287,10 @@ class RecruitController extends Controller
      * Scoring happens before paging rather than after, or "best match" would
      * only mean "best on whichever page you happen to be looking at".
      *
-     * @return LengthAwarePaginator<int, StudentProfile>
+     * Returns the scores with the page, so the cards read the same judgement
+     * the order came from.
+     *
+     * @return array{0: LengthAwarePaginator<int, StudentProfile>, 1: Collection<int, array{score: float, compatibility: int, reason: array<string, mixed>}>}
      */
     protected function rankedByScope(
         StudentFilters $filters,
@@ -258,7 +304,7 @@ class RecruitController extends Controller
          */
         ScoresFreeText $recommendations,
         Request $request,
-    ): LengthAwarePaginator {
+    ): array {
         $candidates = $this->query($filters, applySearch: false)
             /*
              * Anyone holding at least one skill the scope calls for. Without
@@ -277,13 +323,16 @@ class RecruitController extends Controller
         $perPage = self::PER_PAGE;
         $page = max(1, (int) $request->query('page', 1));
 
-        return new LengthAwarePaginator(
-            $ranked->forPage($page, $perPage)->values(),
-            $ranked->count(),
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'query' => $request->query()],
-        );
+        return [
+            new LengthAwarePaginator(
+                $ranked->forPage($page, $perPage)->values(),
+                $ranked->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()],
+            ),
+            $scores,
+        ];
     }
 
     /**

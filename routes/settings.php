@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AppealController;
+use App\Http\Controllers\Settings\PasswordSetupController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Teams\TeamController;
@@ -25,6 +26,18 @@ Route::middleware(['auth'])->group(function () {
     Route::post('settings/appeal', [AppealController::class, 'store'])
         ->middleware('throttle:6,1')
         ->name('profile.appeal.store');
+
+    /*
+     * A first password for an account signed up without one (a student's
+     * school-email code). A mailed code stands in for the current password
+     * there is none of; see PasswordSetupController.
+     */
+    Route::post('settings/password/code', [PasswordSetupController::class, 'sendCode'])
+        ->middleware('throttle:6,1')
+        ->name('password-setup.code');
+    Route::post('settings/password', [PasswordSetupController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password-setup.store');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

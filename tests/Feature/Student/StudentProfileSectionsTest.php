@@ -346,6 +346,7 @@ class StudentProfileSectionsTest extends TestCase
         $student = $this->student();
         $profile = $student->studentProfile;
 
+        $this->technologies(['Laravel', 'React', 'Flutter']);
         $profile->skills()->sync(Skill::idsForNames(['Laravel', 'React']));
 
         $this->actingAs($student)
@@ -392,6 +393,7 @@ class StudentProfileSectionsTest extends TestCase
         $student = $this->student();
         $profile = $student->studentProfile;
 
+        $this->technologies(['Laravel', 'React', 'Figma']);
         $profile->skills()->sync(Skill::idsForNames(['Laravel', 'React', 'Figma']));
 
         $this->actingAs($student)
@@ -404,6 +406,66 @@ class StudentProfileSectionsTest extends TestCase
             ['Figma', 'Laravel'],
             $profile->fresh()->skills->pluck('name')->sort()->values()->all(),
         );
+    }
+
+    /**
+     * The Skills card holds technologies, picked from the list.
+     *
+     * It used to mint whatever was typed, which is how "Microsoft Word" and
+     * "Project Management" reached profiles as if they were a stack.
+     */
+    public function test_a_skill_that_is_not_a_technology_is_refused(): void
+    {
+        $student = $this->student();
+        $this->technologies(['Laravel']);
+        Skill::factory()->notTechnology()->create(['name' => 'Project Management', 'slug' => 'project-management']);
+
+        foreach (['Project Management', 'Microsoft Word'] as $name) {
+            $this->actingAs($student)
+                ->patch($this->route('student.profile.update', $student), ['skills' => ['Laravel', $name]])
+                ->assertSessionHasErrors('skills.1');
+        }
+
+        $this->assertSame([], $student->studentProfile->fresh()->skills->pluck('name')->all());
+        /* Nothing typed in is minted as a new skill any more. */
+        $this->assertFalse(Skill::query()->where('name', 'Microsoft Word')->exists());
+    }
+
+    public function test_the_skills_dialog_offers_only_technologies(): void
+    {
+        $student = $this->student();
+        $this->technologies(['Laravel', 'Azure']);
+        Skill::factory()->notTechnology()->create(['name' => 'Technical Writing', 'slug' => 'technical-writing']);
+
+        $this->actingAs($student)
+            ->get($this->route('student.profile.edit', $student))
+            ->assertInertia(function (AssertableInertia $page): void {
+                $names = collect($page->toArray()['props']['options']['skills'])->pluck('name');
+
+                $this->assertTrue($names->contains('Laravel'));
+                $this->assertTrue($names->contains('Azure'));
+                $this->assertFalse($names->contains('Technical Writing'));
+            });
+    }
+
+    public function test_the_links_card_no_longer_carries_a_portfolio_site(): void
+    {
+        $student = $this->student();
+        $student->studentProfile->forceFill(['portfolio_url' => 'https://old.example.com'])->save();
+
+        $this->actingAs($student)
+            ->patch($this->route('student.profile.update', $student), [
+                'github_url' => 'https://github.com/example',
+                'portfolio_url' => 'https://new.example.com',
+            ])
+            ->assertSessionHasNoErrors();
+
+        /* Not accepted any more; the old value stays in its column, unread. */
+        $this->assertSame('https://old.example.com', $student->studentProfile->fresh()->portfolio_url);
+
+        $this->actingAs($student)
+            ->get($this->route('student.profile.edit', $student))
+            ->assertInertia(fn (AssertableInertia $page) => $page->missing('profile.portfolioUrl'));
     }
 
     /* ---------------------------------------------------------------------
@@ -614,6 +676,18 @@ class StudentProfileSectionsTest extends TestCase
             ->assertSessionHasErrors('email');
 
         $this->assertSame($student->email, $student->fresh()->email);
+    }
+
+    /**
+     * Put technologies on the list a student picks from.
+     *
+     * @param  list<string>  $names
+     */
+    private function technologies(array $names): void
+    {
+        foreach ($names as $name) {
+            Skill::query()->firstOrCreate(['name' => $name], ['slug' => str($name)->slug()->toString(), 'is_technology' => true]);
+        }
     }
 
     /**

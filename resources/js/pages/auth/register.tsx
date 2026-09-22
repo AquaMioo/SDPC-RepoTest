@@ -540,10 +540,80 @@ export default function Register({
                                             </div>
                                         )}
 
-                                        {/* A Google, Microsoft or school-email-code
-                                sign up never gets a password: that is how they
-                                sign in. They can still set one later through the
-                                password reset flow. */}
+                                        {/* A student who proved their school
+                                address with a code may choose a password
+                                now, to log in with it as well as a code;
+                                or skip it and set one later in Settings. */}
+                                        {pendingIdentity?.provider ===
+                                            'school-email' && (
+                                            <div
+                                                style={{
+                                                    display: 'grid',
+                                                    gap: 6,
+                                                }}
+                                            >
+                                                <div style={TWO_UP}>
+                                                    <div className="field">
+                                                        <label htmlFor="password">
+                                                            Password (optional)
+                                                        </label>
+                                                        <Input
+                                                            id="password"
+                                                            name="password"
+                                                            type="password"
+                                                            tabIndex={5}
+                                                            autoComplete="new-password"
+                                                            placeholder="••••••••"
+                                                            {...{
+                                                                passwordrules:
+                                                                    passwordRules,
+                                                            }}
+                                                        />
+                                                        <InputError
+                                                            message={
+                                                                errors.password
+                                                            }
+                                                            className="mt-1 text-[11px]"
+                                                        />
+                                                    </div>
+
+                                                    <div className="field">
+                                                        <label htmlFor="password_confirmation">
+                                                            Confirm password
+                                                        </label>
+                                                        <Input
+                                                            id="password_confirmation"
+                                                            name="password_confirmation"
+                                                            type="password"
+                                                            tabIndex={6}
+                                                            autoComplete="new-password"
+                                                            placeholder="••••••••"
+                                                            {...{
+                                                                passwordrules:
+                                                                    passwordRules,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <span
+                                                    style={{
+                                                        fontSize: 11.5,
+                                                        color: MUTED,
+                                                    }}
+                                                >
+                                                    Lets you log in with your
+                                                    school email and password,
+                                                    as well as a code. Skip it
+                                                    and set one later in
+                                                    Settings if you like.
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* A Google or Microsoft sign up never
+                                gets a password: that is how they sign in. They
+                                can still set one later through the password
+                                reset flow. */}
                                         {!pendingIdentity && (
                                             <div style={TWO_UP}>
                                                 <div className="field">

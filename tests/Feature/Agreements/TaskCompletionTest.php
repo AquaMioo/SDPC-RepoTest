@@ -35,7 +35,7 @@ class TaskCompletionTest extends TestCase
 
         foreach (['UI wireframes', 'Database schema'] as $title) {
             $this->actingAs($student)
-                ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design])), ['title' => $title])
+                ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design])), ['title' => $title, 'due_on' => '2026-02-20'])
                 ->assertSessionHasNoErrors();
         }
 
@@ -258,25 +258,50 @@ class TaskCompletionTest extends TestCase
         $this->assertNotSame('Hijacked', $stray->refresh()->title);
     }
 
-    public function test_the_students_teammate_can_watch_but_not_change_anything(): void
+    public function test_the_students_teammate_shares_the_work_but_not_the_clients_moves(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         $teammate = User::factory()->student()->approved()->create();
         $student->currentTeam->members()->attach($teammate, ['role' => TeamRole::Member->value]);
         $teammate->switchTeam($student->currentTeam);
         $task = $this->task($agreement);
+        $asTeammate = fn (array $extra) => ['current_team' => $student->currentTeam, 'agreement' => $agreement, ...$extra];
 
         $this->actingAs($teammate)
             ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('agreement.id', $agreement->id)
-                ->where('can.manage', false)
-                ->where('can.verify', false));
+                ->where('can.manage', true)
+                ->where('can.verify', false)
+                ->where('can.complete', false));
 
         $this->actingAs($teammate)
-            ->post(route('agreements.tasks.submit', ['current_team' => $student->currentTeam, 'agreement' => $agreement, 'task' => $task]), ['proof_note' => 'Done'])
+            ->post(route('agreements.tasks.submit', $asTeammate(['task' => $task])), ['proof_note' => 'Done'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(TaskStatus::Submitted, $task->refresh()->status);
+        $this->assertSame($teammate->id, $task->submitted_by);
+
+        /* Checking the work stays the client's alone. */
+        $this->actingAs($teammate)
+            ->post(route('agreements.tasks.verify', $asTeammate(['task' => $task])))
             ->assertForbidden();
+
+        $this->assertSame(TaskStatus::Submitted, $task->refresh()->status);
+    }
+
+    public function test_someone_on_no_team_of_the_student_can_do_nothing(): void
+    {
+        ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
+        $stranger = User::factory()->student()->approved()->create();
+        $task = $this->task($agreement);
+
+        $this->actingAs($stranger)
+            ->post(route('agreements.tasks.submit', ['current_team' => $stranger->currentTeam, 'agreement' => $agreement, 'task' => $task]), ['proof_note' => 'Done'])
+            ->assertForbidden();
+
+        $this->assertSame(TaskStatus::Open, $task->refresh()->status);
     }
 
     public function test_reordering_takes_exactly_the_phases_tasks(): void
@@ -307,13 +332,13 @@ class TaskCompletionTest extends TestCase
             ->assertSessionHasErrors('ends_on');
 
         $this->actingAs($student)
-            ->patch($url, ['starts_on' => '2026-03-01', 'ends_on' => '2026-04-05'])
+            ->patch($url, ['starts_on' => '2026-03-01', 'ends_on' => '2026-03-27'])
             ->assertSessionHasNoErrors();
 
         $build->refresh();
 
         $this->assertSame('2026-03-01', $build->planned_starts_on->toDateString());
-        $this->assertSame('2026-04-05', $build->scheduledEndsOn()->toDateString());
+        $this->assertSame('2026-03-27', $build->scheduledEndsOn()->toDateString());
         // What was signed stays as signed.
         $this->assertSame('2026-02-23', $build->starts_on->toDateString());
         $this->assertSame('2026-03-29', $build->ends_on->toDateString());

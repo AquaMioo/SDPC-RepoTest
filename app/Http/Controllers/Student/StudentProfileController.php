@@ -74,7 +74,6 @@ class StudentProfileController extends Controller
                 'educationNote' => $profile->education_note,
 
                 'githubUrl' => $profile->github_url,
-                'portfolioUrl' => $profile->portfolio_url,
 
                 'isAvailable' => $profile->is_available,
                 'weeklyHours' => $profile->weekly_hours,
@@ -124,7 +123,8 @@ class StudentProfileController extends Controller
             'options' => [
                 'schools' => School::query()->orderBy('name')->get(['id', 'name']),
                 'courses' => Course::query()->orderBy('name')->get(['id', 'name', 'abbreviation']),
-                'skills' => Skill::query()->orderBy('name')->get(['name', 'type']),
+                /* Technologies only: the Skills card offers nothing else. */
+                'skills' => Skill::query()->technology()->orderBy('name')->get(['name', 'type']),
                 // The platform serves one city, so this is the whole list.
                 'barangays' => Barangay::names(),
                 'proficiencies' => LanguageProficiency::options(),
@@ -160,7 +160,7 @@ class StudentProfileController extends Controller
             $profile->update($request->safe()->only([
                 'headline', 'biography', 'location', 'barangay', 'school_id', 'course_id',
                 'year_level', 'education_started_on', 'education_note',
-                'github_url', 'portfolio_url', 'is_available', 'weekly_hours',
+                'github_url', 'is_available', 'weekly_hours',
                 'availability_note', 'response_time_hours',
             ]));
 
@@ -172,7 +172,10 @@ class StudentProfileController extends Controller
              * student had.
              */
             if ($request->has('skills')) {
-                $profile->skills()->sync(Skill::idsForNames($request->array('skills')));
+                /* Looked up, never minted: the request already refused anything off the list. */
+                $profile->skills()->sync(
+                    Skill::query()->technology()->whereIn('name', $request->array('skills'))->pluck('id'),
+                );
             }
         });
 

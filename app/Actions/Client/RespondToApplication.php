@@ -36,7 +36,7 @@ class RespondToApplication
          *
          * A client can still invite and shortlist somebody who is busy.
          */
-        if ($status === ApplicationStatus::Accepted && $application->student->holdsProjectInHand()) {
+        if ($status === ApplicationStatus::Accepted && $application->student->isLockedToProject()) {
             throw ValidationException::withMessages([
                 /*
                  * Says what happened, what it means for them, and when it

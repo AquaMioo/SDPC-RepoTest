@@ -10,6 +10,7 @@ use App\Support\PendingMicrosoftRegistration;
 use App\Support\PendingSchoolEmailRegistration;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 /**
  * The one definition of what a valid sign up looks like.
@@ -53,7 +54,16 @@ trait RegistrationValidationRules
             'email' => $viaGoogle || $viaMicrosoft || $isStudent
                 ? ['nullable']
                 : ['required', 'string', 'email', 'max:255', Rule::unique(User::class), Rule::unique(User::class, 'google_email')],
-            'password' => $viaGoogle || $viaMicrosoft ? ['nullable'] : $this->passwordRules(),
+            'password' => match (true) {
+                /*
+                 * A student proved their school address with a code, so they
+                 * need no password — but may choose one now, to sign in later
+                 * with their school email and password instead of a code.
+                 */
+                PendingSchoolEmailRegistration::exists() => ['nullable', 'string', Password::default(), 'confirmed'],
+                $viaGoogle || $viaMicrosoft => ['nullable'],
+                default => $this->passwordRules(),
+            },
             'role' => ['required', Rule::in($this->selfRegistrableRoles($viaGoogle, $viaMicrosoft))],
             'business_name' => [Rule::requiredIf($this->isRole($input, UserRole::Client)), 'nullable', 'string', 'max:255'],
             'school_email' => $isStudent && ! $viaMicrosoft

@@ -89,13 +89,13 @@ class StudentRecommendationTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', true)
                 ->where('highlight.compatibility', 92)
                 ->has('highlight.factors', 2)
                 ->where('highlight.factors.0.label', 'React and Next.js')
                 ->where('highlight.factors.0.value', 81)
-                ->where('highlight.recommendation', 'Lead your pitch with the booking flow.'));
+                ->where('highlight.recommendation', 'Lead your pitch with the booking flow.')));
     }
 
     public function test_a_malformed_factor_is_dropped_rather_than_drawn(): void
@@ -139,7 +139,8 @@ class StudentRecommendationTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('capstone.title', 'Inventory System with Predictive Analytics')
-                ->where('highlight.compatibility', 87));
+                ->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
+                    ->where('highlight.compatibility', 87)));
 
         /* What the student typed is what the model was asked about. */
         Http::assertSent(fn (Request $request): bool => str_contains(
@@ -215,7 +216,7 @@ class StudentRecommendationTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->has('projects.data', 1));
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload->has('projects.data', 1)));
     }
 
     public function test_a_brief_the_model_forgot_keeps_its_computed_score(): void

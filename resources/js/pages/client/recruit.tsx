@@ -9,6 +9,7 @@ import {
 import { useState } from 'react';
 import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
+import { ListSkeleton } from '@/components/sdpc/list-skeleton';
 import { Panel, PanelAccent, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import UserAvatar from '@/components/sdpc/user-avatar';
@@ -23,7 +24,12 @@ const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
 type Props = {
-    students: Paginated<StudentCard>;
+    /**
+     * Deferred, with highlight and matchingEnabled: ranking waits on the
+     * matching model, so the screen paints first and the list arrives after.
+     * Undefined until it does.
+     */
+    students?: Paginated<StudentCard>;
     filters: {
         search: string | null;
         skills: string[];
@@ -35,11 +41,11 @@ type Props = {
     /** What the screen is ranking against, when a brief was described. */
     idea: { title: string; description: string };
     context: { slug: string; title: string } | null;
-    matchingEnabled: boolean;
+    matchingEnabled?: boolean;
     /** What building the searched-for system actually takes. */
     scopeSkills: { slug: string; name: string; isRequired: boolean }[];
     /** The strongest match on this page, or null when nothing was scored. */
-    highlight: {
+    highlight?: {
         name: string;
         compatibility: number;
         factors: { label: string; value: number }[];
@@ -126,9 +132,24 @@ export default function Recruit({
                                     ? `Ranked for "${context.title}"`
                                     : rankingByIdea && idea.title !== ''
                                       ? `Ranked for "${idea.title}"`
-                                      : `${students.total} student${students.total === 1 ? '' : 's'} on the platform`}
+                                      : students === undefined
+                                        ? 'Loading students…'
+                                        : `${students.total} student${students.total === 1 ? '' : 's'} on the platform`}
                             </div>
                         </div>
+
+                        {/* Its own button, the counterpart of the student's
+                            "Match my capstone". The search box used to open
+                            this form when clicked, so typing a name and
+                            pressing Enter never searched — the student side
+                            dropped that for the same reason (QA). */}
+                        <Btn
+                            variant="secondary"
+                            onClick={() => setIdeaOpen(true)}
+                        >
+                            <SparkleIcon />
+                            Match my project
+                        </Btn>
 
                         <form
                             className="relative w-[260px]"
@@ -144,19 +165,49 @@ export default function Recruit({
                                 placeholder="Search skills or school"
                                 aria-label="Search students"
                                 className="pl-8"
-                                /*
-                                 * Clicking the box asks what you want built
-                                 * rather than what you want to type. onClick
-                                 * and not onFocus: Radix returns focus here
-                                 * when the dialog closes, and on focus it
-                                 * would reopen itself immediately.
-                                 */
-                                onClick={() => setIdeaOpen(true)}
                             />
                         </form>
                     </div>
 
-                    {students.data.length === 0 ? (
+                    {rankingByIdea && (
+                        <Panel
+                            padding="md"
+                            gap="sm"
+                            className="mb-4 flex-row flex-wrap items-center"
+                        >
+                            <SparkleIcon className="text-[15px]" />
+                            <span className="mr-auto text-[13px]">
+                                Ranked by who can build
+                                {idea.title !== ''
+                                    ? ` “${idea.title}”`
+                                    : ' your project'}
+                            </span>
+                            <button
+                                type="button"
+                                data-inline-link=""
+                                className="text-[12.5px]"
+                                onClick={() =>
+                                    apply({
+                                        idea_title: undefined,
+                                        idea_description: undefined,
+                                    })
+                                }
+                            >
+                                Clear
+                            </button>
+                        </Panel>
+                    )}
+
+                    {students === undefined ? (
+                        <ListSkeleton
+                            rows={5}
+                            label={
+                                rankingByIdea || context
+                                    ? 'Ranking students by who can build it…'
+                                    : 'Loading students…'
+                            }
+                        />
+                    ) : students.data.length === 0 ? (
                         <Panel padding="lg" gap="lg" className="items-start">
                             <h6 className="m-0">No students to show</h6>
                             <p className="m-0 max-w-[52ch] text-[13px] leading-relaxed text-muted-foreground">
@@ -187,7 +238,7 @@ export default function Recruit({
                      * whole set is re-scored through the model just to show
                      * five different people.
                      */}
-                    {students.links.length > 3 && (
+                    {students !== undefined && students.links.length > 3 && (
                         <div className="mt-5 flex flex-wrap gap-1.5">
                             {students.links.map((link, index) =>
                                 link.url === null ? (
@@ -239,7 +290,7 @@ export default function Recruit({
                 </div>
 
                 <aside className="sticky top-[88px] flex max-h-[calc(100vh-108px)] flex-col gap-4 overflow-y-auto">
-                    {matchingEnabled && highlight !== null ? (
+                    {matchingEnabled && highlight ? (
                         <MatchingPanel
                             highlight={highlight}
                             context={context}

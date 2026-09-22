@@ -47,7 +47,6 @@ class StudentProfileController extends Controller
                 'course' => $profile->course?->name,
                 'yearLevel' => $profile->year_level,
                 'githubUrl' => $profile->github_url,
-                'portfolioUrl' => $profile->portfolio_url,
                 'isAvailable' => $profile->is_available,
                 /** Deliberately not sent — see RecruitController::toCard(). */
                 'rating' => (float) $profile->rating_average,
@@ -113,7 +112,7 @@ class StudentProfileController extends Controller
              * Already taken on by a client, so an invitation could not be
              * accepted. The screen says so instead of offering the form.
              */
-            'isTaken' => $user->holdsProjectInHand(),
+            'isTaken' => $user->isLockedToProject(),
 
             'reportCategories' => IssueCategory::options(),
         ]);

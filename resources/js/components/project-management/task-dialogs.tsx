@@ -4,7 +4,11 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 import InputError from '@/components/input-error';
-import type { Phase, Task } from '@/components/project-management/types';
+import type {
+    DeadlineRequest,
+    Phase,
+    Task,
+} from '@/components/project-management/types';
 import { Btn } from '@/components/sdpc/btn';
 import { Input, Textarea } from '@/components/sdpc/input';
 import {
@@ -16,6 +20,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
+import { shortDate } from '@/lib/calendar-days';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -89,6 +94,10 @@ function Footer({
 
 /**
  * Add a task to a phase, or rename one that has not been submitted.
+ *
+ * A Design or Build task needs a deadline, on or before the final deadline. A
+ * deadline is set freely once; after that it moves only with the client's
+ * approval, so the edit dialog shows it but will not change it.
  */
 export function TaskFormDialog({
     open,
@@ -97,6 +106,7 @@ export function TaskFormDialog({
     method,
     phase,
     task,
+    finalDeadline,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -104,18 +114,29 @@ export function TaskFormDialog({
     method: 'post' | 'patch';
     phase: Phase;
     task: Task | null;
+    /** The end of Turnover, ISO: no task may be due after it. */
+    finalDeadline: string | null;
 }) {
     const [title, setTitle] = useState(task?.title ?? '');
     const [description, setDescription] = useState(task?.description ?? '');
+    const [dueOn, setDueOn] = useState(task?.dueOn ?? '');
     const [errors, setErrors] = useState<Errors>({});
     const [busy, setBusy] = useState(false);
+
+    /* Locked once set: moving it is an ask to the client, not an edit. */
+    const deadlineLocked = task !== null && task.dueOn !== null;
+    const deadlineRequired = !phase.isTurnover;
 
     const save = () => {
         setBusy(true);
 
         router[method](
             url,
-            { title, description },
+            {
+                title,
+                description,
+                ...(deadlineLocked ? {} : { due_on: dueOn || null }),
+            },
             {
                 ...IN_PLACE,
                 onSuccess: () => onOpenChange(false),
@@ -165,6 +186,33 @@ export function TaskFormDialog({
                     />
                     <InputError
                         message={errors.description}
+                        className="mt-1 text-[11px]"
+                    />
+                </div>
+                <div className="field">
+                    <label htmlFor="task-due">
+                        {deadlineRequired ? 'Deadline' : 'Deadline (optional)'}
+                    </label>
+                    <Input
+                        id="task-due"
+                        type="date"
+                        value={dueOn}
+                        max={finalDeadline ?? undefined}
+                        disabled={deadlineLocked}
+                        onChange={(event) => setDueOn(event.target.value)}
+                        aria-invalid={Boolean(errors.due_on)}
+                    />
+                    <span
+                        style={{ fontSize: 11, color: MUTED(55), marginTop: 4 }}
+                    >
+                        {deadlineLocked
+                            ? 'A set deadline moves only with the client’s approval. Use “Ask for a new date” on the task.'
+                            : finalDeadline
+                              ? `On or before the final deadline, ${shortDate(finalDeadline)}.`
+                              : 'When this task is due.'}
+                    </span>
+                    <InputError
+                        message={errors.due_on}
                         className="mt-1 text-[11px]"
                     />
                 </div>
@@ -428,12 +476,15 @@ export function ScheduleDialog({
     const [errors, setErrors] = useState<Errors>({});
     const [busy, setBusy] = useState(false);
 
+    /* Turnover's end is the final deadline: only an approved ask moves it. */
+    const endLocked = phase.isTurnover && phase.endsOn !== null;
+
     const save = () => {
         setBusy(true);
 
         router.patch(
             url,
-            { starts_on: startsOn, ends_on: endsOn },
+            { starts_on: startsOn, ends_on: endLocked ? phase.endsOn : endsOn },
             {
                 ...IN_PLACE,
                 onSuccess: () => onOpenChange(false),
@@ -476,15 +527,29 @@ export function ScheduleDialog({
                     />
                 </div>
                 <div className="field">
-                    <label htmlFor="phase-ends">Ends</label>
+                    <label htmlFor="phase-ends">
+                        {phase.isTurnover ? 'Final deadline' : 'Ends'}
+                    </label>
                     <Input
                         id="phase-ends"
                         type="date"
-                        value={endsOn}
+                        value={endLocked ? (phase.endsOn ?? '') : endsOn}
                         min={startsOn || undefined}
+                        disabled={endLocked}
                         onChange={(event) => setEndsOn(event.target.value)}
                         aria-invalid={Boolean(errors.ends_on)}
                     />
+                    {endLocked && (
+                        <span
+                            style={{
+                                fontSize: 11,
+                                color: MUTED(55),
+                                marginTop: 4,
+                            }}
+                        >
+                            Moves only with the client’s approval.
+                        </span>
+                    )}
                     <InputError
                         message={errors.ends_on}
                         className="mt-1 text-[11px]"
@@ -495,6 +560,239 @@ export function ScheduleDialog({
                 busy={busy}
                 label="Save dates"
                 onSubmit={save}
+                onCancel={() => onOpenChange(false)}
+            />
+        </Shell>
+    );
+}
+
+/**
+ * The student side asking the client to move a deadline — a task's, or the
+ * final one. Nothing moves until the client approves.
+ */
+export function DeadlineRequestDialog({
+    open,
+    onOpenChange,
+    url,
+    subject,
+    currentOn,
+    max,
+    min,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    url: string;
+    /** What would move, e.g. “Wireframes” or “the final deadline”. */
+    subject: string;
+    currentOn: string | null;
+    /** ISO bounds the server will hold the date to. */
+    max?: string | null;
+    min?: string | null;
+}) {
+    const [proposedOn, setProposedOn] = useState(currentOn ?? '');
+    const [reason, setReason] = useState('');
+    const [errors, setErrors] = useState<Errors>({});
+    const [busy, setBusy] = useState(false);
+
+    const send = () => {
+        setBusy(true);
+
+        router.post(
+            url,
+            { proposed_on: proposedOn, reason },
+            {
+                ...IN_PLACE,
+                onSuccess: () => onOpenChange(false),
+                onError: setErrors,
+                onFinish: () => setBusy(false),
+            },
+        );
+    };
+
+    return (
+        <Shell
+            open={open}
+            onOpenChange={onOpenChange}
+            title={`Ask for a new date for ${subject}`}
+            description={`Currently ${currentOn ? shortDate(currentOn) : 'not set'}. The client approves or declines it; until then the current date stands.`}
+        >
+            <div style={{ display: 'grid', gap: 12 }}>
+                <div className="field">
+                    <label htmlFor="proposed-on">New date</label>
+                    <Input
+                        id="proposed-on"
+                        type="date"
+                        value={proposedOn}
+                        min={min ?? undefined}
+                        max={max ?? undefined}
+                        autoFocus
+                        onChange={(event) => setProposedOn(event.target.value)}
+                        aria-invalid={Boolean(errors.proposed_on)}
+                    />
+                    <InputError
+                        message={errors.proposed_on}
+                        className="mt-1 text-[11px]"
+                    />
+                </div>
+                <div className="field">
+                    <label htmlFor="proposed-reason">Why (optional)</label>
+                    <Textarea
+                        id="proposed-reason"
+                        value={reason}
+                        maxLength={1000}
+                        placeholder="e.g. The API documentation arrived a week late."
+                        onChange={(event) => setReason(event.target.value)}
+                    />
+                    <InputError
+                        message={errors.reason}
+                        className="mt-1 text-[11px]"
+                    />
+                </div>
+            </div>
+            <Footer
+                busy={busy}
+                label="Send to the client"
+                onSubmit={send}
+                onCancel={() => onOpenChange(false)}
+            />
+        </Shell>
+    );
+}
+
+/**
+ * The client declining an ask to move a deadline, with an optional note.
+ */
+export function DeclineDeadlineDialog({
+    open,
+    onOpenChange,
+    url,
+    request,
+    subject,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    url: string;
+    request: DeadlineRequest;
+    subject: string;
+}) {
+    const [note, setNote] = useState('');
+    const [errors, setErrors] = useState<Errors>({});
+    const [busy, setBusy] = useState(false);
+
+    const decline = () => {
+        setBusy(true);
+
+        router.post(
+            url,
+            { decision_note: note },
+            {
+                ...IN_PLACE,
+                onSuccess: () => onOpenChange(false),
+                onError: setErrors,
+                onFinish: () => setBusy(false),
+            },
+        );
+    };
+
+    return (
+        <Shell
+            open={open}
+            onOpenChange={onOpenChange}
+            title={`Keep the date for ${subject}`}
+            description={`The student asked for ${shortDate(request.proposedOn)}. Declining keeps ${request.previousOn ? shortDate(request.previousOn) : 'the current date'}.`}
+        >
+            <div className="field">
+                <label htmlFor="decision-note">
+                    Note to the student (optional)
+                </label>
+                <Textarea
+                    id="decision-note"
+                    value={note}
+                    maxLength={1000}
+                    autoFocus
+                    onChange={(event) => setNote(event.target.value)}
+                />
+                <InputError
+                    message={errors.decision_note ?? errors.deadline}
+                    className="mt-1 text-[11px]"
+                />
+            </div>
+            <Footer
+                busy={busy}
+                label="Decline"
+                onSubmit={decline}
+                onCancel={() => onOpenChange(false)}
+            />
+        </Shell>
+    );
+}
+
+/**
+ * The client's Complete: accept the turnover and end the collaboration.
+ *
+ * Allowed with tasks still unverified, but never silently — the dialog says
+ * how many, because completing is final.
+ */
+export function CompleteProjectDialog({
+    open,
+    onOpenChange,
+    url,
+    projectTitle,
+    unverifiedCount,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    url: string;
+    projectTitle: string;
+    unverifiedCount: number;
+}) {
+    const [errors, setErrors] = useState<Errors>({});
+    const [busy, setBusy] = useState(false);
+
+    const complete = () => {
+        setBusy(true);
+
+        router.post(
+            url,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => onOpenChange(false),
+                onError: setErrors,
+                onFinish: () => setBusy(false),
+            },
+        );
+    };
+
+    return (
+        <Shell
+            open={open}
+            onOpenChange={onOpenChange}
+            title={`Complete “${projectTitle}”?`}
+            description="This ends the collaboration. The project is marked complete and moves to your completed projects, and everyone on it is free to take on new work. It cannot be undone."
+        >
+            {unverifiedCount > 0 && (
+                <div
+                    role="alert"
+                    style={{
+                        fontSize: 12.5,
+                        padding: '8px 10px',
+                        borderRadius: 'var(--radius-md)',
+                        background:
+                            'color-mix(in srgb, var(--destructive) 10%, transparent)',
+                    }}
+                >
+                    {unverifiedCount === 1
+                        ? '1 task is not verified yet.'
+                        : `${unverifiedCount} tasks are not verified yet.`}{' '}
+                    Completing now accepts the project as it stands.
+                </div>
+            )}
+            <InputError message={errors.project} className="mt-1 text-[11px]" />
+            <Footer
+                busy={busy}
+                label="Complete project"
+                onSubmit={complete}
                 onCancel={() => onOpenChange(false)}
             />
         </Shell>

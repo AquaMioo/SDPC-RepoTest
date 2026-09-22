@@ -6,6 +6,8 @@ use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
 use App\Enums\TaskStatus;
+use App\Enums\TeamRole;
+use Carbon\CarbonInterface;
 use Database\Factories\AgreementFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -45,6 +47,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $ends_on
  * @property int $total_amount
  * @property Carbon|null $activated_at
+ * @property Carbon|null $completed_at
  * @property int|null $superseded_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -62,7 +65,7 @@ use Illuminate\Support\Carbon;
     'project_id', 'application_id', 'team_id', 'student_id', 'reference',
     'version', 'template', 'status', 'scope_summary', 'deliverables',
     'intellectual_property_terms', 'confidentiality_terms', 'academic_terms',
-    'starts_on', 'ends_on', 'total_amount', 'activated_at', 'superseded_by',
+    'starts_on', 'ends_on', 'total_amount', 'activated_at', 'completed_at', 'superseded_by',
 ])]
 class Agreement extends Model
 {
@@ -236,6 +239,60 @@ class Agreement extends Model
     }
 
     /**
+     * Get the Turnover phase: the last one, whatever the client named it.
+     *
+     * Read from the loaded phases when they are there, so the screen can ask
+     * per task without a query each.
+     */
+    public function turnoverPhase(): ?AgreementMilestone
+    {
+        return $this->milestones->sortBy('position')->last();
+    }
+
+    /**
+     * Get the final deadline: the end of the Turnover phase.
+     *
+     * The working schedule's date, which only moves with the client's
+     * approval. Every task deadline must fall on or before it, and it is the
+     * day the project is due to end.
+     */
+    public function finalDeadline(): ?CarbonInterface
+    {
+        return $this->turnoverPhase()?->scheduledEndsOn();
+    }
+
+    /**
+     * Get every ask to move one of this agreement's deadlines, newest first.
+     *
+     * @return HasMany<DeadlineChangeRequest, $this>
+     */
+    public function deadlineRequests(): HasMany
+    {
+        return $this->hasMany(DeadlineChangeRequest::class)->latest('id');
+    }
+
+    /**
+     * Get the students working on this build: the signer and their team.
+     *
+     * Everyone on the team the signing student leads shares the build (see
+     * AgreementPolicy::manageTasks), so this is who hears about it.
+     *
+     * @return Collection<int, User>
+     */
+    public function studentSide(): Collection
+    {
+        return User::query()
+            ->whereKey($this->student_id)
+            ->orWhereIn('id', Membership::query()
+                ->select('user_id')
+                ->whereIn('team_id', Membership::query()
+                    ->select('team_id')
+                    ->where('user_id', $this->student_id)
+                    ->where('role', TeamRole::Owner->value)))
+            ->get();
+    }
+
+    /**
      * Scope to the agreements that govern work in flight.
      *
      * @param  Builder<$this>  $query
@@ -244,6 +301,17 @@ class Agreement extends Model
     protected function active(Builder $query): void
     {
         $query->where('status', AgreementStatus::Active);
+    }
+
+    /**
+     * Scope to the agreements whose project the client completed.
+     *
+     * @param  Builder<$this>  $query
+     */
+    #[Scope]
+    protected function completed(Builder $query): void
+    {
+        $query->where('status', AgreementStatus::Completed);
     }
 
     /**
@@ -275,6 +343,7 @@ class Agreement extends Model
             'starts_on' => 'date',
             'ends_on' => 'date',
             'activated_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 }

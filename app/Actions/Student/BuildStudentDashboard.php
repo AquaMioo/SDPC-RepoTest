@@ -6,6 +6,7 @@ use App\Actions\Agreements\SummariseProgress;
 use App\Enums\ApplicationStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\SiteContentKey;
+use App\Enums\TaskStatus;
 use App\Models\Agreement;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -29,8 +30,15 @@ class BuildStudentDashboard
      */
     public function handle(User $student): array
     {
-        $project = $this->activeProject($student);
-        $agreement = $this->activeAgreement($student, $project);
+        /*
+         * A teammate works on their team leader's build, so their dashboard is
+         * that build: the leader holds the accepted application and signed
+         * the agreement. See User::projectHolder().
+         */
+        $holder = $student->projectHolder() ?? $student;
+
+        $project = $this->activeProject($holder);
+        $agreement = $this->activeAgreement($holder, $project);
 
         return [
             'project' => $this->project($project, $agreement),
@@ -56,7 +64,7 @@ class BuildStudentDashboard
             ->where('student_id', $student->id)
             ->where('project_id', $project->id)
             ->active()
-            ->with('milestones.tasks')
+            ->with('milestones.tasks.pendingDeadlineRequest')
             ->latest('version')
             ->first();
     }
@@ -165,7 +173,33 @@ class BuildStudentDashboard
             }
         }
 
+        /*
+         * Task deadlines, and any date the team is asking to move one to — the
+         * same dates Project Management draws, so an approval shows here too.
+         */
+        foreach ($agreement->milestones as $milestone) {
+            foreach ($milestone->tasks as $task) {
+                if ($task->due_on !== null && $task->status !== TaskStatus::Verified) {
+                    $this->addMark($marks, $task->due_on->toDateString(), $task->title.' due');
+                }
+
+                if ($task->pendingDeadlineRequest !== null) {
+                    $this->addMark($marks, $task->pendingDeadlineRequest->proposed_on->toDateString(), $task->title.' (new date asked for)');
+                }
+            }
+        }
+
         return $marks;
+    }
+
+    /**
+     * Put a line on a calendar day, beside whatever is already there.
+     *
+     * @param  array<string, string>  $marks
+     */
+    protected function addMark(array &$marks, string $date, string $label): void
+    {
+        $marks[$date] = isset($marks[$date]) ? $marks[$date].' · '.$label : $label;
     }
 
     /**

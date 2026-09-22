@@ -46,7 +46,13 @@ class TeamPolicy
     public function leave(User $user, Team $team): bool
     {
         return $user->belongsToTeam($team)
-            && ! $user->ownsTeam($team);
+            && ! $user->ownsTeam($team)
+            /*
+             * Not while the team is on a build. Leaving would free the student
+             * to apply elsewhere and leave the client a developer short, so a
+             * teammate stays until the client completes the project.
+             */
+            && ! $team->isBuilding();
     }
 
     /**

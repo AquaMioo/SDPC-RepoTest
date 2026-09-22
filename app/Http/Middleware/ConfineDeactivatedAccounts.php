@@ -42,6 +42,9 @@ class ConfineDeactivatedAccounts
         'profile.edit',
         'profile.appeal.store',
         'profile.destroy',
+        // Settings → Account → Sign-in methods: a first password.
+        'password-setup.code',
+        'password-setup.store',
         // Settings → Security.
         'security.edit',
         'user-password.update',

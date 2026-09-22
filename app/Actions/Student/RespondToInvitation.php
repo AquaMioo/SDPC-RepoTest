@@ -41,9 +41,9 @@ class RespondToInvitation
          * project on, however the offer reached them. See
          * .ai/rules/actions-client.md.
          */
-        if ($application->student->holdsProjectInHand()) {
+        if ($application->student->isLockedToProject()) {
             throw ValidationException::withMessages([
-                'application' => 'You have already accepted another project, and a student works on one project at a time, so this invitation cannot be accepted.',
+                'application' => "You are already working on a project, your own or your team's, and a student works on one project at a time, so this invitation cannot be accepted until the client completes it.",
             ]);
         }
 

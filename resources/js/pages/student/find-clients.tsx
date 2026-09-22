@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
+import { ListSkeleton } from '@/components/sdpc/list-skeleton';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
@@ -35,7 +36,12 @@ type ProjectCard = {
 };
 
 type Props = {
-    projects: {
+    /**
+     * Deferred, with highlight and matchingEnabled: ranking waits on the
+     * matching model, so the board paints first and this arrives after.
+     * Undefined until it does.
+     */
+    projects?: {
         data: ProjectCard[];
         links: { url: string | null; label: string; active: boolean }[];
         total: number;
@@ -47,8 +53,8 @@ type Props = {
     canApply: boolean;
     /** One student, one build — true while they already have work. */
     holdsProjectInHand: boolean;
-    matchingEnabled: boolean;
-    highlight: {
+    matchingEnabled?: boolean;
+    highlight?: {
         title: string;
         client: string;
         compatibility: number;
@@ -213,7 +219,7 @@ export default function FindClients({
                     </Panel>
                 )}
 
-                {matchingEnabled && highlight !== null && (
+                {matchingEnabled && highlight && (
                     <MatchPanel highlight={highlight} />
                 )}
 
@@ -277,7 +283,16 @@ export default function FindClients({
                     </form>
                 </div>
 
-                {projects.data.length === 0 ? (
+                {projects === undefined ? (
+                    <ListSkeleton
+                        rows={5}
+                        label={
+                            rankingByCapstone
+                                ? 'Matching projects to your capstone…'
+                                : 'Finding the projects that fit you best…'
+                        }
+                    />
+                ) : projects.data.length === 0 ? (
                     <Panel padding="lg" gap="sm">
                         {rankingByCapstone ? (
                             <>
@@ -337,7 +352,7 @@ export default function FindClients({
                     </Panel>
                 )}
 
-                {projects.links.length > 3 && (
+                {projects !== undefined && projects.links.length > 3 && (
                     <div style={{ display: 'flex', gap: 6, marginTop: 20 }}>
                         {projects.links.map((link, index) =>
                             link.url === null ? (

@@ -45,8 +45,8 @@ class MatchingScreensTest extends TestCase
                 'search' => 'POS to my website system',
             ]))
             ->assertOk()
-            ->assertInertia(function (AssertableInertia $page) use ($capable, $partial, $unrelated) {
-                $students = collect($page->toArray()['props']['students']['data']);
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', function (AssertableInertia $reload) use ($capable, $partial, $unrelated) {
+                $students = collect($reload->toArray()['props']['students']['data']);
                 $ids = $students->pluck('id');
 
                 $this->assertTrue($ids->contains($capable->user_id));
@@ -65,7 +65,7 @@ class MatchingScreensTest extends TestCase
                     $students->firstWhere('id', $partial->user_id)['compatibility'],
                     $students->first()['compatibility'],
                 );
-            });
+            }));
     }
 
     public function test_the_search_says_which_skills_the_scope_needs(): void
@@ -98,8 +98,9 @@ class MatchingScreensTest extends TestCase
                 'search' => 'Pia',
             ]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('matchingEnabled', false)
-                ->where('scopeSkills', []));
+                ->where('scopeSkills', [])
+                ->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
+                    ->where('matchingEnabled', false)));
     }
 
     public function test_browsing_without_a_scope_shows_no_match_figures(): void
@@ -110,9 +111,9 @@ class MatchingScreensTest extends TestCase
         // Nothing has been asked for, so there is nothing to be compatible with.
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', false)
-                ->where('students.data.0.compatibility', null));
+                ->where('students.data.0.compatibility', null)));
     }
 
     public function test_a_students_board_ranks_briefs_against_their_profile(): void
@@ -127,8 +128,8 @@ class MatchingScreensTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
             ->assertOk()
-            ->assertInertia(function (AssertableInertia $page) {
-                $briefs = collect($page->toArray()['props']['projects']['data']);
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', function (AssertableInertia $reload) {
+                $briefs = collect($reload->toArray()['props']['projects']['data']);
 
                 $mobile = $briefs->firstWhere('title', 'Delivery App')['compatibility'];
                 $payroll = $briefs->firstWhere('title', 'Payroll Ledger')['compatibility'];
@@ -138,7 +139,7 @@ class MatchingScreensTest extends TestCase
                     $mobile,
                     'A Flutter student should rank the mobile brief above the payroll one.',
                 );
-            });
+            }));
     }
 
     public function test_the_board_explains_why_a_brief_fits(): void
@@ -151,11 +152,11 @@ class MatchingScreensTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', true)
                 ->whereNot('projects.data.0.insight', null)
                 ->whereNot('highlight', null)
-                ->has('highlight.factors'));
+                ->has('highlight.factors')));
     }
 
     public function test_a_student_with_no_profile_is_not_scored(): void
@@ -169,9 +170,9 @@ class MatchingScreensTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', false)
-                ->where('projects.data.0.compatibility', null));
+                ->where('projects.data.0.compatibility', null)));
     }
 
     /**

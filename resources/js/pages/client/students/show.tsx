@@ -26,7 +26,6 @@ type Props = {
         course: string | null;
         yearLevel: number | null;
         githubUrl: string | null;
-        portfolioUrl: string | null;
         isAvailable: boolean;
         rating: number;
         completedProjects: number;
@@ -396,7 +395,7 @@ export default function StudentProfile({
                         </div>
                     </Panel>
 
-                    {(student.githubUrl || student.portfolioUrl) && (
+                    {student.githubUrl && (
                         <Panel padding="lg" gap="sm">
                             <PanelKicker>Links</PanelKicker>
                             {student.githubUrl && (
@@ -408,17 +407,6 @@ export default function StudentProfile({
                                 >
                                     <GithubLogoIcon />
                                     GitHub
-                                </a>
-                            )}
-                            {student.portfolioUrl && (
-                                <a
-                                    href={student.portfolioUrl}
-                                    target="_blank"
-                                    rel="noreferrer noopener"
-                                    className="flex items-center gap-2 text-[13px] hover:underline"
-                                >
-                                    <LinkSimpleIcon />
-                                    Portfolio
                                 </a>
                             )}
                         </Panel>

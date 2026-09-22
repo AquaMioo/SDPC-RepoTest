@@ -20,6 +20,27 @@ use Illuminate\Support\Str;
 class ClientModuleTaxonomySeeder extends Seeder
 {
     /**
+     * Practices postings ask for that are not technologies, so a student's
+     * Skills card does not offer them.
+     *
+     * @var list<string>
+     */
+    private const NOT_TECHNOLOGIES = [
+        'System Analysis', 'Technical Writing', 'Quality Assurance', 'Project Management', 'Forecasting',
+    ];
+
+    /**
+     * Slugs written out where Str::slug would collide: C, C++ and C# all
+     * reduce to "c", which C# holds.
+     *
+     * @var array<string, string>
+     */
+    private const SKILL_SLUGS = [
+        'C' => 'c-language',
+        'C++' => 'c-plus-plus',
+    ];
+
+    /**
      * Run the database seeds.
      */
     public function run(): void
@@ -107,6 +128,10 @@ class ClientModuleTaxonomySeeder extends Seeder
 
     /**
      * Seed the skill taxonomy across all four types.
+     *
+     * Everything here is a technology a student may claim, except the few
+     * practices in NOT_TECHNOLOGIES, which postings and the matching
+     * vocabulary still use. See the is_technology migration.
      */
     protected function seedSkills(): void
     {
@@ -114,29 +139,38 @@ class ClientModuleTaxonomySeeder extends Seeder
             SkillType::Language->value => [
                 'PHP', 'JavaScript', 'TypeScript', 'Python', 'Java',
                 'C#', 'Kotlin', 'Swift', 'Dart', 'Go',
+                'HTML', 'CSS', 'C', 'C++', 'Ruby', 'Rust', 'R', 'SQL',
             ],
             SkillType::Framework->value => [
                 'Laravel', 'React', 'Vue', 'Next.js', 'Livewire',
                 'Django', 'Flask', 'Spring Boot', 'Flutter', 'React Native',
                 '.NET', 'Tailwind CSS',
+                'Node.js', 'Express', 'Angular', 'Bootstrap', 'jQuery', 'Unity',
             ],
             SkillType::Database->value => [
                 'MySQL', 'PostgreSQL', 'SQLite', 'MongoDB',
                 'Firebase', 'Redis', 'Microsoft SQL Server',
+                'Oracle Database', 'Supabase',
             ],
             SkillType::General->value => [
                 'UI/UX Design', 'System Analysis', 'Technical Writing',
                 'Quality Assurance', 'Project Management', 'Forecasting',
                 'Data Analytics', 'API Integration', 'Payment Integration',
                 'Deployment & DevOps',
+                'Git', 'GitHub', 'Docker', 'Linux', 'AWS', 'Azure',
+                'Google Cloud', 'Figma', 'REST APIs',
             ],
         ];
 
         foreach ($skills as $type => $names) {
             foreach ($names as $name) {
                 Skill::updateOrCreate(
-                    ['slug' => Str::slug($name)],
-                    ['name' => $name, 'type' => $type],
+                    ['slug' => self::SKILL_SLUGS[$name] ?? Str::slug($name)],
+                    [
+                        'name' => $name,
+                        'type' => $type,
+                        'is_technology' => ! in_array($name, self::NOT_TECHNOLOGIES, true),
+                    ],
                 );
             }
         }

@@ -25,7 +25,16 @@ class SkillFactory extends Factory
             'name' => Str::title($name),
             'slug' => Str::slug($name),
             'type' => SkillType::General,
+            'is_technology' => true,
         ];
+    }
+
+    /**
+     * Indicate that the skill is a practice, not a technology a student may claim.
+     */
+    public function notTechnology(): static
+    {
+        return $this->state(fn (): array => ['is_technology' => false]);
     }
 
     /**

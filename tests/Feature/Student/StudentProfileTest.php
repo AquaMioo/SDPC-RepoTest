@@ -145,6 +145,10 @@ class StudentProfileTest extends TestCase
         $student = User::factory()->student()->create();
         $school = School::factory()->create();
 
+        foreach (['Laravel', 'React', 'MySQL'] as $technology) {
+            Skill::factory()->create(['name' => $technology, 'slug' => str($technology)->slug()->toString()]);
+        }
+
         $this->actingAs($student)
             ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
                 'headline' => 'Full-stack developer · Laravel and React',

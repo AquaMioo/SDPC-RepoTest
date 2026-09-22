@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Agreements;
 
 use App\Actions\Agreements\SummariseProgress;
 use App\Actions\Student\ListStudentApplications;
+use App\Enums\AgreementStatus;
+use App\Enums\DeadlineRequestStatus;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
+use App\Models\DeadlineChangeRequest;
 use App\Models\Membership;
 use App\Models\Team;
 use App\Models\User;
@@ -35,7 +38,7 @@ use Inertia\Response;
  * Which side the viewer is on comes from their role, and which agreements they
  * can see from the team in the URL: for a client, the business's; for a
  * student, their own and — when they are on a teammate's team — the one that
- * teammate signed, read-only.
+ * teammate signed, which they work on too (AgreementPolicy::manageTasks).
  */
 class ProjectManagementController extends Controller
 {
@@ -52,15 +55,19 @@ class ProjectManagementController extends Controller
         $user = $request->user();
         $isStudentSide = $user->isStudent();
 
-        $agreements = $this->visibleAgreements($user, $currentTeam, $isStudentSide);
+        $agreements = $this->visibleAgreements($user, $currentTeam, $isStudentSide, AgreementStatus::Active);
+
+        /* Finished builds, kept readable as the record of what was delivered. */
+        $completed = $this->visibleAgreements($user, $currentTeam, $isStudentSide, AgreementStatus::Completed);
 
         /*
          * A client can be running more than one build at once — one agreement
-         * per student taken on — so the screen can be pointed at any of them.
-         * An id that is not in the visible set falls back to the newest rather
-         * than opening somebody else's.
+         * per student taken on — so the screen can be pointed at any of them,
+         * or at a completed one. An id that is not in the visible set falls
+         * back to the newest active one rather than opening somebody else's.
          */
         $selected = $agreements->firstWhere('id', $request->integer('agreement'))
+            ?? $completed->firstWhere('id', $request->integer('agreement'))
             ?? $agreements->first();
 
         return Inertia::render('project-management/index', [
@@ -75,10 +82,27 @@ class ProjectManagementController extends Controller
                 ->values()
                 ->all(),
             'agreement' => $selected === null ? null : $this->present($selected, $isStudentSide),
+            'completedAgreements' => $completed
+                ->map(fn (Agreement $agreement): array => [
+                    'id' => $agreement->id,
+                    'reference' => $agreement->reference,
+                    'projectTitle' => $agreement->project->title,
+                    'counterpart' => $this->counterpart($agreement, $isStudentSide),
+                    'completedOn' => $agreement->completed_at?->format('j M Y'),
+                ])
+                ->values()
+                ->all(),
             'can' => [
                 'manage' => $selected !== null && Gate::allows('manageTasks', $selected),
                 'verify' => $selected !== null && Gate::allows('verifyTasks', $selected),
+                'complete' => $selected !== null && Gate::allows('complete', $selected),
             ],
+            /*
+             * Tied to a build, their own or their team's. The screen then hides
+             * the applications list and every "find more work" way out, the
+             * way a client with a build in progress is not offered new posting.
+             */
+            'isLocked' => $isStudentSide && $user->isLockedToProject(),
             /*
              * Where the locked page points: the agreement still being
              * negotiated, if there is one, so "sign it to unlock this" is one
@@ -92,15 +116,21 @@ class ProjectManagementController extends Controller
     }
 
     /**
-     * The active agreements this viewer may open here, newest first.
+     * The agreements in the given status this viewer may open here, newest first.
      *
      * @return Collection<int, Agreement>
      */
-    protected function visibleAgreements(User $user, Team $currentTeam, bool $isStudentSide): Collection
+    protected function visibleAgreements(User $user, Team $currentTeam, bool $isStudentSide, AgreementStatus $status): Collection
     {
-        return $this->scopeToViewer(Agreement::query()->active(), $user, $currentTeam, $isStudentSide)
-            ->with(['project.team.clientProfile', 'student', 'milestones.tasks.verifier'])
-            ->latest('activated_at')
+        return $this->scopeToViewer(Agreement::query()->where('status', $status), $user, $currentTeam, $isStudentSide)
+            ->with([
+                'project.team.clientProfile',
+                'student',
+                'milestones.tasks.verifier',
+                'milestones.tasks.deadlineRequests.requester',
+                'milestones.deadlineRequests.requester',
+            ])
+            ->latest($status === AgreementStatus::Completed ? 'completed_at' : 'activated_at')
             ->latest('id')
             ->get()
             ->filter(fn (Agreement $agreement): bool => Gate::forUser($user)->allows('viewProgress', $agreement))
@@ -134,7 +164,7 @@ class ProjectManagementController extends Controller
         /*
          * The student themselves, plus whoever owns the team in the URL — on a
          * teammate's team that is the teammate, whose signed build this
-         * student may watch.
+         * student works on with them.
          */
         $ownerIds = Membership::query()
             ->where('team_id', $currentTeam->id)
@@ -161,14 +191,25 @@ class ProjectManagementController extends Controller
             'projectTitle' => $agreement->project->title,
             'counterpart' => $this->counterpart($agreement, $isStudentSide),
             'studentName' => $agreement->student->name,
+            'isCompleted' => $agreement->status === AgreementStatus::Completed,
+            'completedOn' => $agreement->completed_at?->format('j M Y'),
             'startsOn' => $agreement->starts_on?->toDateString(),
             'endsOn' => $agreement->ends_on?->toDateString(),
             'summary' => collect($summary)->except('phases')->all(),
+            /*
+             * The end of Turnover. It only moves through an ask the client
+             * approves, so the screen shows the one waiting, if there is one.
+             */
+            'finalDeadline' => $agreement->finalDeadline()?->toDateString(),
+            'finalDeadlineRequest' => $this->presentRequest(
+                $agreement->turnoverPhase()?->deadlineRequests->first(),
+            ),
             'phases' => $agreement->milestones
                 ->map(fn (AgreementMilestone $milestone): array => [
                     'id' => $milestone->id,
                     'position' => $milestone->position,
                     'title' => $milestone->title,
+                    'isTurnover' => $agreement->turnoverPhase()?->is($milestone) ?? false,
                     'description' => $milestone->description,
                     /* What was signed, kept as the baseline the plan is measured against. */
                     'agreedStartsOn' => $milestone->starts_on?->toDateString(),
@@ -203,6 +244,14 @@ class ProjectManagementController extends Controller
             'position' => $task->position,
             'title' => $task->title,
             'description' => $task->description,
+            'dueOn' => $task->due_on?->toDateString(),
+            'isOverdue' => $task->isOverdue(),
+            /*
+             * The newest ask about this deadline: waiting (the client decides,
+             * the student may take it back) or the last answer, so a declined
+             * extension is not silently forgotten.
+             */
+            'deadlineRequest' => $this->presentRequest($task->deadlineRequests->first()),
             'status' => $task->status->value,
             'statusLabel' => $task->status->label(),
             'proofNote' => $task->proof_note,
@@ -218,6 +267,33 @@ class ProjectManagementController extends Controller
             'submittedAt' => $task->submitted_at?->format('j M Y, g:i a'),
             'verifiedAt' => $task->verified_at?->format('j M Y, g:i a'),
             'verifiedBy' => $task->verifier?->name,
+        ];
+    }
+
+    /**
+     * Shape one ask to move a deadline, or nothing.
+     *
+     * Only an ask still waiting, or the answer to the latest one; a withdrawn
+     * ask is the student changing their mind and says nothing to either side.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function presentRequest(?DeadlineChangeRequest $request): ?array
+    {
+        if ($request === null || $request->status === DeadlineRequestStatus::Withdrawn) {
+            return null;
+        }
+
+        return [
+            'id' => $request->id,
+            'status' => $request->status->value,
+            'statusLabel' => $request->status->label(),
+            'previousOn' => $request->previous_on?->toDateString(),
+            'proposedOn' => $request->proposed_on->toDateString(),
+            'reason' => $request->reason,
+            'requestedBy' => $request->requester?->name,
+            'requestedAt' => $request->created_at?->format('j M Y'),
+            'decisionNote' => $request->decision_note,
         ];
     }
 

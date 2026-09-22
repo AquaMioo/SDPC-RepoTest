@@ -1,9 +1,16 @@
 import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 
+import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
 import { Btn } from '@/components/sdpc/btn';
+import { Input } from '@/components/sdpc/input';
 import { Tag } from '@/components/sdpc/tag';
 import { Spinner } from '@/components/ui/spinner';
+import {
+    code as sendPasswordCode,
+    store as storePassword,
+} from '@/routes/password-setup';
 import {
     link as linkGoogle,
     unlink as unlinkGoogle,
@@ -101,9 +108,9 @@ export default function SignInMethodsCard({
                     <div style={{ fontSize: 13.5 }}>Password</div>
                     <div style={{ fontSize: 12, color: MUTED(58) }}>
                         {methods.hasPassword
-                            ? 'Signs in with your school email.'
+                            ? 'Log in with your school email and this password, or keep using a code.'
                             : methods.schoolEmailCode
-                              ? 'Not needed. You log in with a code sent to your school email.'
+                              ? 'Optional. Set one to log in with your school email and password as well as a code.'
                               : 'None set. Use “Forgot password” on the login page to add one.'}
                     </div>
                 </div>
@@ -111,6 +118,8 @@ export default function SignInMethodsCard({
                     {methods.hasPassword ? 'Set' : 'Not set'}
                 </Tag>
             </div>
+
+            {!methods.hasPassword && methods.schoolEmailCode && <SetPassword />}
 
             <div
                 style={{ height: 1, background: 'var(--color-divider)' }}
@@ -205,6 +214,153 @@ export default function SignInMethodsCard({
                         </Btn>
                     )}
                 </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * A first password, for a student who signed up with a code and has none.
+ *
+ * There is no current password to confirm, so a code to the school address
+ * stands in for it: send the code, then type it with the new password. After
+ * that the ordinary login form takes the school email and this password, and
+ * the code keeps working too.
+ */
+function SetPassword() {
+    const [open, setOpen] = useState(false);
+    const [codeSent, setCodeSent] = useState(false);
+
+    if (!open) {
+        return (
+            <div>
+                <Btn
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setOpen(true)}
+                    data-test="set-password"
+                >
+                    Set a password
+                </Btn>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="profile-inline-form"
+            style={{
+                display: 'grid',
+                gap: 12,
+                padding: 14,
+                borderRadius: 'var(--radius-md)',
+                background: MUTED(4),
+            }}
+        >
+            <Form
+                {...sendPasswordCode.form()}
+                options={{ preserveScroll: true }}
+                onSuccess={() => setCodeSent(true)}
+                style={{ ...ROW, fontSize: 12.5 }}
+            >
+                {({ processing, errors }) => (
+                    <>
+                        <span style={{ marginRight: 'auto', color: MUTED(70) }}>
+                            {codeSent
+                                ? 'We emailed a code to your school address. It expires soon.'
+                                : 'First we email a code to your school address, to check it is you.'}
+                        </span>
+                        <Btn
+                            type="submit"
+                            variant={codeSent ? 'ghost' : 'primary'}
+                            disabled={processing}
+                        >
+                            {processing && <Spinner />}
+                            {codeSent ? 'Send another code' : 'Email me a code'}
+                        </Btn>
+                        <InputError
+                            message={errors.password}
+                            className="w-full text-[11px]"
+                        />
+                    </>
+                )}
+            </Form>
+
+            {codeSent && (
+                <Form
+                    {...storePassword.form()}
+                    options={{ preserveScroll: true }}
+                    resetOnSuccess
+                    style={{ display: 'grid', gap: 10 }}
+                >
+                    {({ processing, errors }) => (
+                        <>
+                            <div className="field">
+                                <label htmlFor="password-code">Code</label>
+                                <Input
+                                    id="password-code"
+                                    name="code"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    maxLength={12}
+                                    autoFocus
+                                />
+                                <InputError
+                                    message={errors.code}
+                                    className="mt-1 text-[11px]"
+                                />
+                            </div>
+                            <div className="field">
+                                <label htmlFor="new-password">
+                                    New password
+                                </label>
+                                <PasswordInput
+                                    id="new-password"
+                                    name="password"
+                                    autoComplete="new-password"
+                                />
+                                <InputError
+                                    message={errors.password}
+                                    className="mt-1 text-[11px]"
+                                />
+                            </div>
+                            <div className="field">
+                                <label htmlFor="new-password-confirmation">
+                                    Confirm password
+                                </label>
+                                <PasswordInput
+                                    id="new-password-confirmation"
+                                    name="password_confirmation"
+                                    autoComplete="new-password"
+                                />
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    justifyContent: 'flex-end',
+                                }}
+                            >
+                                <Btn
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setOpen(false)}
+                                >
+                                    Cancel
+                                </Btn>
+                                <Btn
+                                    type="submit"
+                                    variant="primary"
+                                    disabled={processing}
+                                    data-test="save-password"
+                                >
+                                    {processing && <Spinner />}
+                                    Set password
+                                </Btn>
+                            </div>
+                        </>
+                    )}
+                </Form>
             )}
         </div>
     );

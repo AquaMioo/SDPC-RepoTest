@@ -71,6 +71,7 @@ class AgreementTaskController extends Controller
             'position' => (int) $milestone->tasks()->max('position') + 1,
             'title' => $request->validated('title'),
             'description' => $request->validated('description'),
+            'due_on' => $request->validated('due_on'),
             'status' => TaskStatus::Open,
         ]);
 
@@ -91,6 +92,19 @@ class AgreementTaskController extends Controller
     ): RedirectResponse {
         $this->ensureBelongs($task, $agreement);
         $this->ensureStatus($task, TaskStatus::Open, __('Only a task that has not been submitted can be edited.'));
+
+        /*
+         * A deadline is set freely once, then only moves with the client's
+         * approval — an edit that tried to move or clear it would make the
+         * approval step pointless.
+         */
+        if ($request->has('due_on')
+            && $task->due_on !== null
+            && $request->validated('due_on') !== $task->due_on->toDateString()) {
+            throw ValidationException::withMessages([
+                'due_on' => __("A deadline only moves with the client's approval. Ask for a change instead."),
+            ]);
+        }
 
         $task->update($request->validated());
 

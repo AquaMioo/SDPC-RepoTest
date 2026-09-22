@@ -281,10 +281,11 @@ function ProgressRing({ value }: { value: number }) {
                     stroke="var(--color-primary,#4a7c4e)"
                     strokeDasharray={`${filled} ${circumference - filled}`}
                     transform="rotate(-90 68 68)"
+                    className="progress-ring-dash"
                 />
             </svg>
             <div className="absolute grid place-items-center text-center">
-                <span className="text-[30px] leading-none font-semibold">
+                <span className="progress-ring-value text-[30px] leading-none font-semibold">
                     {value}%
                 </span>
                 <span className="mt-1 text-[11.5px] text-muted-foreground">

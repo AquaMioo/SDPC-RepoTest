@@ -26,7 +26,7 @@ class ListStudentApplications
     public function handle(User $student): array
     {
         /* One project at a time: an invitation cannot be taken while one is in hand. */
-        $holdsProject = $student->holdsProjectInHand();
+        $holdsProject = $student->isLockedToProject();
 
         return Application::query()
             ->where('user_id', $student->id)

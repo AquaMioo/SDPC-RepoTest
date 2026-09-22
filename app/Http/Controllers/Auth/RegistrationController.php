@@ -107,7 +107,15 @@ class RegistrationController extends Controller
     {
         if (PendingMicrosoftRegistration::exists() || PendingSchoolEmailRegistration::exists()) {
             try {
-                return $this->completeRegistration($request->validated());
+                /*
+                 * A school-email student may choose a password on this step.
+                 * validated() drops its confirmation, and CreateNewUser checks
+                 * `confirmed` again, so it rides along — as it does below.
+                 */
+                return $this->completeRegistration([
+                    ...$request->validated(),
+                    'password_confirmation' => $request->input('password_confirmation'),
+                ]);
             } catch (ValidationException $exception) {
                 return $this->abandonRegistration($exception);
             }

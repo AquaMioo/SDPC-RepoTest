@@ -167,7 +167,7 @@ class AdminPostingReviewTest extends TestCase
         // 2. Before review, no student can see it.
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page->has('projects.data', 0));
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload->has('projects.data', 0)));
 
         // 3. The administrator approves it.
         $this->actingAs($admin)
@@ -180,9 +180,9 @@ class AdminPostingReviewTest extends TestCase
         // 4. Now it is on the student's board.
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->has('projects.data', 1)
-                ->where('projects.data.0.title', 'Inventory System'));
+                ->where('projects.data.0.title', 'Inventory System')));
 
         // 5. And the student can apply to it.
         $this->actingAs($student)

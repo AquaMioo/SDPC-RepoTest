@@ -65,6 +65,14 @@ class TeamController extends Controller
                 ? null
                 : 'You can be on one team at a time. If you join another team, it replaces yours, as long as nobody else has joined yours yet.',
             'membership' => $user->isStudent() ? $this->membership($user) : null,
+            /*
+             * Teams on a client's build. Nobody leaves one of those until the
+             * client completes the project (TeamPolicy::leave), so the page
+             * says so instead of offering a button the server refuses.
+             */
+            'buildingTeamIds' => $user->isStudent()
+                ? $user->teams()->get()->filter(fn (Team $team): bool => $team->isBuilding())->values()->modelKeys()
+                : [],
             'collaboratingTeams' => $user->isClient()
                 ? $collaborating->handle($user)
                 : [],

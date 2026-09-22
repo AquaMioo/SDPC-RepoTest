@@ -352,8 +352,8 @@ class RecruitOutreachTest extends TestCase
 
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('students.data.0.messageableProjectId', $project->id));
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
+                ->where('students.data.0.messageableProjectId', $project->id)));
     }
 
     public function test_the_grid_sends_an_uninvited_student_to_their_profile_instead(): void
@@ -369,9 +369,9 @@ class RecruitOutreachTest extends TestCase
         // the invitation lives. Posting a thread here would 403.
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('students.data.0.id', $student->id)
-                ->where('students.data.0.messageableProjectId', null));
+                ->where('students.data.0.messageableProjectId', null)));
     }
 
     public function test_another_businesses_application_does_not_open_the_grids_thread(): void
@@ -386,8 +386,8 @@ class RecruitOutreachTest extends TestCase
 
         $this->actingAs($client)
             ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('students.data.0.messageableProjectId', null));
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
+                ->where('students.data.0.messageableProjectId', null)));
     }
 
     /**

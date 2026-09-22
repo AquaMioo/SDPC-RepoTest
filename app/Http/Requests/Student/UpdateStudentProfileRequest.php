@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Barangay;
 use App\Models\Course;
 use App\Models\School;
+use App\Models\Skill;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -66,7 +67,6 @@ class UpdateStudentProfileRequest extends FormRequest
             'education_note' => ['nullable', 'string', 'max:2000'],
 
             'github_url' => ['nullable', 'url', 'max:255'],
-            'portfolio_url' => ['nullable', 'url', 'max:255'],
 
             'is_available' => ['boolean'],
             /* A tiny integer column, and nobody is free for 300 hours a week. */
@@ -75,7 +75,23 @@ class UpdateStudentProfileRequest extends FormRequest
             'response_time_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
 
             'skills' => ['array', 'max:'.self::MAXIMUM_SKILLS],
-            'skills.*' => ['required', 'string', 'max:60'],
+            /*
+             * Picked from the list, never typed in: a technology the platform
+             * knows. Anything else is how "Microsoft Word" reached profiles.
+             */
+            'skills.*' => ['required', 'string', 'max:60', Rule::exists(Skill::class, 'name')->where('is_technology', true)],
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'skills.*.exists' => __('Pick skills from the list. Only technologies — languages, frameworks, databases and tools — can be added.'),
         ];
     }
 

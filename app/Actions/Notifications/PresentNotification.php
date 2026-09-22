@@ -268,6 +268,28 @@ class PresentNotification
                 __('Once both parties have signed, the project moves into progress.'),
                 $this->agreementUrl($data, $team),
             ],
+            'deadline.requested' => [
+                __(':student asked to move :what', [
+                    'student' => $this->text($data, 'student_name') ?? __('The student'),
+                    'what' => $this->text($data, 'subject') ?? __('a deadline'),
+                ]),
+                __('On :project. The date stays as it is until you approve or decline it.', ['project' => $project ?? __('your project')]),
+                $this->projectManagementUrl($data, $team),
+            ],
+            'deadline.decided' => [
+                $this->text($data, 'status') === 'approved'
+                    ? __('The client approved moving :what', ['what' => $this->text($data, 'subject') ?? __('a deadline')])
+                    : __('The client kept :what', ['what' => $this->text($data, 'subject') ?? __('a deadline')]),
+                $this->text($data, 'note') ?? __('On :project.', ['project' => $project ?? __('your project')]),
+                $this->projectManagementUrl($data, $team),
+            ],
+            'project.completed' => [
+                __(':project is complete', ['project' => $project ?? __('Your project')]),
+                __(':business accepted the turnover. You are free to take on your next project.', [
+                    'business' => $this->text($data, 'business_name') ?? __('The client'),
+                ]),
+                $this->projectManagementUrl($data, $team),
+            ],
             'agreement.changes_requested' => [
                 __('Changes were requested on :reference', ['reference' => $reference ?? '']),
                 $this->text($data, 'note'),
@@ -348,6 +370,22 @@ class PresentNotification
         return is_int($id) || is_string($id)
             ? route('messages.show', ['current_team' => $team->slug, 'conversation' => $id])
             : null;
+    }
+
+    /**
+     * Build the link to a build's Project Management, on the agreement the
+     * payload names when it names one.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function projectManagementUrl(array $data, Team $team): string
+    {
+        $id = $data['agreement_id'] ?? null;
+
+        return route('project-management', [
+            'current_team' => $team->slug,
+            ...(is_int($id) || is_string($id) ? ['agreement' => $id] : []),
+        ]);
     }
 
     /**

@@ -58,9 +58,9 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->has('projects.data', 1)
-                ->where('projects.data.0.title', 'Inventory System'));
+                ->where('projects.data.0.title', 'Inventory System')));
     }
 
     public function test_a_draft_never_reaches_the_board(): void
@@ -70,7 +70,7 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page->has('projects.data', 0));
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload->has('projects.data', 0)));
     }
 
     public function test_the_board_can_be_searched(): void
@@ -84,9 +84,9 @@ class ProjectBoardTest extends TestCase
                 'current_team' => $student->currentTeam,
                 'search' => 'Delivery',
             ]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->has('projects.data', 1)
-                ->where('projects.data.0.title', 'Delivery Tracker'));
+                ->where('projects.data.0.title', 'Delivery Tracker')));
     }
 
     public function test_a_verified_student_can_apply(): void
@@ -281,10 +281,10 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', false)
                 ->where('highlight', null)
-                ->where('projects.data.0.compatibility', null));
+                ->where('projects.data.0.compatibility', null)));
     }
 
     public function test_a_scored_brief_carries_its_match_and_insight(): void
@@ -312,7 +312,7 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', true)
                 ->where('projects.data.0.compatibility', 92)
                 ->where('projects.data.0.insight', 'Perfect alignment with your geolocation work.')
@@ -321,7 +321,7 @@ class ProjectBoardTest extends TestCase
                 ->where('highlight.recommendation', 'Lead your pitch with the booking flow.')
                 // The malformed third factor is dropped, not guessed at.
                 ->has('highlight.factors', 2)
-                ->where('highlight.factors.0.label', 'React & Next.js'));
+                ->where('highlight.factors.0.label', 'React & Next.js')));
     }
 
     public function test_another_students_score_is_not_borrowed(): void
@@ -341,9 +341,9 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('projects.data.0.compatibility', null)
-                ->where('highlight', null));
+                ->where('highlight', null)));
     }
 
     public function test_an_unknown_sort_falls_back_rather_than_erroring(): void
@@ -383,9 +383,9 @@ class ProjectBoardTest extends TestCase
                 'current_team' => $student->currentTeam,
                 'sort' => 'newest',
             ]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('projects.data.0.title', 'Newer')
-                ->where('projects.data.1.title', 'Older'));
+                ->where('projects.data.1.title', 'Older')));
     }
 
     public function test_recommended_puts_the_best_fitting_posting_first(): void
@@ -411,9 +411,9 @@ class ProjectBoardTest extends TestCase
                 'current_team' => $student->currentTeam,
                 'sort' => 'recommended',
             ]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('projects.data.0.title', 'Strong fit')
-                ->where('projects.data.1.title', 'Weak fit'));
+                ->where('projects.data.1.title', 'Weak fit')));
     }
 
     /**
@@ -429,9 +429,9 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('matchingEnabled', false)
-                ->where('projects.data.0.title', 'Newer'));
+                ->where('projects.data.0.title', 'Newer')));
     }
 
     public function test_a_row_says_whether_the_business_was_verified(): void
@@ -443,9 +443,9 @@ class ProjectBoardTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
-            ->assertInertia(fn (AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('ranking', fn (AssertableInertia $reload) => $reload
                 ->where('projects.data.0.title', 'From a verified business')
-                ->where('projects.data.0.isBusinessVerified', true));
+                ->where('projects.data.0.isBusinessVerified', true)));
     }
 
     /**

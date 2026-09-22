@@ -32,4 +32,14 @@ enum OneTimePasswordPurpose: string
      * code can never finish a sign up, or the other way round.
      */
     case Login = 'login';
+
+    /**
+     * Setting a first password on an account that never had one.
+     *
+     * A student who signed up with a school-email code has no password, so
+     * there is no current password to confirm before choosing one. A code to
+     * the account's address stands in for it. Its own case so a sign in code
+     * cannot be replayed to take over the password.
+     */
+    case SetPassword = 'set_password';
 }

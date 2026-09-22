@@ -19,6 +19,9 @@ enum AgreementStatus: string
     /** Abandoned before it was ever signed by both sides. */
     case Cancelled = 'cancelled';
 
+    /** The client accepted the turnover and ended the collaboration. */
+    case Completed = 'completed';
+
     /**
      * Get the display label for the status.
      */
@@ -30,6 +33,7 @@ enum AgreementStatus: string
             self::Active => 'Active',
             self::Superseded => 'Superseded',
             self::Cancelled => 'Cancelled',
+            self::Completed => 'Completed',
         };
     }
 
@@ -57,7 +61,7 @@ enum AgreementStatus: string
      */
     public function isFinal(): bool
     {
-        return in_array($this, [self::Superseded, self::Cancelled], true);
+        return in_array($this, [self::Superseded, self::Cancelled, self::Completed], true);
     }
 
     /**
@@ -66,7 +70,7 @@ enum AgreementStatus: string
     public function tagVariant(): string
     {
         return match ($this) {
-            self::Active => 'accent',
+            self::Active, self::Completed => 'accent',
             self::AwaitingSignatures => 'outline',
             self::Draft, self::Superseded, self::Cancelled => 'neutral',
         };

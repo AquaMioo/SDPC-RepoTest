@@ -41,6 +41,8 @@ type Props = {
         lead: string | null;
         memberCount: number;
     } | null;
+    /** Teams on a client's build: nobody leaves until the client completes it. */
+    buildingTeamIds?: number[];
 };
 
 export default function TeamsIndex({
@@ -49,6 +51,7 @@ export default function TeamsIndex({
     createBlockedBecause = null,
     collaboratingTeams = [],
     membership = null,
+    buildingTeamIds = [],
 }: Props) {
     /*
      * A client administers no team. Theirs is the business they registered
@@ -147,7 +150,9 @@ export default function TeamsIndex({
                          * the team they joined is given one of their own
                          * again, so is_personal no longer decides this.
                          */
-                        const canLeaveTeam = team.role !== 'owner';
+                        const isBuilding = buildingTeamIds.includes(team.id);
+                        const canLeaveTeam =
+                            team.role !== 'owner' && !isBuilding;
 
                         /*
                          * Neither action belongs on a client's row: the team
@@ -187,6 +192,9 @@ export default function TeamsIndex({
                                         </div>
                                         <span className="text-sm text-muted-foreground">
                                             {team.roleLabel}
+                                            {isBuilding &&
+                                                team.role !== 'owner' &&
+                                                ' · On a project — you can leave once the client completes it'}
                                         </span>
                                     </div>
                                 </div>
