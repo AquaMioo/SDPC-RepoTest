@@ -159,11 +159,14 @@ class GeminiRecommendationService implements RecommendationService, ScoresFreeTe
             briefs: $briefs,
             cacheKey: 'gemini.capstone.'.md5($capstone).'.'.$this->fingerprint($briefs),
             /*
-             * Without a model there is no sensible reading of two sentences,
-             * so the board falls back to ranking against the saved profile —
-             * which is what it did before this search existed.
+             * Without the model, the keyword scorer still reads the capstone —
+             * the skills and domain words it implies, set against each
+             * posting's. Falling back to the saved profile instead ignored
+             * what the student typed, so on a busy afternoon "Match my
+             * capstone" looked like it did nothing at all. The scorer only
+             * falls back to the profile itself when the words imply nothing.
              */
-            fallback: fn (): Collection => $this->fallback->scoresForStudent($student),
+            fallback: fn (): Collection => $this->fallback->projectScoresForText($title, $description, $student),
         );
     }
 

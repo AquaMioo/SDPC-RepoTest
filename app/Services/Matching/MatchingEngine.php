@@ -204,6 +204,55 @@ class MatchingEngine
     }
 
     /**
+     * Score a posting against a capstone a student described.
+     *
+     * Two descriptions of work, not a brief and a profile: the capstone is what
+     * the student is building, so the question is how much of this posting it
+     * already covers. score() cannot answer that — it reads the student's
+     * saved skills, which is the same for every posting, and so ranked nothing.
+     */
+    public function compareScopes(ScopeProfile $capstone, ScopeProfile $brief): MatchResult
+    {
+        $wanted = $brief->allSkills();
+        $offered = $capstone->allSkills();
+
+        $matched = $wanted->intersect($offered)->values();
+        $missing = $wanted->diff($offered)->values();
+
+        /* How much of what the posting needs the capstone already involves. */
+        $skillFit = $wanted->isEmpty() ? 0.0 : $matched->count() / $wanted->count() * 100;
+
+        /*
+         * The domain words — "inventory", "booking", "clinic" — are what tell
+         * two briefs with the same stack apart. The share of the capstone's
+         * words the posting also uses is how alike the two pieces of work are.
+         */
+        $phrases = $capstone->phrases->intersect($brief->phrases);
+        $domainFit = $capstone->phrases->isEmpty() ? 0.0 : $phrases->count() / $capstone->phrases->count() * 100;
+
+        $compatibility = (int) max(0, min(100, round(0.6 * $skillFit + 0.4 * $domainFit)));
+
+        $matchedNames = $this->names($matched);
+        $missingNames = $this->names($missing);
+
+        return new MatchResult(
+            compatibility: $compatibility,
+            factors: [
+                ['label' => 'Skills your capstone uses', 'value' => (int) round($skillFit)],
+                ['label' => 'Same kind of work', 'value' => (int) round($domainFit)],
+            ],
+            insight: $matchedNames === []
+                ? 'Your capstone and this posting call for different work.'
+                : 'Your capstone already involves '.$this->readable($matchedNames).', which this posting needs.',
+            recommendation: $missingNames === []
+                ? 'Everything this posting needs is part of your capstone.'
+                : 'This posting also needs '.$this->readable($missingNames).'.',
+            matchedSkills: $matchedNames,
+            missingSkills: $missingNames,
+        );
+    }
+
+    /**
      * Turn skill slugs into the names a person reads.
      *
      * @param  Collection<int, string>  $slugs

@@ -10,6 +10,7 @@ use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\ScoresProjectsForText;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
@@ -147,6 +148,55 @@ class StudentRecommendationTest extends TestCase
             $request->body(),
             'Predictive Analytics',
         ));
+    }
+
+    public function test_the_capstone_still_orders_the_board_when_the_model_is_unavailable(): void
+    {
+        [$student, $stock] = $this->studentAndBrief();
+
+        $booking = Project::factory()->create([
+            'title' => 'Appointment booking for a dental clinic',
+            'category' => 'Web application',
+            'industry' => 'Healthcare',
+            'description' => 'Patients should book an appointment online instead of calling the clinic.',
+            'objectives' => 'Online booking with reminders.',
+            'status' => ProjectStatus::Open,
+            'applications_open' => true,
+        ]);
+
+        /*
+         * Testers, 2026-09-24: "Match my capstone" changed nothing. Whenever
+         * the model was busy the board fell back to the saved profile and
+         * ignored what was typed, and the keyword scorer compared the capstone
+         * with the profile — one number for every posting. Both now read the
+         * capstone against each posting.
+         */
+        Http::fake(['*' => Http::response('This model is currently experiencing high demand.', 503)]);
+
+        $scores = $this->app->make(RecommendationService::class)->projectScoresForText(
+            'Clinic appointment booking',
+            'Patients book an appointment online and the clinic confirms it.',
+            $student,
+        );
+
+        $this->assertGreaterThan(
+            $scores[$stock->id]['compatibility'],
+            $scores[$booking->id]['compatibility'],
+        );
+
+        /* And a different capstone turns the order round. */
+        Cache::flush();
+
+        $scores = $this->app->make(RecommendationService::class)->projectScoresForText(
+            'Inventory and stock forecasting',
+            'Tracks stock in and out for a store and forecasts reorder points.',
+            $student,
+        );
+
+        $this->assertGreaterThan(
+            $scores[$booking->id]['compatibility'],
+            $scores[$stock->id]['compatibility'],
+        );
     }
 
     public function test_the_capstone_search_never_carries_a_name_or_email(): void

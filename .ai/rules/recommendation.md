@@ -72,3 +72,8 @@ Switched from gemini-3.6-flash on 2026-09-24. On the free tier 3.6 Flash allows 
 GEMINI_MODEL is pinned in every .env (local, C:\sites\sdpc, the VM's /var/www/sdpc), so changing the default in config/gemini.php alone changes nothing live — edit all three. The prompt, payload and parsing are the same for every model, and any answer that does not parse falls back to the computed scorer.
 
 Earlier notes that said "no quota errors" read only the failure log: a 429 that a fallback then answered is never logged as a failure. Check AI Studio's Rate Limit page for real quota use.
+
+## "Match my capstone" must read the capstone even without the model
+GeminiRecommendationService::projectScoresForText falls back to ComputedRecommendationService::projectScoresForText, never to scoresForStudent. The computed side compares the capstone with each posting through MatchingEngine::compareScopes (60% share of the posting's skills the capstone implies, 40% share of the capstone's domain words the posting also uses). It only returns the saved-profile ranking when the typed words imply no skills at all.
+
+Before 2026-09-24 both halves ignored the text: the Gemini fallback went straight to the profile, and the computed scorer called engine->score($capstone, $profile) — the same number for every posting. So whenever the model was busy (most afternoons on the free tier) the capstone search reordered nothing, while the client-side search, whose fallback does read the words, kept working. tests/Feature/Matching/StudentRecommendationTest::test_the_capstone_still_orders_the_board_when_the_model_is_unavailable pins it.
