@@ -87,8 +87,14 @@ class MatchingSpeedTest extends TestCase
                 ->where('students.data.0.id', $pia->user_id)
                 ->where('students.data.0.compatibility', 88)));
 
-        /* Ranked across everyone and labelled from the same answer: one call. */
-        Http::assertSentCount(1);
+        /*
+         * Ranked across everyone and labelled from the same answer: one call.
+         * Only calls to the model count — with `npm run dev` up, Inertia also
+         * posts to the Vite server's SSR endpoint, which is not this.
+         */
+        $this->assertCount(1, Http::recorded(
+            fn ($request) => str_contains($request->url(), ':generateContent'),
+        ));
     }
 
     public function test_a_model_whose_daily_quota_is_spent_rests_until_it_resets(): void

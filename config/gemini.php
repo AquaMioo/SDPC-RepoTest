@@ -35,8 +35,15 @@ return [
     | 404 for any key created after it was retired: "no longer available to new
     | users". So a listed model is not a usable one, and the only way to find
     | out is to call it.
+    |
+    | Switched from gemini-3.6-flash to gemini-3.5-flash-lite on 2026-09-24.
+    | On the free tier 3.6 Flash allows 5 requests a minute and 20 a day,
+    | shared by both sites; AI Studio showed 26/20 used, so it spent most days
+    | refusing with 429. 3.5 Flash Lite allows 15 a minute and 500 a day, and
+    | answered the real matching prompt with sound rankings in about 2 seconds
+    | when it was measured as a fallback (2026-09-19).
     */
-    'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
+    'model' => env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
 
     /*
     | Models to ask, in order, while the one before is busy.
@@ -58,7 +65,7 @@ return [
     */
     'fallback_models' => array_values(array_filter(array_map(
         'trim',
-        explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-3.5-flash-lite,gemini-3.1-flash-lite')),
+        explode(',', (string) env('GEMINI_FALLBACK_MODELS', 'gemini-3.1-flash-lite,gemini-3.6-flash')),
     ))),
 
     'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),

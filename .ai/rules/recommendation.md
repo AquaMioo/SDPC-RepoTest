@@ -65,3 +65,10 @@ Measured from sdpc.tech and the VM on 2026-09-22/23: gemini-3.6-flash answered e
 A model that 503s or stalls now rests for gemini.busy_rest_seconds (120) under the `gemini.busy.<model>` key, which models() filters like the quota key. beginCooldown() is skipped while models() still returns somebody: the global 5-minute cooldown used to start on any failed question, so one busy lite model put the whole site on keyword matching for five minutes — that is what "sometimes the AI works, sometimes it doesn't" was. A cooldown of zero still means ask every time: it disables the busy rests too.
 
 Only a refusal (4xx) or an exception is treated as everyone's problem, because those are about the key, the location or the payload. tests/Feature/Matching/GeminiRecommendationTest pins both halves.
+
+## The main model is gemini-3.5-flash-lite, for its quota
+Switched from gemini-3.6-flash on 2026-09-24. On the free tier 3.6 Flash allows 5 RPM and 20 requests a day, shared by sdpc.tech and demo.sdpc.tech; AI Studio showed 26/20 used, so the site spent most days on 429s and the fallbacks. 3.5 Flash Lite allows 15 RPM and 500 a day. Order is now 3.5-flash-lite, then 3.1-flash-lite, then 3.6-flash as a last resort (it rests until midnight Pacific once its day is spent).
+
+GEMINI_MODEL is pinned in every .env (local, C:\sites\sdpc, the VM's /var/www/sdpc), so changing the default in config/gemini.php alone changes nothing live — edit all three. The prompt, payload and parsing are the same for every model, and any answer that does not parse falls back to the computed scorer.
+
+Earlier notes that said "no quota errors" read only the failure log: a 429 that a fallback then answered is never logged as a failure. Check AI Studio's Rate Limit page for real quota use.
