@@ -93,12 +93,14 @@ export default function ProjectForm({ data, setData, errors }: Props) {
                     {(props) => (
                         <textarea
                             {...props}
-                            className="min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            ref={fitToContent}
+                            className="min-h-[120px] w-full resize-none overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm"
                             value={data.description}
                             placeholder="What problem should the system solve? Who will use it, and what does success look like at turnover?"
-                            onChange={(e) =>
-                                setData('description', e.target.value)
-                            }
+                            onChange={(e) => {
+                                setData('description', e.target.value);
+                                fitToContent(e.currentTarget);
+                            }}
                         />
                     )}
                 </Field>
@@ -111,18 +113,36 @@ export default function ProjectForm({ data, setData, errors }: Props) {
                     {(props) => (
                         <textarea
                             {...props}
-                            className="min-h-[78px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            ref={fitToContent}
+                            className="min-h-[78px] w-full resize-none overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm"
                             value={data.objectives}
                             placeholder={
                                 'Replace the spreadsheet used across three branches\nAlert staff before stock runs out'
                             }
-                            onChange={(e) =>
-                                setData('objectives', e.target.value)
-                            }
+                            onChange={(e) => {
+                                setData('objectives', e.target.value);
+                                fitToContent(e.currentTarget);
+                            }}
                         />
                     )}
                 </Field>
             </Panel>
         </>
     );
+}
+
+/**
+ * Grow a textarea to fit what is written in it.
+ *
+ * The description and objectives are where a client says the most, so the box
+ * follows the text instead of offering a drag handle: set on mount (a draft
+ * opens at its full length) and again on every keystroke.
+ */
+function fitToContent(textarea: HTMLTextAreaElement | null): void {
+    if (textarea === null) {
+        return;
+    }
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
 }
