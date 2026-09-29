@@ -24,6 +24,12 @@ trait RegistrationValidationRules
     use PasswordValidationRules;
 
     /**
+     * How long a password chosen at sign up may be, for students and clients
+     * alike. The registration form enforces the same range in the browser.
+     */
+    protected const PASSWORD_LENGTH = ['min:12', 'max:32'];
+
+    /**
      * Get the validation rules for a sign up.
      *
      * A student signs in with their school address, so a student sign up has
@@ -56,13 +62,13 @@ trait RegistrationValidationRules
                 : ['required', 'string', 'email', 'max:255', Rule::unique(User::class), Rule::unique(User::class, 'google_email')],
             'password' => match (true) {
                 /*
-                 * A student proved their school address with a code, so they
-                 * need no password — but may choose one now, to sign in later
-                 * with their school email and password instead of a code.
+                 * A student who proved their school address with a code sets a
+                 * password too (required since 2026-09-30), so they can sign in
+                 * with their school email and password as well as a code.
                  */
-                PendingSchoolEmailRegistration::exists() => ['nullable', 'string', Password::default(), 'confirmed'],
+                PendingSchoolEmailRegistration::exists() => ['required', 'string', ...self::PASSWORD_LENGTH, Password::default(), 'confirmed'],
                 $viaGoogle || $viaMicrosoft => ['nullable'],
-                default => $this->passwordRules(),
+                default => [...$this->passwordRules(), ...self::PASSWORD_LENGTH],
             },
             'role' => ['required', Rule::in($this->selfRegistrableRoles($viaGoogle, $viaMicrosoft))],
             'business_name' => [Rule::requiredIf($this->isRole($input, UserRole::Client)), 'nullable', 'string', 'max:255'],
@@ -82,6 +88,8 @@ trait RegistrationValidationRules
     {
         return [
             'terms.accepted' => __('You must accept the Terms of Service to create an account.'),
+            'password.min' => __('Password must be between 12 and 32 characters long.'),
+            'password.max' => __('Password must be between 12 and 32 characters long.'),
             'business_name.required' => __('Please tell us the name of your business.'),
             'school_email.required' => __('Please enter your school email.'),
             'school_email.unique' => __('An account already uses this school email. Please log in instead.'),

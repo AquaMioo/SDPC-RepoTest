@@ -52,8 +52,8 @@ class RegistrationTest extends TestCase
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'role' => UserRole::Client->value,
             'business_name' => 'Zenith Solutions Group',
             'terms' => '1',
@@ -84,8 +84,8 @@ class RegistrationTest extends TestCase
         $this->completeRegistration([
             'first_name' => 'Kristiane',
             'last_name' => 'Dela Pena',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'role' => UserRole::Student->value,
             'school_email' => '02000123456@sti.edu.ph',
             'terms' => '1',
@@ -108,8 +108,8 @@ class RegistrationTest extends TestCase
             'first_name' => 'Mallory',
             'last_name' => 'Smith',
             'email' => 'mallory@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'role' => UserRole::Admin->value,
             'terms' => '1',
         ]);
@@ -125,13 +125,46 @@ class RegistrationTest extends TestCase
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'noterms@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'role' => UserRole::Client->value,
             'business_name' => 'Zenith Solutions Group',
         ]);
 
         $response->assertSessionHasErrors('terms');
+        $this->assertGuest();
+    }
+
+    public function test_the_form_carries_the_documents_the_terms_box_agrees_to(): void
+    {
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('auth/register')
+                ->has('agreementDocuments', 3)
+                ->where('agreementDocuments.0.slug', 'terms-of-service')
+                ->where('agreementDocuments.1.slug', 'user-agreement')
+                ->where('agreementDocuments.2.slug', 'privacy-policy')
+                ->has('agreementDocuments.0.sections'));
+    }
+
+    public function test_a_client_password_must_be_12_to_32_characters(): void
+    {
+        foreach (['Sh0rt-pass!', str_repeat('Long-pass-1!', 3)] as $password) {
+            $this->post(route('register.store'), [
+                'first_name' => 'Ana',
+                'last_name' => 'Reyes',
+                'email' => 'ana@example.com',
+                'password' => $password,
+                'password_confirmation' => $password,
+                'role' => UserRole::Client->value,
+                'business_name' => 'Zenith Solutions Group',
+                'terms' => '1',
+            ])->assertSessionHasErrors([
+                'password' => 'Password must be between 12 and 32 characters long.',
+            ]);
+        }
+
         $this->assertGuest();
     }
 }

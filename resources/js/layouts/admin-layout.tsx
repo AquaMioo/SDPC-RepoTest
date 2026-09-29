@@ -1,7 +1,8 @@
-import { Link, router, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { BellIcon, SignOutIcon } from '@phosphor-icons/react';
 import type { CSSProperties, ReactNode } from 'react';
 
+import { confirmLogout } from '@/components/logout-confirmation';
 import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
 import {
@@ -10,7 +11,6 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useMod } from '@/hooks/use-mod';
-import { logout } from '@/routes';
 import { dashboard, issues, monitoring } from '@/routes/admin';
 import { index as adminUsers } from '@/routes/admin/users';
 
@@ -185,7 +185,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                     variant="bare"
                                     aria-label="Log out"
                                     style={{ color: 'var(--color-text)' }}
-                                    onClick={() => router.post(logout.url())}
+                                    onClick={confirmLogout}
                                 >
                                     <SignOutIcon />
                                 </Btn>

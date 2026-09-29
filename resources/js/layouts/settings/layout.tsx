@@ -2,9 +2,9 @@ import { Link } from '@inertiajs/react';
 import { LockSimpleIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
 import type { ComponentType, PropsWithChildren, ReactNode } from 'react';
 
+import { confirmLogout } from '@/components/logout-confirmation';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { toUrl } from '@/lib/utils';
-import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
@@ -114,10 +114,15 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                  */}
                 <div style={RULE} />
 
-                <Link href={logout()} as="button" data-tab="" style={ROW}>
+                <button
+                    type="button"
+                    onClick={confirmLogout}
+                    data-tab=""
+                    style={ROW}
+                >
                     <SignOutIcon size={16} />
                     Log out
-                </Link>
+                </button>
             </div>
 
             <div>{children}</div>

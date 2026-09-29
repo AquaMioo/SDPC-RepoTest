@@ -1,11 +1,11 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head } from '@inertiajs/react';
 
 import InputError from '@/components/input-error';
+import { confirmLogout } from '@/components/logout-confirmation';
 import { Btn } from '@/components/sdpc/btn';
 import { Input, Select } from '@/components/sdpc/input';
 import { Tag } from '@/components/sdpc/tag';
 import { Spinner } from '@/components/ui/spinner';
-import { logout } from '@/routes';
 import { store } from '@/routes/credentials';
 
 /** Mirrors App\Enums\CredentialStatus. */
@@ -241,10 +241,13 @@ export default function Credentials({ schools, submission }: Props) {
                         color: MUTED,
                     }}
                 >
-                    <Btn asChild variant="ghost" style={{ fontSize: 12.5 }}>
-                        <Link href={logout()} as="button" tabIndex={4}>
-                            Log out
-                        </Link>
+                    <Btn
+                        variant="ghost"
+                        style={{ fontSize: 12.5 }}
+                        tabIndex={4}
+                        onClick={confirmLogout}
+                    >
+                        Log out
                     </Btn>
                 </div>
             </div>

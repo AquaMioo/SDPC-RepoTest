@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\Fortify\CreateNewUser;
+use App\Enums\LegalDocument;
 use App\Enums\OneTimePasswordPurpose;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -56,6 +57,20 @@ class RegistrationController extends Controller
     {
         return Inertia::render('auth/register', [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            /*
+             * The documents the terms checkbox agrees to, read in full in a
+             * dialog before the box can be ticked.
+             */
+            'agreementDocuments' => collect([
+                LegalDocument::TermsOfService,
+                LegalDocument::UserAgreement,
+                LegalDocument::PrivacyPolicy,
+            ])->map(fn (LegalDocument $document): array => [
+                'slug' => $document->value,
+                'title' => $document->title(),
+                'intro' => $document->intro(),
+                'sections' => $document->sections(),
+            ])->all(),
             'canLoginWithGoogle' => (bool) config('services.google.enabled'),
             'googleSetupHint' => $this->shouldHintAtGoogleSetup(),
             'canLoginWithMicrosoft' => (bool) config('services.microsoft.enabled'),

@@ -1,19 +1,29 @@
 import { Eye, EyeOff } from 'lucide-react';
-import type { ComponentProps, Ref } from 'react';
+import type { ComponentProps, ComponentType, Ref } from 'react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
+/**
+ * A password field with a show / hide eye inside it.
+ *
+ * `as` swaps the input underneath, so a screen drawn with the SDPC `.input`
+ * styling (registration) gets the same toggle as the settings screens.
+ */
 export default function PasswordInput({
     className,
     ref,
+    as: Field = Input,
     ...props
-}: Omit<ComponentProps<'input'>, 'type'> & { ref?: Ref<HTMLInputElement> }) {
+}: Omit<ComponentProps<'input'>, 'type'> & {
+    ref?: Ref<HTMLInputElement>;
+    as?: ComponentType<ComponentProps<'input'>>;
+}) {
     const [showPassword, setShowPassword] = useState(false);
 
     return (
         <div className="relative">
-            <Input
+            <Field
                 type={showPassword ? 'text' : 'password'}
                 className={cn('pr-10', className)}
                 ref={ref}

@@ -43,13 +43,34 @@ class StudentPasswordSetupTest extends TestCase
         $this->assertTrue(Hash::check('a-Strong-password-2026', User::sole()->password));
     }
 
-    public function test_skipping_the_password_still_signs_up_without_one(): void
+    public function test_a_student_must_choose_a_password(): void
     {
         $this->proveSchoolEmail('juan@sti.edu.ph');
 
-        $this->post(route('register.store'), $this->signUp())->assertSessionHasNoErrors();
+        /* Optional until 2026-09-30; every student sets one at sign up now. */
+        $this->from(route('register'))
+            ->post(route('register.store'), $this->signUp())
+            ->assertSessionHasErrors('password');
 
-        $this->assertNull(User::sole()->password);
+        $this->assertSame(0, User::query()->count());
+    }
+
+    public function test_a_student_password_must_be_12_to_32_characters(): void
+    {
+        $this->proveSchoolEmail('juan@sti.edu.ph');
+
+        foreach (['Sh0rt-pass!', str_repeat('Long-pass-1!', 3)] as $password) {
+            $this->from(route('register'))
+                ->post(route('register.store'), $this->signUp([
+                    'password' => $password,
+                    'password_confirmation' => $password,
+                ]))
+                ->assertSessionHasErrors([
+                    'password' => 'Password must be between 12 and 32 characters long.',
+                ]);
+        }
+
+        $this->assertSame(0, User::query()->count());
     }
 
     public function test_a_chosen_password_must_be_confirmed(): void

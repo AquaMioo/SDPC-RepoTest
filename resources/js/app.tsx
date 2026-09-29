@@ -1,5 +1,6 @@
 import { createInertiaApp } from '@inertiajs/react';
 import { configureEcho } from '@laravel/echo-react';
+import LogoutConfirmation from '@/components/logout-confirmation';
 import NavigationSkeleton from '@/components/sdpc/navigation-skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -90,6 +91,7 @@ createInertiaApp({
             <TooltipProvider delayDuration={0}>
                 {app}
                 <NavigationSkeleton />
+                <LogoutConfirmation />
                 <Toaster />
             </TooltipProvider>
         );

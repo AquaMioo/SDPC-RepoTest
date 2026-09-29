@@ -2,6 +2,9 @@ import { Form, Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
+import AgreementDialog from '@/components/sdpc/agreement-dialog';
+import type { AgreementDocument } from '@/components/sdpc/agreement-dialog';
 import AuthPitch, { Accent, wordmark } from '@/components/sdpc/auth-pitch';
 import { Btn } from '@/components/sdpc/btn';
 import EmailCodeEntry from '@/components/sdpc/email-code-entry';
@@ -61,6 +64,8 @@ type SchoolEmailProfile = {
 
 type Props = {
     passwordRules: string;
+    /** Terms of Service, User Agreement and Privacy Policy, read before agreeing. */
+    agreementDocuments?: AgreementDocument[];
     roles?: Role[];
     canLoginWithGoogle?: boolean;
     googleSetupHint?: boolean;
@@ -76,6 +81,12 @@ type Props = {
 };
 
 const MUTED = 'color-mix(in srgb, var(--color-text) 55%, transparent)';
+
+/** The sign-up password range; RegistrationValidationRules enforces the same. */
+const PASSWORD_MIN = 12;
+const PASSWORD_MAX = 32;
+const PASSWORD_LENGTH_MESSAGE =
+    'Password must be between 12 and 32 characters long.';
 
 /*
  * Last/First and Password/Confirm sit side by side, which is the design.
@@ -98,6 +109,7 @@ const TWO_UP: React.CSSProperties = {
  */
 export default function Register({
     passwordRules,
+    agreementDocuments = [],
     roles = [
         { value: 'client', label: 'Client' },
         { value: 'student', label: 'Student' },
@@ -120,6 +132,17 @@ export default function Register({
      * already typed back — can only become a student. The server enforces the
      * same thing; this just keeps the other option from being picked.
      */
+    /* How long the typed password is, for the inline length message. */
+    const [passwordLength, setPasswordLength] = useState(0);
+
+    /* The terms box, ticked only by accepting the documents in the dialog. */
+    const [termsAccepted, setTermsAccepted] = useState(false);
+    const [readingTerms, setReadingTerms] = useState(false);
+    const lengthError =
+        passwordLength > 0 && passwordLength < PASSWORD_MIN
+            ? PASSWORD_LENGTH_MESSAGE
+            : undefined;
+
     const lockedRole =
         microsoftProfile || schoolEmailProfile || schoolEmailCode
             ? 'student'
@@ -541,9 +564,9 @@ export default function Register({
                                         )}
 
                                         {/* A student who proved their school
-                                address with a code may choose a password
-                                now, to log in with it as well as a code;
-                                or skip it and set one later in Settings. */}
+                                address with a code also sets a password
+                                (required), to log in with it as well as a
+                                code. */}
                                         {pendingIdentity?.provider ===
                                             'school-email' && (
                                             <div
@@ -555,15 +578,29 @@ export default function Register({
                                                 <div style={TWO_UP}>
                                                     <div className="field">
                                                         <label htmlFor="password">
-                                                            Password (optional)
+                                                            Password
                                                         </label>
-                                                        <Input
+                                                        <PasswordInput
+                                                            as={Input}
                                                             id="password"
                                                             name="password"
-                                                            type="password"
+                                                            required
+                                                            minLength={
+                                                                PASSWORD_MIN
+                                                            }
+                                                            maxLength={
+                                                                PASSWORD_MAX
+                                                            }
                                                             tabIndex={5}
                                                             autoComplete="new-password"
                                                             placeholder="••••••••"
+                                                            onChange={(e) =>
+                                                                setPasswordLength(
+                                                                    e.target
+                                                                        .value
+                                                                        .length,
+                                                                )
+                                                            }
                                                             {...{
                                                                 passwordrules:
                                                                     passwordRules,
@@ -571,7 +608,8 @@ export default function Register({
                                                         />
                                                         <InputError
                                                             message={
-                                                                errors.password
+                                                                errors.password ??
+                                                                lengthError
                                                             }
                                                             className="mt-1 text-[11px]"
                                                         />
@@ -581,10 +619,14 @@ export default function Register({
                                                         <label htmlFor="password_confirmation">
                                                             Confirm password
                                                         </label>
-                                                        <Input
+                                                        <PasswordInput
+                                                            as={Input}
                                                             id="password_confirmation"
                                                             name="password_confirmation"
-                                                            type="password"
+                                                            required
+                                                            maxLength={
+                                                                PASSWORD_MAX
+                                                            }
                                                             tabIndex={6}
                                                             autoComplete="new-password"
                                                             placeholder="••••••••"
@@ -601,11 +643,10 @@ export default function Register({
                                                         color: MUTED,
                                                     }}
                                                 >
-                                                    Lets you log in with your
-                                                    school email and password,
-                                                    as well as a code. Skip it
-                                                    and set one later in
-                                                    Settings if you like.
+                                                    12 to 32 characters. Lets
+                                                    you log in with your school
+                                                    email and password, as well
+                                                    as a code.
                                                 </span>
                                             </div>
                                         )}
@@ -620,14 +661,22 @@ export default function Register({
                                                     <label htmlFor="password">
                                                         Password
                                                     </label>
-                                                    <Input
+                                                    <PasswordInput
+                                                        as={Input}
                                                         id="password"
                                                         name="password"
-                                                        type="password"
                                                         required
+                                                        minLength={PASSWORD_MIN}
+                                                        maxLength={PASSWORD_MAX}
                                                         tabIndex={5}
                                                         autoComplete="new-password"
                                                         placeholder="••••••••"
+                                                        onChange={(e) =>
+                                                            setPasswordLength(
+                                                                e.target.value
+                                                                    .length,
+                                                            )
+                                                        }
                                                         {...{
                                                             passwordrules:
                                                                 passwordRules,
@@ -635,7 +684,8 @@ export default function Register({
                                                     />
                                                     <InputError
                                                         message={
-                                                            errors.password
+                                                            errors.password ??
+                                                            lengthError
                                                         }
                                                         className="mt-1 text-[11px]"
                                                     />
@@ -645,11 +695,12 @@ export default function Register({
                                                     <label htmlFor="password_confirmation">
                                                         Confirm password
                                                     </label>
-                                                    <Input
+                                                    <PasswordInput
+                                                        as={Input}
                                                         id="password_confirmation"
                                                         name="password_confirmation"
-                                                        type="password"
                                                         required
+                                                        maxLength={PASSWORD_MAX}
                                                         tabIndex={6}
                                                         autoComplete="new-password"
                                                         placeholder="••••••••"
@@ -713,6 +764,20 @@ export default function Register({
                                                 name="terms"
                                                 value="1"
                                                 tabIndex={8}
+                                                checked={termsAccepted}
+                                                /*
+                                                 * Ticking opens the documents
+                                                 * instead; only Accept ticks
+                                                 * it. Unticking is always
+                                                 * allowed.
+                                                 */
+                                                onChange={(event) => {
+                                                    if (event.target.checked) {
+                                                        setReadingTerms(true);
+                                                    } else {
+                                                        setTermsAccepted(false);
+                                                    }
+                                                }}
                                                 style={{
                                                     accentColor:
                                                         'var(--color-accent)',
@@ -767,6 +832,19 @@ export default function Register({
                                         <InputError
                                             message={errors.terms}
                                             className="text-[11px]"
+                                        />
+
+                                        <AgreementDialog
+                                            documents={agreementDocuments}
+                                            open={readingTerms}
+                                            onAccept={() => {
+                                                setTermsAccepted(true);
+                                                setReadingTerms(false);
+                                            }}
+                                            onReject={() => {
+                                                setTermsAccepted(false);
+                                                setReadingTerms(false);
+                                            }}
                                         />
 
                                         <Btn

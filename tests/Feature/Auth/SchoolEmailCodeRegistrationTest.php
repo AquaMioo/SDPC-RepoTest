@@ -10,6 +10,7 @@ use App\Models\StudentVerification;
 use App\Models\User;
 use App\Notifications\Auth\EmailOneTimePassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Feature\Auth\Concerns\CompletesRegistration;
@@ -111,7 +112,7 @@ class SchoolEmailCodeRegistrationTest extends TestCase
                 ->where('schoolEmailCode', null));
     }
 
-    public function test_the_account_is_created_with_no_password_and_no_second_code(): void
+    public function test_the_account_is_created_with_the_chosen_password_and_no_second_code(): void
     {
         $this->proveSchoolEmail('juan@sti.edu.ph');
 
@@ -121,6 +122,8 @@ class SchoolEmailCodeRegistrationTest extends TestCase
             'role' => UserRole::Student->value,
             // Ignored: the proved address comes from the session.
             'school_email' => 'somebody.else@sti.edu.ph',
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'terms' => '1',
         ])->assertRedirect();
 
@@ -129,7 +132,7 @@ class SchoolEmailCodeRegistrationTest extends TestCase
         $this->assertAuthenticatedAs($user);
         $this->assertSame('juan@sti.edu.ph', $user->email);
         $this->assertSame(UserRole::Student, $user->role);
-        $this->assertNull($user->password);
+        $this->assertTrue(Hash::check('a-Strong-password-2026', $user->password));
         $this->assertNotNull($user->email_verified_at);
 
         // One code, for the address. The account itself asked for none.
@@ -196,6 +199,8 @@ class SchoolEmailCodeRegistrationTest extends TestCase
             'first_name' => 'Juan',
             'last_name' => 'Dela Cruz',
             'role' => UserRole::Student->value,
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'terms' => '1',
         ]);
 
@@ -213,16 +218,22 @@ class SchoolEmailCodeRegistrationTest extends TestCase
             'first_name' => 'Juan',
             'last_name' => 'Dela Cruz',
             'role' => UserRole::Student->value,
+            'password' => 'a-Strong-password-2026',
+            'password_confirmation' => 'a-Strong-password-2026',
             'terms' => '1',
         ]);
 
-        $student = User::sole();
-        $student->forceFill(['google_id' => 'google-123', 'google_email' => 'juan.personal@gmail.com'])->save();
-
         /*
-         * No password, but the school address can always be sent a sign in
-         * code, so Google is not the only way in.
+         * A student who signed up before passwords were required has none.
+         * The school address can always be sent a sign in code, so Google is
+         * still not their only way in.
          */
+        $student = User::sole();
+        $student->forceFill([
+            'password' => null,
+            'google_id' => 'google-123',
+            'google_email' => 'juan.personal@gmail.com',
+        ])->save();
         $this->actingAs($student)
             ->delete(route('student.google.unlink'))
             ->assertInertiaFlash('toast.message', 'Google account removed.');

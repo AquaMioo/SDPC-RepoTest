@@ -243,13 +243,30 @@ export default function MessageRow({
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-word',
                             fontStyle: message.isRemoved ? 'italic' : undefined,
-                            color: message.isRemoved ? MUTED(50) : undefined,
+                            /*
+                             * Messenger's two colours: your own lines in the
+                             * brand green with white text, the other side's
+                             * in a neutral gray with dark text. The gray is a
+                             * shade deeper than #F0F2F5, which is the colour
+                             * of the panel behind it and would disappear.
+                             * While editing, the bubble goes neutral so the
+                             * edit box and its buttons keep their own colours.
+                             */
+                            color: message.isRemoved
+                                ? MUTED(50)
+                                : emojiOnly || isEditing
+                                  ? undefined
+                                  : message.isMine
+                                    ? '#ffffff'
+                                    : '#1c1e21',
                             background:
                                 message.isRemoved || emojiOnly
                                     ? 'transparent'
-                                    : message.isMine
-                                      ? 'color-mix(in srgb, var(--color-accent) 16%, transparent)'
-                                      : 'color-mix(in srgb, var(--color-text) 6%, transparent)',
+                                    : isEditing
+                                      ? 'color-mix(in srgb, var(--color-text) 6%, transparent)'
+                                      : message.isMine
+                                        ? 'var(--color-accent)'
+                                        : '#e4e6eb',
                             border: message.isRemoved
                                 ? `1px dashed ${MUTED(20)}`
                                 : undefined,
