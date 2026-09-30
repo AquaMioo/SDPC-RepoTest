@@ -1,12 +1,16 @@
 import { router } from '@inertiajs/react';
 
 import { Btn } from '@/components/sdpc/btn';
+import { PageNumbers, usePagination } from '@/components/sdpc/page-numbers';
 import { Tag } from '@/components/sdpc/tag';
 import { update } from '@/routes/admin/postings';
 import type { AdminPosting } from '@/types/admin';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
+
+/** How many postings the dashboard shows at once. */
+const POSTINGS_PER_PAGE = 5;
 
 /** Which tag colour each posting status wears. */
 const STATUS_VARIANT: Record<string, 'accent' | 'neutral' | 'outline'> = {
@@ -38,6 +42,12 @@ export default function PostingReviewList({
         (posting) => posting.awaitingDecision,
     ).length;
 
+    /* Five to a page, paged in place: no request and no reload. */
+    const { page, pageCount, setPage, pageItems } = usePagination(
+        postings,
+        POSTINGS_PER_PAGE,
+    );
+
     return (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
@@ -58,7 +68,7 @@ export default function PostingReviewList({
                 </div>
             )}
 
-            {postings.map((posting) => (
+            {pageItems.map((posting) => (
                 <div
                     key={posting.slug}
                     className="card elev-sm"
@@ -147,6 +157,13 @@ export default function PostingReviewList({
                     </div>
                 </div>
             ))}
+
+            <PageNumbers
+                page={page}
+                pageCount={pageCount}
+                onChange={setPage}
+                label="Postings"
+            />
         </section>
     );
 }

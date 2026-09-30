@@ -329,6 +329,17 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine if this account has ever filed an appeal.
+     *
+     * Each account may appeal once (FileAppeal), so this is what closes the
+     * form, whether the appeal is still waiting or already decided.
+     */
+    public function hasFiledAppeal(): bool
+    {
+        return $this->appeals()->exists();
+    }
+
+    /**
      * Determine if the account is in a state there is anything to appeal.
      *
      * Pending and approved accounts have had no decision taken against them,

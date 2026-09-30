@@ -29,11 +29,12 @@ class OpenMeetingRequest extends FormRequest
              * one later". Those are the same endpoint because they create the
              * same row — the only difference is whether anybody is in it yet.
              *
-             * Capped at ninety days out. A meeting further away than a term is
-             * almost always a mistyped year, and the row would sit in the
-             * thread until somebody noticed.
+             * Never in the past, and at most a year out (testers,
+             * 2026-10-01; it was ninety days). Anything further away is almost
+             * always a mistyped year, and the row would sit in the thread
+             * until somebody noticed.
              */
-            'scheduled_at' => ['nullable', 'date', 'after:now', 'before:'.now()->addDays(90)->toDateTimeString()],
+            'scheduled_at' => ['nullable', 'date', 'after:now', 'before_or_equal:'.now()->addYear()->toDateTimeString()],
         ];
     }
 
@@ -46,7 +47,7 @@ class OpenMeetingRequest extends FormRequest
     {
         return [
             'scheduled_at.after' => 'Pick a time in the future.',
-            'scheduled_at.before' => 'Pick a time within the next ninety days.',
+            'scheduled_at.before_or_equal' => 'Pick a time within the next year.',
         ];
     }
 }

@@ -5,7 +5,10 @@ namespace App\Http\Requests\Agreements;
 use App\Models\Agreement;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Validator;
+use Throwable;
 
 class SaveAgreementRequest extends FormRequest
 {
@@ -52,8 +55,62 @@ class SaveAgreementRequest extends FormRequest
             'milestones.*.description' => ['nullable', 'string', 'max:2000'],
             /* Whole pesos, and a ceiling that stops a typo becoming a contract. */
             'milestones.*.amount' => ['required', 'integer', 'min:0', 'max:10000000'],
-            'milestones.*.starts_on' => ['nullable', 'date_format:Y-m-d'],
+            /* Work starts today or later — never in the past. */
+            'milestones.*.starts_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
             'milestones.*.ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:milestones.*.starts_on'],
+        ];
+    }
+
+    /**
+     * Keep the whole timeline within one year.
+     *
+     * The phases are the timeline the client draws: work starts on the
+     * earliest phase start and is complete on the latest phase end. More than
+     * a year between the two is not a capstone term, and is almost always a
+     * mistyped year.
+     *
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $dates = collect($this->input('milestones', []))
+                    ->filter(fn (mixed $milestone): bool => is_array($milestone));
+
+                $starts = $dates->pluck('starts_on')->filter(fn (mixed $date): bool => is_string($date) && $date !== '');
+                $ends = $dates->pluck('ends_on')->filter(fn (mixed $date): bool => is_string($date) && $date !== '');
+
+                if ($starts->isEmpty() || $ends->isEmpty()) {
+                    return;
+                }
+
+                try {
+                    $start = Carbon::createFromFormat('Y-m-d', (string) $starts->min());
+                    $end = Carbon::createFromFormat('Y-m-d', (string) $ends->max());
+                } catch (Throwable) {
+                    return;
+                }
+
+                if ($end->greaterThan($start->copy()->addYear())) {
+                    $validator->errors()->add(
+                        'timeline',
+                        __('The timeline cannot run longer than one year from the start date to the completion date.'),
+                    );
+                }
+            },
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'milestones.*.starts_on.after_or_equal' => __('Work cannot start in the past. Pick today or a later date.'),
         ];
     }
 

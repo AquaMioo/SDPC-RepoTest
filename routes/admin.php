@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\Admin\AdminActivityController;
 use App\Http\Controllers\Admin\AdminContentController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminIssueController;
@@ -38,10 +39,13 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
     Route::middleware(['auth:'.$guard, 'role:'.UserRole::Admin->value])->group(function () {
         Route::get('dashboard', AdminDashboardController::class)->name('dashboard');
         Route::get('overview', AdminOverviewController::class)->name('overview');
+        Route::post('activity/seen', AdminActivityController::class)->name('activity.seen');
 
         Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
         Route::patch('users/{user}/status', [AdminUserController::class, 'updateStatus'])
             ->name('users.status.update');
+        Route::delete('users/{user}', [AdminUserController::class, 'destroy'])
+            ->name('users.destroy');
 
         /*
          * The one review queue left. A posting sits in pending_review until it

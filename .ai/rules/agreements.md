@@ -33,3 +33,10 @@ CompleteProject (POST agreements/{agreement}/completion, Gate 'complete') locks 
 Nothing else needs undoing: isLockedToProject, Team::isBuilding and ProjectPolicy::create all read ProjectStatus::isUnfinished(), so the signer, the teammates and the business are free from that commit. Notifications go out after the commit: ProjectStatusChanged to the business, ProjectCompleted (project.completed) to Agreement::studentSide() — signer plus teammates.
 
 Teammates are NOT added to the project chat automatically: group chats stay invite-only (.ai/rules/messaging.md) unless the testers decide otherwise.
+
+## One appeal per account; meetings within a year; the agreement timeline starts today and spans at most a year
+Appeals: FileAppeal refuses any account that has EVER filed one (User::hasFiledAppeal), decided or not — both the settings form and the guest /appeal page go through it, and account-appeal-card.tsx shows "already filed" with a disabled button instead of the form.
+
+Meetings: OpenMeetingRequest takes scheduled_at after:now and before_or_equal now()+1 year (was 90 days); messaging/index.tsx meetingWindow() sets the same min/max on the datetime box.
+
+Agreement timeline: the dates a client edits are the phases (agreement-level starts_on/ends_on stay null on new drafts and have no field). SaveAgreementRequest requires milestones.*.starts_on after_or_equal:today, and its after() hook refuses more than one year between the earliest phase start and the latest phase end, under the `timeline` error key the Timeline card shows. agreements/show.tsx sets matching min/max on the date boxes.

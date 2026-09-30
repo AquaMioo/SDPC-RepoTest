@@ -371,6 +371,24 @@ class MeetingTest extends TestCase
         $this->assertFalse($meeting->fresh()->isScheduled());
     }
 
+    public function test_a_meeting_can_be_booked_up_to_a_year_ahead_and_no_further(): void
+    {
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+        $url = route('meetings.store', [
+            'current_team' => $client->currentTeam,
+            'conversation' => $thread,
+        ]);
+
+        $this->actingAs($client)
+            ->postJson($url, ['scheduled_at' => now()->addMonths(11)->toIso8601String()])
+            ->assertJsonMissingValidationErrors('scheduled_at');
+
+        $this->actingAs($client)
+            ->postJson($url, ['scheduled_at' => now()->addYear()->addDay()->toIso8601String()])
+            ->assertJsonValidationErrors(['scheduled_at' => 'Pick a time within the next year.']);
+    }
+
     public function test_a_time_in_the_past_is_refused(): void
     {
         [$client, $student, $project] = $this->pair();

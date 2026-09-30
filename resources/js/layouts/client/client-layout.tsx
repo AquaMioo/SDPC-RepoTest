@@ -353,7 +353,14 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                         <IconAction
                             label="Settings"
                             href={profileEdit.url()}
-                            active={isAt('/settings')}
+                            /*
+                             * The Team page lives at /settings/teams, so a
+                             * bare "under /settings" check lit this up too.
+                             * Team has its own link in the nav.
+                             */
+                            active={
+                                isAt('/settings') && !isAt(teamsIndex.url())
+                            }
                         >
                             <GearSixIcon size={NAV_ICON} />
                         </IconAction>

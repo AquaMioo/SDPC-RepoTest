@@ -18,16 +18,16 @@ use App\Models\User;
 class FileAppeal
 {
     /**
-     * File an appeal, unless one from this account is already unread.
+     * File an appeal, unless this account has already filed one.
      *
-     * Returns null when there is already an open appeal. Filing again while
-     * the first is waiting would let an account bury its own queue position,
-     * and an administrator reading the same plea five times learns nothing
-     * they did not learn the first time.
+     * Returns null when an appeal already exists, decided or not: each
+     * account gets one appeal (testers, 2026-10-01). It used to be one open
+     * appeal at a time, which let an account file again the moment the first
+     * was decided.
      */
     public function handle(User $user, string $body): ?Appeal
     {
-        if ($user->hasPendingAppeal()) {
+        if ($user->hasFiledAppeal()) {
             return null;
         }
 

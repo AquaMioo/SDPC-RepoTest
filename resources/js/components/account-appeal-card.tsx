@@ -115,11 +115,28 @@ export default function AccountAppealCard({
                 </div>
             )}
 
-            {appeal?.pending ? (
-                <span style={{ fontSize: 12, color: MUTED(60) }}>
-                    An administrator will read this and reply by email. There is
-                    nothing more to do for now.
-                </span>
+            {/* One appeal per account: once filed, the form closes for good. */}
+            {appeal ? (
+                <>
+                    <span
+                        style={{ fontSize: 12, color: MUTED(60) }}
+                        data-test="appeal-already-filed"
+                    >
+                        An appeal has already been filed for this account, and
+                        each account can file one.
+                        {appeal.pending
+                            ? ' An administrator will read it and reply by email.'
+                            : ''}
+                    </span>
+                    <Btn
+                        variant="primary"
+                        disabled
+                        style={{ alignSelf: 'start' }}
+                        data-test="submit-appeal-button"
+                    >
+                        Submit appeal
+                    </Btn>
+                </>
             ) : (
                 <Form
                     {...fileAppeal.form()}
@@ -132,7 +149,7 @@ export default function AccountAppealCard({
                         <>
                             <div className="field">
                                 <label htmlFor="appeal-body">
-                                    {appeal ? 'Appeal again' : 'Review appeal'}
+                                    Review appeal
                                 </label>
                                 <textarea
                                     id="appeal-body"

@@ -105,20 +105,32 @@ class AppealTest extends TestCase
         $this->assertSame(1, Appeal::count());
     }
 
-    public function test_a_new_appeal_is_allowed_once_the_first_is_decided(): void
+    public function test_an_account_files_one_appeal_even_once_it_is_decided(): void
+    {
+        $user = User::factory()->create(['status' => UserStatus::Monitored]);
+
+        Appeal::factory()->decided()->create(['user_id' => $user->id]);
+
+        /* One appeal per account (testers, 2026-10-01), decided or not. */
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->post(route('profile.appeal.store'), [
+                'body' => 'New evidence has come to light since the first appeal was closed.',
+            ])
+            ->assertInertiaFlash('toast.message', 'You have already filed an appeal. Each account can file one.');
+
+        $this->assertSame(1, Appeal::count());
+    }
+
+    public function test_the_settings_card_says_an_appeal_was_already_filed(): void
     {
         $user = User::factory()->create(['status' => UserStatus::Monitored]);
 
         Appeal::factory()->decided()->create(['user_id' => $user->id]);
 
         $this->actingAs($user)
-            ->from(route('profile.edit'))
-            ->post(route('profile.appeal.store'), [
-                'body' => 'New evidence has come to light since the first appeal was closed.',
-            ])
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame(2, Appeal::count());
+            ->get(route('profile.edit'))
+            ->assertInertia(fn ($page) => $page->whereNot('appeal', null)->etc());
     }
 
     public function test_a_too_short_appeal_is_rejected(): void

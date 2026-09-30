@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Actions\Notifications\PresentNotification;
 use App\Models\Conversation;
+use App\Support\AdminActivityFeed;
 use App\Support\AuthHome;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -121,6 +122,14 @@ class HandleInertiaRequests extends Middleware
                     ->map(fn (DatabaseNotification $row): array => $presenter->handle($row, $team, $avatars))
                     ->all();
             },
+            /*
+             * The administrator's bell: sign-ups, reports and feedback, newest
+             * first, with how many arrived since it was last opened. Only an
+             * administrator is sent it, and only on a full page load.
+             */
+            'adminActivity' => fn (): ?array => $user?->isAdmin()
+                ? app(AdminActivityFeed::class)->for($user)
+                : null,
             /*
              * The money side ships switched off, and the nav has to know:
              * without this the Transaction link would point at routes that

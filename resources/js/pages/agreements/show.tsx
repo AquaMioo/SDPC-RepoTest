@@ -38,6 +38,31 @@ const PHASE_COLOURS = [
     'var(--color-accent-800)',
 ];
 
+/** A date as a date input writes it: local calendar day, YYYY-MM-DD. */
+function toDateInput(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * The span the Timeline's date boxes accept: from today, to one year after
+ * the earliest phase start (or after today, when no phase has one yet).
+ */
+function timelineBounds(startDates: string[]): { min: string; max: string } {
+    const today = toDateInput(new Date());
+    const earliest = startDates
+        .filter((date) => date !== '' && date >= today)
+        .sort()[0];
+
+    const [year, month, day] = (earliest ?? today).split('-').map(Number);
+
+    return {
+        min: today,
+        max: toDateInput(new Date(year + 1, month - 1, day)),
+    };
+}
+
 /** "9–27 Mar", collapsing the month when both ends share one. */
 function dateRange(startsOn: string | null, endsOn: string | null): string {
     const start = startsOn ? new Date(startsOn) : null;
@@ -114,6 +139,18 @@ export default function AgreementShow({ agreement }: Props) {
             ends_on: milestone.endsOn ?? '',
         })),
     });
+
+    /*
+     * The dates the Timeline accepts: work starts today or later, and the
+     * whole timeline fits within a year of its earliest start —
+     * SaveAgreementRequest enforces both.
+     */
+    const timelineWindow = timelineBounds(
+        form.data.milestones.map((milestone) => milestone.starts_on),
+    );
+
+    /* Per-phase date errors are keyed milestones.N.starts_on / ends_on. */
+    const phaseErrors = form.errors as Record<string, string | undefined>;
 
     const setMilestone = (
         index: number,
@@ -389,6 +426,8 @@ export default function AgreementShow({ agreement }: Props) {
                                                   <Input
                                                       aria-label={`Phase ${index + 1} start`}
                                                       type="date"
+                                                      min={timelineWindow.min}
+                                                      max={timelineWindow.max}
                                                       value={
                                                           milestone.starts_on
                                                       }
@@ -404,6 +443,11 @@ export default function AgreementShow({ agreement }: Props) {
                                                   <Input
                                                       aria-label={`Phase ${index + 1} end`}
                                                       type="date"
+                                                      min={
+                                                          milestone.starts_on ||
+                                                          timelineWindow.min
+                                                      }
+                                                      max={timelineWindow.max}
                                                       value={milestone.ends_on}
                                                       onChange={(event) =>
                                                           setMilestone(
@@ -415,6 +459,17 @@ export default function AgreementShow({ agreement }: Props) {
                                                       }
                                                   />
                                               </div>
+                                              <InputError
+                                                  message={
+                                                      phaseErrors[
+                                                          `milestones.${index}.starts_on`
+                                                      ] ??
+                                                      phaseErrors[
+                                                          `milestones.${index}.ends_on`
+                                                      ]
+                                                  }
+                                                  className="text-[11px]"
+                                              />
                                           </PhaseRow>
                                       ),
                                   )
@@ -431,6 +486,11 @@ export default function AgreementShow({ agreement }: Props) {
                                       ),
                                   )}
                         </div>
+
+                        <InputError
+                            message={phaseErrors.timeline}
+                            className="text-[11px]"
+                        />
                     </Panel>
 
                     <PartyCard

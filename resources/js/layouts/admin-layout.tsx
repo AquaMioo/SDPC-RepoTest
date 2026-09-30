@@ -1,7 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BellIcon, SignOutIcon } from '@phosphor-icons/react';
+import { SignOutIcon } from '@phosphor-icons/react';
 import type { CSSProperties, ReactNode } from 'react';
 
+import ActivityBell from '@/components/admin/activity-bell';
 import { confirmLogout } from '@/components/logout-confirmation';
 import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
@@ -160,23 +161,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             fontSize: 18,
                         }}
                     >
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span
-                                    aria-label="Notifications"
-                                    className="btn btn-icon"
-                                    style={{
-                                        color: MUTED,
-                                        cursor: 'not-allowed',
-                                    }}
-                                >
-                                    <BellIcon />
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                Arrives with the Notifications module
-                            </TooltipContent>
-                        </Tooltip>
+                        <ActivityBell />
 
                         <Tooltip>
                             <TooltipTrigger asChild>

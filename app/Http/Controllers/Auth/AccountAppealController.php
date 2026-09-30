@@ -159,7 +159,7 @@ class AccountAppealController extends Controller
         $appeal = $this->fileAppeal->handle($user, (string) $validated['body']);
 
         return $appeal === null
-            ? $this->finish($request, __('An appeal from this account is already waiting for review.'), 'error')
+            ? $this->finish($request, __('An appeal has already been filed for this account. Each account can file one.'), 'error')
             : $this->finish($request, __('Appeal submitted. An administrator will review it and contact you by email.'));
     }
 

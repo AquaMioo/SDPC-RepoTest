@@ -241,6 +241,64 @@ class AgreementScreenTest extends TestCase
      *
      * @return array<string, mixed>
      */
+    public function test_work_cannot_start_in_the_past(): void
+    {
+        [$owner, , $agreement] = $this->agreement();
+        $first = $agreement->milestones->first();
+
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($first->id, $first->title),
+                    'starts_on' => now()->subDay()->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasErrors([
+                'milestones.0.starts_on' => 'Work cannot start in the past. Pick today or a later date.',
+            ]);
+    }
+
+    public function test_the_timeline_cannot_run_longer_than_a_year(): void
+    {
+        [$owner, , $agreement] = $this->agreement();
+        $first = $agreement->milestones->first();
+
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($first->id, $first->title),
+                    'starts_on' => now()->toDateString(),
+                    'ends_on' => now()->addYear()->addDay()->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasErrors([
+                'timeline' => 'The timeline cannot run longer than one year from the start date to the completion date.',
+            ]);
+
+        /* Exactly a year is still allowed. */
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($first->id, $first->title),
+                    'starts_on' => now()->toDateString(),
+                    'ends_on' => now()->addYear()->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasNoErrors();
+    }
+
     private function terms(): array
     {
         return [

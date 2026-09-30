@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Admin\DeleteUserAccount;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateUserStatusRequest;
@@ -66,6 +67,30 @@ class AdminUserController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => __(':name is now :status.', ['name' => $user->name, 'status' => mb_strtolower($status->label())]),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Permanently delete a student or client account and its data.
+     *
+     * The screen asks "Are you sure that you want to delete this user
+     * account?" first. Administrators cannot delete themselves or each other
+     * from here: an admin account is not a platform user this screen manages.
+     */
+    public function destroy(Request $request, User $user, DeleteUserAccount $deleteUserAccount): RedirectResponse
+    {
+        abort_if($user->is($request->user()), HttpResponse::HTTP_FORBIDDEN, 'You cannot delete your own account.');
+        abort_if($user->isAdmin(), HttpResponse::HTTP_FORBIDDEN, 'Administrator accounts cannot be deleted here.');
+
+        $name = $user->name;
+
+        $deleteUserAccount->handle($user);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __(':name’s account was deleted.', ['name' => $name]),
         ]);
 
         return back();
