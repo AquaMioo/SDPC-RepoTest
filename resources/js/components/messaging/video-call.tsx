@@ -243,6 +243,7 @@ export default function VideoCall({
     onLeave,
     title,
     participant,
+    hangUpWhenAlone = false,
 }: {
     credentials: MeetingCredentials;
     /** Names for the tiles; Agora only knows people by uid. */
@@ -252,6 +253,12 @@ export default function VideoCall({
     title: string;
     /** Who is on the other end, named while you wait for them. */
     participant: string;
+    /**
+     * Hang up once the last other person leaves, after somebody had joined.
+     * The call window sets it, so it closes when the call is over for
+     * everybody; without it the screen simply waits, as it always did.
+     */
+    hangUpWhenAlone?: boolean;
 }) {
     const [stage, setStage] = useState<Stage>('connecting');
     const [failure, setFailure] = useState<{
@@ -274,6 +281,10 @@ export default function VideoCall({
      * on every join, leave, publish and unpublish so the tiles redraw.
      */
     const [remotes, setRemotes] = useState<IAgoraRTCRemoteUser[]>([]);
+
+    /* Whether anybody else has been here yet, for hangUpWhenAlone. */
+    const hadCompany = useRef(false);
+    const hangUp = useRef<(() => Promise<void>) | null>(null);
 
     /* Who has muted their microphone without unpublishing it, by uid. */
     const [mutedPeers, setMutedPeers] = useState<Record<string, boolean>>({});
@@ -352,7 +363,17 @@ export default function VideoCall({
                 });
                 client.current = rtc;
 
-                const refresh = () => setRemotes([...rtc.remoteUsers]);
+                const refresh = () => {
+                    setRemotes([...rtc.remoteUsers]);
+
+                    if (rtc.remoteUsers.length > 0) {
+                        hadCompany.current = true;
+                    } else if (hadCompany.current) {
+                        hadCompany.current = false;
+
+                        void hangUp.current?.();
+                    }
+                };
 
                 rtc.on(
                     'user-published',
@@ -675,6 +696,11 @@ export default function VideoCall({
         await teardown();
         onLeave();
     };
+
+    /* The latest leave, for hangUpWhenAlone — set after render, never during. */
+    useEffect(() => {
+        hangUp.current = hangUpWhenAlone ? leave : null;
+    });
 
     const clock =
         String(Math.floor(elapsed / 60)).padStart(2, '0') +

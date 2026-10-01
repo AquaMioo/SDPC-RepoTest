@@ -105,13 +105,7 @@ export default function StudentClient({
                             {[
                                 'Client',
                                 business.ownerName,
-                                [
-                                    business.barangay
-                                        ? `Barangay ${business.barangay}`
-                                        : null,
-                                    business.city,
-                                    business.province,
-                                ]
+                                [business.city, business.province]
                                     .filter(Boolean)
                                     .join(', ') || null,
                             ]

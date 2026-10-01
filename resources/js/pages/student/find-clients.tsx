@@ -12,6 +12,7 @@ import { Btn } from '@/components/sdpc/btn';
 import { ListSkeleton } from '@/components/sdpc/list-skeleton';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
+import WarningNotice from '@/components/sdpc/warning-notice';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { index as boardIndex, show as boardShow } from '@/routes/student/board';
 
@@ -156,13 +157,11 @@ export default function FindClients({
 
                 {/* Browsing stays open while they build — applying does not. */}
                 {canApply && holdsProjectInHand && (
-                    <Panel padding="md" gap="sm" style={{ marginBottom: 18 }}>
-                        <span style={{ fontSize: 12.5, color: MUTED(70) }}>
-                            You&rsquo;re already working on a project. You can
-                            still look around, and you can apply again once
-                            it&rsquo;s finished.
-                        </span>
-                    </Panel>
+                    <WarningNotice style={{ marginBottom: 18 }}>
+                        You&rsquo;re already working on a project. You can still
+                        look around, and you can apply again once it&rsquo;s
+                        finished.
+                    </WarningNotice>
                 )}
 
                 <BriefDialog

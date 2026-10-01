@@ -3,6 +3,7 @@
 namespace App\Concerns;
 
 use App\Models\User;
+use App\Rules\NotDisposableEmail;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
@@ -53,6 +54,12 @@ trait ProfileValidationRules
             'string',
             'email',
             'max:255',
+            /*
+             * Changing to a disposable address is refused the same way signing
+             * up with one is; the address the account already has is left
+             * alone, so an existing account can still save its profile.
+             */
+            new NotDisposableEmail($userId === null ? null : User::query()->whereKey($userId)->value('email')),
             $userId === null
                 ? Rule::unique(User::class)
                 : Rule::unique(User::class)->ignore($userId),

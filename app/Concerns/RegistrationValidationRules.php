@@ -4,6 +4,7 @@ namespace App\Concerns;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Rules\NotDisposableEmail;
 use App\Rules\SchoolEmailAddress;
 use App\Support\PendingGoogleRegistration;
 use App\Support\PendingMicrosoftRegistration;
@@ -59,7 +60,7 @@ trait RegistrationValidationRules
             'last_name' => ['required', 'string', 'max:255'],
             'email' => $viaGoogle || $viaMicrosoft || $isStudent
                 ? ['nullable']
-                : ['required', 'string', 'email', 'max:255', Rule::unique(User::class), Rule::unique(User::class, 'google_email')],
+                : ['required', 'string', 'email', 'max:255', new NotDisposableEmail, Rule::unique(User::class), Rule::unique(User::class, 'google_email')],
             'password' => match (true) {
                 /*
                  * A student who proved their school address with a code sets a
@@ -73,7 +74,7 @@ trait RegistrationValidationRules
             'role' => ['required', Rule::in($this->selfRegistrableRoles($viaGoogle, $viaMicrosoft))],
             'business_name' => [Rule::requiredIf($this->isRole($input, UserRole::Client)), 'nullable', 'string', 'max:255'],
             'school_email' => $isStudent && ! $viaMicrosoft
-                ? ['required', 'string', 'max:255', new SchoolEmailAddress, Rule::unique(User::class, 'email')]
+                ? ['required', 'string', 'max:255', new SchoolEmailAddress, new NotDisposableEmail, Rule::unique(User::class, 'email')]
                 : ['nullable', 'string', 'max:255'],
             'terms' => ['accepted'],
         ];

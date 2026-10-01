@@ -47,6 +47,27 @@ class StudentProfileTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_saving_profile_details_without_a_barangay_keeps_the_stored_one(): void
+    {
+        $student = User::factory()->student()->create();
+        $this->seed(ClientModuleTaxonomySeeder::class);
+
+        $student->studentProfile()->updateOrCreate(['user_id' => $student->id], ['barangay' => 'Muzon']);
+
+        /* What the Profile details dialog posts since Barangay left it (2026-10-02). */
+        $this->actingAs($student)
+            ->patch(route('student.profile.update', ['current_team' => $student->currentTeam]), [
+                'github_url' => 'https://github.com/ana',
+                'is_available' => true,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $profile = $student->refresh()->studentProfile;
+
+        $this->assertSame('https://github.com/ana', $profile->github_url);
+        $this->assertSame('Muzon', $profile->barangay);
+    }
+
     public function test_a_student_picks_a_barangay_and_types_the_rest(): void
     {
         $student = User::factory()->student()->create();
@@ -64,8 +85,9 @@ class StudentProfileTest extends TestCase
 
         $this->assertSame('Muzon', $profile->barangay);
         $this->assertSame('Towerville, Phase 2', $profile->location);
+        /* Stored, but no longer shown on the profile (2026-10-02). */
         $this->assertSame(
-            'Towerville, Phase 2, Barangay Muzon, San Jose Del Monte',
+            'Towerville, Phase 2, San Jose Del Monte',
             $profile->displayLocation(),
         );
     }

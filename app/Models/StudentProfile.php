@@ -64,16 +64,19 @@ class StudentProfile extends Model
     /**
      * The location as a client reads it.
      *
-     * Narrowest part first, the way an address is spoken: "Towerville,
-     * Barangay Muzon, San Jose Del Monte". Each piece is optional, so a
-     * profile carrying only one of them still reads as a place rather than as
-     * a string with stray commas in it.
+     * Narrowest part first, the way an address is spoken: "Towerville, San
+     * Jose Del Monte". Each piece is optional, so a profile carrying only one
+     * of them still reads as a place rather than as a string with stray commas
+     * in it.
+     *
+     * The barangay itself is no longer shown (2026-10-02) — it left the
+     * profile screens — but a stored one still tells us the city, since every
+     * barangay on the list is San Jose Del Monte's.
      */
     public function displayLocation(): ?string
     {
         $parts = array_filter([
             $this->location,
-            $this->barangay === null ? null : 'Barangay '.$this->barangay,
             $this->barangay === null ? null : 'San Jose Del Monte',
         ]);
 

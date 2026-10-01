@@ -545,13 +545,11 @@ export function CompanyContactsDialog({
     onOpenChange,
     profile,
     locations,
-    barangays,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     profile: BusinessProfile;
     locations: LocationOption[];
-    barangays: BarangayOption[];
 }) {
     const team = useCurrentTeam();
 
@@ -563,7 +561,6 @@ export function CompanyContactsDialog({
         address: profile.address ?? '',
         province: profile.province ?? '',
         city: profile.city ?? '',
-        barangay: profile.barangay ?? '',
         website_url: profile.websiteUrl ?? '',
         facebook_url: profile.facebookUrl ?? '',
     });
@@ -599,18 +596,6 @@ export function CompanyContactsDialog({
             ? [...cities, form.city]
             : cities;
 
-    /* The barangays of the chosen city — San Jose Del Monte's, today. */
-    const barangayNames =
-        barangays.find(
-            (entry) =>
-                entry.province === form.province && entry.city === form.city,
-        )?.barangays ?? [];
-
-    const barangayOptions =
-        form.barangay !== '' && !barangayNames.includes(form.barangay)
-            ? [...barangayNames, form.barangay]
-            : barangayNames;
-
     const save = () => {
         setBusy(true);
 
@@ -624,7 +609,6 @@ export function CompanyContactsDialog({
                 /* Empty selects post "", and every rule here is nullable. */
                 province: form.province || null,
                 city: form.city || null,
-                barangay: form.barangay || null,
             },
             {
                 preserveScroll: true,
@@ -745,10 +729,9 @@ export function CompanyContactsDialog({
                             id="province"
                             value={form.province}
                             onChange={(e) => {
-                                /* A new province orphans the chosen city and barangay. */
+                                /* A new province orphans the chosen city. */
                                 set('province', e.target.value);
                                 set('city', '');
-                                set('barangay', '');
                             }}
                         >
                             <option value="">Not stated</option>
@@ -770,11 +753,7 @@ export function CompanyContactsDialog({
                             id="city"
                             value={form.city}
                             disabled={form.province === ''}
-                            onChange={(e) => {
-                                /* Barangays belong to one city. */
-                                set('city', e.target.value);
-                                set('barangay', '');
-                            }}
+                            onChange={(e) => set('city', e.target.value)}
                         >
                             <option value="">Not stated</option>
                             {cityOptions.map((city) => (
@@ -785,27 +764,6 @@ export function CompanyContactsDialog({
                         </Select>
                         <InputError
                             message={errors.city}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
-
-                    <div className="field">
-                        <label htmlFor="barangay">Barangay</label>
-                        <Select
-                            id="barangay"
-                            value={form.barangay}
-                            disabled={form.city === ''}
-                            onChange={(e) => set('barangay', e.target.value)}
-                        >
-                            <option value="">Not stated</option>
-                            {barangayOptions.map((barangay) => (
-                                <option key={barangay} value={barangay}>
-                                    {barangay}
-                                </option>
-                            ))}
-                        </Select>
-                        <InputError
-                            message={errors.barangay}
                             className="mt-1 text-[11px]"
                         />
                     </div>
@@ -828,8 +786,8 @@ export function CompanyContactsDialog({
                         onChange={(e) => set('website_url', e.target.value)}
                     />
                     <p id="website_url-hint" style={HINT}>
-                        Optional. For example yourbusiness.com — https:// is
-                        added for you.
+                        For example yourbusiness.com — https:// is added for
+                        you.
                     </p>
                     <InputError
                         message={errors.website_url}
@@ -848,7 +806,7 @@ export function CompanyContactsDialog({
                         onChange={(e) => set('facebook_url', e.target.value)}
                     />
                     <p id="facebook_url-hint" style={HINT}>
-                        Optional. For example facebook.com/yourbusiness.
+                        For example facebook.com/yourbusiness.
                     </p>
                     <InputError
                         message={errors.facebook_url}

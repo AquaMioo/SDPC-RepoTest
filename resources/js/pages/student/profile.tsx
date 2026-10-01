@@ -518,7 +518,6 @@ export default function StudentProfilePage({
                 open={detailsOpen}
                 onOpenChange={setDetailsOpen}
                 profile={profile}
-                options={options}
             />
         </>
     );
@@ -922,8 +921,12 @@ function ExternalLink({ label, href }: { label: string; href: string | null }) {
 }
 
 /**
- * What the redesign's cards do not each own: which barangay you are in, and
- * where to read your work.
+ * What the redesign's cards do not each own: where to read your work, and
+ * whether you are open to it.
+ *
+ * Barangay was taken out of this dialog (2026-10-02). student_profiles keeps
+ * the column and the request still accepts it; the dialog simply no longer
+ * posts it, so a value already saved is left as it is.
  *
  * school_id, course_id and year_level used to be here. They moved to
  * EnrolmentDialog, under the Education card, where a student looks for them —
@@ -940,31 +943,19 @@ function DetailsDialog({
     open,
     onOpenChange,
     profile,
-    options,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     profile: Props['profile'];
-    options: Props['options'];
 }) {
     const team = useCurrentTeam();
 
     const form = useForm({
-        barangay: profile.barangay ?? '',
         github_url: profile.githubUrl ?? '',
         is_available: profile.isAvailable,
     });
 
     const save = () => {
-        form.transform((data) => ({
-            ...data,
-            /*
-             * An empty select posts "", and the rule is nullable rather than
-             * letting a blank string past an exists check.
-             */
-            barangay: data.barangay || null,
-        }));
-
         form.patch(profileUpdate.url(team.slug), {
             preserveScroll: true,
             onSuccess: () => onOpenChange(false),
@@ -986,28 +977,6 @@ function DetailsDialog({
                         overflowY: 'auto',
                     }}
                 >
-                    <div className="field">
-                        <label htmlFor="barangay">Barangay</label>
-                        <Select
-                            id="barangay"
-                            value={form.data.barangay}
-                            onChange={(e) =>
-                                form.setData('barangay', e.target.value)
-                            }
-                        >
-                            <option value="">Not stated</option>
-                            {options.barangays.map((name) => (
-                                <option key={name} value={name}>
-                                    {name}
-                                </option>
-                            ))}
-                        </Select>
-                        <InputError
-                            message={form.errors.barangay}
-                            className="mt-1 text-[11px]"
-                        />
-                    </div>
-
                     <div className="field">
                         <label htmlFor="github_url">GitHub</label>
                         <Input

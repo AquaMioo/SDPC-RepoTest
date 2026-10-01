@@ -70,6 +70,7 @@ Route::prefix('{current_team}')
          * keeps running when one person leaves and ends when the last does.
          */
         Route::post('messages/{conversation}/meetings', [MeetingController::class, 'store'])->name('meetings.store');
+        Route::get('meetings/{meeting}/call', [MeetingController::class, 'window'])->name('meetings.window');
         Route::post('meetings/{meeting}/token', [MeetingController::class, 'token'])->name('meetings.token');
         Route::post('meetings/{meeting}/heartbeat', [MeetingController::class, 'heartbeat'])->name('meetings.heartbeat');
         Route::patch('meetings/{meeting}/leave', [MeetingController::class, 'leave'])->name('meetings.leave');

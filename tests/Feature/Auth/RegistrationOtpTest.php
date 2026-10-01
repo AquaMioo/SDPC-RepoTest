@@ -226,7 +226,8 @@ class RegistrationOtpTest extends TestCase
         $this->completeRegistration($this->form(['email' => 'Ada@Example.com']));
 
         $this->assertAuthenticated();
-        $this->assertDatabaseHas('users', ['email' => 'Ada@Example.com']);
+        /* The domain is normalised to lowercase (2026-10-02); the name part is kept as typed. */
+        $this->assertDatabaseHas('users', ['email' => 'Ada@example.com']);
     }
 
     /**

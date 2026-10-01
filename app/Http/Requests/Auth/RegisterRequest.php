@@ -29,6 +29,20 @@ class RegisterRequest extends FormRequest
         if (is_string($this->input('school_email'))) {
             $this->merge(['school_email' => mb_strtolower(trim($this->input('school_email')))]);
         }
+
+        /*
+         * A client's address: trimmed, and its domain lowercased (the part
+         * before the @ is left as typed), so "Ana@Example.COM " and
+         * "ana@example.com" are checked and stored as the same domain.
+         */
+        if (is_string($this->input('email'))) {
+            $email = trim($this->input('email'));
+            $at = strrpos($email, '@');
+
+            $this->merge(['email' => $at === false
+                ? $email
+                : substr($email, 0, $at + 1).mb_strtolower(substr($email, $at + 1))]);
+        }
     }
 
     /**

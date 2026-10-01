@@ -14,7 +14,6 @@ import {
 } from '@/components/client/profile-dialogs';
 import type {
     Account,
-    BarangayOption,
     BusinessProfile,
     LocationOption,
 } from '@/components/client/profile-dialogs';
@@ -58,7 +57,6 @@ type Props = {
     canPublishTestimonial: boolean;
     canUpdate: boolean;
     locations: LocationOption[];
-    barangays: BarangayOption[];
 };
 
 /**
@@ -84,7 +82,6 @@ export default function ClientProfilePage({
     canPublishTestimonial,
     canUpdate,
     locations,
-    barangays,
 }: Props) {
     const team = useCurrentTeam();
 
@@ -97,12 +94,7 @@ export default function ClientProfilePage({
         author_title: testimonial?.authorTitle ?? '',
     });
 
-    const address = [
-        profile.address,
-        profile.barangay ? `Barangay ${profile.barangay}` : null,
-        profile.city,
-        profile.province,
-    ]
+    const address = [profile.address, profile.city, profile.province]
         .filter(Boolean)
         .join(', ');
 
@@ -380,7 +372,6 @@ export default function ClientProfilePage({
                 onOpenChange={setContactsOpen}
                 profile={profile}
                 locations={locations}
-                barangays={barangays}
             />
         </>
     );

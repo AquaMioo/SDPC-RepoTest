@@ -17,21 +17,17 @@ import InputError from '@/components/input-error';
 import EmptyInbox from '@/components/messaging/empty-inbox';
 import MessageRow from '@/components/messaging/message-row';
 import type { ChatMessage } from '@/components/messaging/message-row';
-import VideoCall from '@/components/messaging/video-call';
-import type {
-    MeetingCredentials,
-    MeetingPerson,
-} from '@/components/messaging/video-call';
 import { Btn } from '@/components/sdpc/btn';
 import { Input } from '@/components/sdpc/input';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
-    heartbeat as meetingHeartbeat,
-    leave as leaveMeeting,
-    store as startMeeting,
-    token as meetingToken,
-} from '@/routes/meetings';
+    CALL_WINDOW_CLOSED,
+    callWindowUrl,
+    openCallWindow,
+    showCall,
+} from '@/lib/call-window';
+import { store as startMeeting } from '@/routes/meetings';
 import {
     edit as editMessage,
     hide as hideMessage,
@@ -232,7 +228,8 @@ export default function Messages({
     usePoll(30000, { only: ['threads', 'active'] });
 
     /*
-     * The call this screen is in, if any.
+     * Calls run in a window of their own (lib/call-window, pages/messaging/call),
+     * so this screen only offers them.
      *
      * A call running on the open thread arrives as `active.call`, re-read
      * when the thread's channel says one started. It deliberately carries no
@@ -240,11 +237,6 @@ export default function Messages({
      * runs again against the authenticated user rather than against whoever
      * the socket happens to belong to.
      */
-    const [call, setCall] = useState<{
-        meetingId: number;
-        credentials: MeetingCredentials;
-        people: MeetingPerson[];
-    } | null>(null);
     const [dismissedCall, setDismissedCall] = useState<number | null>(null);
     const [callBusy, setCallBusy] = useState(false);
     const [scheduling, setScheduling] = useState(false);
@@ -300,9 +292,22 @@ export default function Messages({
         return response.json();
     };
 
-    /** Start a call, or join the one already running on the thread. */
+    /**
+     * Start a call, or join the one already running on the thread.
+     *
+     * The call opens in a window of its own (messaging/call), so the chat
+     * stays usable here. The window is opened first, blank, straight from the
+     * click — a browser only allows that as the direct result of one — and
+     * pointed at the call once the server has created it.
+     */
     const startCall = async () => {
         if (active === null || callBusy) {
+            return;
+        }
+
+        const target = openCallWindow();
+
+        if (target === null) {
             return;
         }
 
@@ -316,82 +321,30 @@ export default function Messages({
                 }),
             );
 
-            setCall({
-                meetingId: body.meeting.id,
-                credentials: body.token as MeetingCredentials,
-                people: body.people as MeetingPerson[],
-            });
+            showCall(target, team.slug, body.meeting.id);
         } catch {
-            /* Left to the caller to retry; nothing has been created. */
+            /* Nothing has been created; the blank window goes away again. */
+            target.close();
         } finally {
             setCallBusy(false);
         }
     };
 
-    /*
-     * While in a call: say so every 20 seconds, so the platform knows the
-     * call is still running (MeetingAttendee::PRESENCE_WINDOW is 90), and
-     * say goodbye if the tab is closed. A 410 means somebody ended the call
-     * for everyone, so the screen closes.
-     */
-    const inCallId = call?.meetingId ?? null;
-
+    /* The call window closing: the thread re-reads whether a call is still on. */
     useEffect(() => {
-        if (inCallId === null) {
-            return;
-        }
-
-        const args = { current_team: team.slug, meeting: inCallId };
-
-        const beat = async () => {
-            try {
-                const response = await sendJson(meetingHeartbeat.url(args));
-
-                if (response.status === 410) {
-                    setCall(null);
-                    router.reload({ only: ['active'] });
-                }
-            } catch {
-                /* A dropped beat is what the window allows for. */
+        const onMessage = (event: MessageEvent) => {
+            if (
+                event.origin === window.location.origin &&
+                event.data === CALL_WINDOW_CLOSED
+            ) {
+                router.reload({ only: ['active'] });
             }
         };
 
-        void beat();
-        const timer = window.setInterval(() => void beat(), 20_000);
+        window.addEventListener('message', onMessage);
 
-        const onPageHide = () => {
-            void sendJson(leaveMeeting.url(args), 'PATCH', undefined, true);
-        };
-
-        window.addEventListener('pagehide', onPageHide);
-
-        return () => {
-            window.clearInterval(timer);
-            window.removeEventListener('pagehide', onPageHide);
-        };
-    }, [inCallId, team.slug]);
-
-    /**
-     * Leave the call, leaving it running for anyone still in it. The server
-     * ends it if this was the last person.
-     */
-    const leaveCall = () => {
-        if (call !== null) {
-            void sendJson(
-                leaveMeeting.url({
-                    current_team: team.slug,
-                    meeting: call.meetingId,
-                }),
-                'PATCH',
-                undefined,
-                true,
-            )
-                .catch(() => undefined)
-                .finally(() => router.reload({ only: ['active'] }));
-        }
-
-        setCall(null);
-    };
+        return () => window.removeEventListener('message', onMessage);
+    }, []);
 
     const scheduleCall = async () => {
         if (active === null || scheduledAt === '' || callBusy) {
@@ -427,32 +380,13 @@ export default function Messages({
         }
     };
 
-    const joinCall = async (meetingId: number) => {
-        if (callBusy) {
-            return;
-        }
-
-        setCallBusy(true);
-
-        try {
-            const body = await postJson(
-                meetingToken.url({
-                    current_team: team.slug,
-                    meeting: meetingId,
-                }),
-            );
-
-            setCall({
-                meetingId: body.meeting.id,
-                credentials: body.token as MeetingCredentials,
-                people: body.people as MeetingPerson[],
-            });
-        } catch {
-            /* The call may have ended between the invitation and the tap. */
-            router.reload({ only: ['active'] });
-        } finally {
-            setCallBusy(false);
-        }
+    /*
+     * Join a running call in its own window. Straight from the click, so the
+     * browser allows the window; the token is asked for there, behind the
+     * thread's participant check.
+     */
+    const joinCall = (meetingId: number) => {
+        openCallWindow(callWindowUrl(team.slug, meetingId));
     };
 
     /*
@@ -857,16 +791,6 @@ export default function Messages({
                 <ThreadChannel key={active.id} conversationId={active.id} />
             )}
 
-            {call !== null && (
-                <VideoCall
-                    credentials={call.credentials}
-                    people={call.people}
-                    onLeave={leaveCall}
-                    title={active?.project ?? 'Call'}
-                    participant={active?.title ?? 'The other side'}
-                />
-            )}
-
             <div
                 style={{
                     maxWidth: 'clamp(1320px, 100vw - 320px, 1600px)',
@@ -1252,8 +1176,9 @@ export default function Messages({
                                     to anyone not in it, however long ago it
                                     started — the ring only lasts 45 seconds.
                                     It carries no token; joining asks the
-                                    server for one of our own. */}
-                                {runningCall !== null && call === null && (
+                                    server for one of our own. Join opens the
+                                    call window, or brings it forward. */}
+                                {runningCall !== null && (
                                     <div
                                         style={{
                                             display: 'flex',

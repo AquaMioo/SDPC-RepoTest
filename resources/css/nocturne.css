@@ -1452,3 +1452,17 @@ a.pm-task[aria-current='page'] { border-color: var(--color-accent); }
 }
 @keyframes ring-draw-dash { from { stroke-dasharray: 0 1000; } }
 @keyframes ring-draw-offset { from { stroke-dashoffset: var(--ring-circumference); } }
+
+/* ── Warning notice: a red callout for "you can't do this right now" ──
+ * Fixed reds rather than the accent ramp, which is olive on the user palette
+ * and green on the admin one; a warning has to read as a warning on both.
+ * Used by components/sdpc/warning-notice.tsx. */
+.notice-warning {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #f1b5b5; border-left: 4px solid #c62828;
+  border-radius: var(--radius-md, 8px);
+  background: #fdecec; color: #8e1c1c;
+  font-size: 13px; line-height: 1.5;
+}
+.notice-warning > svg { flex: none; margin-top: 2px; color: #c62828; }

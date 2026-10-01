@@ -368,12 +368,7 @@ export function EducationDialog({
                         </div>
 
                         <div className="field" style={{ marginTop: 12 }}>
-                            <label htmlFor="from_year">
-                                Dates attended{' '}
-                                <span style={{ color: MUTED(50) }}>
-                                    (optional)
-                                </span>
-                            </label>
+                            <label htmlFor="from_year">Dates attended</label>
                             <div style={{ display: 'flex', gap: 10 }}>
                                 <Select
                                     id="from_year"
@@ -412,18 +407,13 @@ export function EducationDialog({
                         </div>
 
                         <div className="field" style={{ marginTop: 12 }}>
-                            <label htmlFor="course_id">
-                                Degree{' '}
-                                <span style={{ color: MUTED(50) }}>
-                                    (optional)
-                                </span>
-                            </label>
+                            <label htmlFor="course_id">Degree</label>
                             <Select
                                 id="course_id"
                                 name="course_id"
                                 defaultValue={education?.courseId ?? ''}
                             >
-                                <option value="">Degree (optional)</option>
+                                <option value="">Degree</option>
                                 {courses.map((course) => (
                                     <option key={course.id} value={course.id}>
                                         {course.abbreviation
@@ -439,12 +429,7 @@ export function EducationDialog({
                         </div>
 
                         <div className="field" style={{ marginTop: 12 }}>
-                            <label htmlFor="area_of_study">
-                                Area of study{' '}
-                                <span style={{ color: MUTED(50) }}>
-                                    (optional)
-                                </span>
-                            </label>
+                            <label htmlFor="area_of_study">Area of study</label>
                             <Input
                                 id="area_of_study"
                                 name="area_of_study"
@@ -458,12 +443,7 @@ export function EducationDialog({
                         </div>
 
                         <div className="field" style={{ marginTop: 12 }}>
-                            <label htmlFor="description">
-                                Description{' '}
-                                <span style={{ color: MUTED(50) }}>
-                                    (optional)
-                                </span>
-                            </label>
+                            <label htmlFor="description">Description</label>
                             <Textarea
                                 id="description"
                                 name="description"

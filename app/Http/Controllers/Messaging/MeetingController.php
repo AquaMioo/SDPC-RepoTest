@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Messaging;
 
 use App\Actions\Messaging\AnnounceMeeting;
 use App\Actions\Messaging\RingParticipants;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Messaging\OpenMeetingRequest;
 use App\Models\Conversation;
@@ -15,6 +16,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Video meetings on a project conversation.
@@ -123,6 +126,43 @@ class MeetingController extends Controller
             $this->joinPayload($meeting, $user->id),
             HttpResponse::HTTP_CREATED,
         );
+    }
+
+    /**
+     * The call in a window of its own.
+     *
+     * Messenger opens this in a separate browser window when a call starts or
+     * is joined, so the chat stays usable beside it. The page joins through
+     * token() like the in-page screen did — the participant check runs there
+     * again — and closes itself when its person leaves or the call ends.
+     */
+    public function window(Request $request, Team $currentTeam, Meeting $meeting): InertiaResponse
+    {
+        $this->ensureEnabled();
+
+        $user = $request->user();
+
+        abort_unless($meeting->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+
+        $conversation = $meeting->conversation()
+            ->with(['project.team.clientProfile', 'student', 'members'])
+            ->firstOrFail();
+
+        /*
+         * The other side, the way the thread names them for this reader: a
+         * client sees the student, the student side sees the business.
+         */
+        $participant = $conversation->sideFor($user) === UserRole::Client
+            ? ($conversation->student?->name ?? __('The student'))
+            : ($conversation->project->team->clientProfile?->business_name ?? $conversation->project->team->name);
+
+        return Inertia::render('messaging/call', [
+            'meetingId' => $meeting->id,
+            'title' => $conversation->project->title,
+            'participant' => $participant,
+            /* Gone already: the window says so and closes instead of joining. */
+            'joinable' => $meeting->isJoinable(),
+        ]);
     }
 
     /**

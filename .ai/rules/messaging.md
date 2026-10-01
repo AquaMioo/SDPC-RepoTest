@@ -44,3 +44,8 @@ Invited teammates are on the student side (Conversation::sideFor): they share st
 The index filters with `->reject(fn ($m) => $m->isHiddenFor($user))` — a hidden message is never sent, rather than sent and hidden in the browser. `isHiddenFor()` reads the loaded relation, so `messages.hides` has to be in the eager load beside `messages.reactions`, or it is a query per bubble.
 
 Replies: `messages.reply_to_message_id` is self-referencing and `nullOnDelete`, and SendMessageRequest scopes the id to the thread with `Rule::exists(...)->where('conversation_id', ...)`. Drop that scope and a reply can quote a line out of a conversation the sender is not in — there is a test pinning it.
+
+## A call runs in a window of its own (messaging/call)
+Since 2026-10-02 Messenger no longer renders VideoCall in the page. Start, Join and the ringing card's Answer open GET meetings.window (MeetingController::window → Inertia page messaging/call, no layout — app.tsx returns null for it) through lib/call-window.ts. It must run straight from the click or the browser blocks it: startCall opens a blank window first, then points it at the meeting once meetings.store answers. A blocked window toasts "Please allow pop-ups to open the call window." and is never silent.
+
+The call page owns what the in-page screen did: POST meetings.token to join, a 20 s heartbeat (410 = ended for everyone → close), PATCH leave on Leave and on pagehide (keepalive), so closing or refreshing the window says goodbye. VideoCall's hangUpWhenAlone hangs up once the last other person leaves, and the window then closes itself and postMessages CALL_WINDOW_CLOSED to Messenger, which re-reads `active`. The ?join= path on messages still works but cannot open a window without a click, so it may only toast.

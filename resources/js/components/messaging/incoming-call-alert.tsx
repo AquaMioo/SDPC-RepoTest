@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { callWindowUrl, openCallWindow } from '@/lib/call-window';
 import { startRingtone } from '@/lib/ringtone';
 import { show as showThread } from '@/routes/messages';
 
@@ -116,17 +117,26 @@ function Ringer({ userId }: { userId: number }) {
         return null;
     }
 
+    /*
+     * Answering opens the call in its own window, straight from the click so
+     * the browser allows it, and brings the thread up behind it. When the
+     * window is blocked the card stays, so the person can allow pop-ups and
+     * press Answer again.
+     */
     const answer = () => {
+        if (
+            openCallWindow(callWindowUrl(team.slug, call.meeting_id)) === null
+        ) {
+            return;
+        }
+
         setCall(null);
 
         router.visit(
-            showThread.url(
-                {
-                    current_team: team.slug,
-                    conversation: call.conversation_id,
-                },
-                { query: { join: call.meeting_id } },
-            ),
+            showThread.url({
+                current_team: team.slug,
+                conversation: call.conversation_id,
+            }),
         );
     };
 

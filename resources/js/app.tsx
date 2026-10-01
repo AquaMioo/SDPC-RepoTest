@@ -55,6 +55,9 @@ createInertiaApp({
              * nav from the signed-in role.
              *
              */
+            // The call window: the call alone, full window, no header.
+            case name === 'messaging/call':
+                return null;
             case name.startsWith('client/'):
             case name.startsWith('student/'):
             case name.startsWith('messaging/'):

@@ -690,6 +690,35 @@ class MeetingTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('active.call', null));
     }
 
+    public function test_the_call_opens_in_a_window_of_its_own_for_a_participant(): void
+    {
+        [$client, $student, $project] = $this->pair();
+        $thread = $this->thread($project, $student);
+
+        $meeting = $thread->meetings()->create([
+            'created_by' => $client->id,
+            'channel_name' => Meeting::newChannelName(),
+            'scheduled_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('meetings.window', ['current_team' => $client->currentTeam, 'meeting' => $meeting]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('messaging/call')
+                ->where('meetingId', $meeting->id)
+                ->where('title', $project->title)
+                ->where('participant', $student->name)
+                ->where('joinable', true));
+
+        /* Somebody who is not in the thread is turned away, like the token endpoint does. */
+        $outsider = User::factory()->client()->create();
+
+        $this->actingAs($outsider)
+            ->get(route('meetings.window', ['current_team' => $outsider->currentTeam, 'meeting' => $meeting]))
+            ->assertForbidden();
+    }
+
     public function test_the_routes_are_absent_while_agora_is_switched_off(): void
     {
         config(['agora.enabled' => false]);
