@@ -11,6 +11,7 @@ use App\Models\Application;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -95,6 +96,11 @@ class AgreementScreenTest extends TestCase
     {
         [$owner, $student, $agreement] = $this->agreement();
 
+        /* The phases are the Section VII services, then Turnover. */
+        $this->addService($owner, $agreement, 'Stock and supplier modules');
+        $this->addService($student, $agreement, 'Forecast dashboard');
+        [$stock, $forecast, $turnover] = $agreement->refresh()->milestones;
+
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
                 'current_team' => $owner->currentTeam,
@@ -106,28 +112,37 @@ class AgreementScreenTest extends TestCase
                 'confidentiality_terms' => 'Client data stays confidential.',
                 'academic_terms' => 'The panel may see the architecture.',
                 'starts_on' => now()->toDateString(),
-                'ends_on' => now()->addMonths(2)->toDateString(),
+                'ends_on' => now()->addMonths(3)->toDateString(),
                 'milestones' => [
                     [
-                        'title' => 'Design',
+                        'id' => $stock->id,
                         'amount' => 8000,
                         'starts_on' => now()->toDateString(),
                         'ends_on' => now()->addWeeks(3)->toDateString(),
                     ],
                     [
-                        'title' => 'Build',
+                        'id' => $forecast->id,
                         'amount' => 14000,
-                        'starts_on' => now()->addWeeks(3)->toDateString(),
+                        /* The services may overlap. */
+                        'starts_on' => now()->addWeeks(2)->toDateString(),
                         'ends_on' => now()->addWeeks(8)->toDateString(),
+                    ],
+                    [
+                        'id' => $turnover->id,
+                        'amount' => 0,
+                        'starts_on' => now()->addWeeks(8)->addDay()->toDateString(),
+                        'ends_on' => now()->addWeeks(8)->addDay()->addMonth()->toDateString(),
                     ],
                 ],
             ])
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $agreement->refresh();
 
         $this->assertSame(22000, $agreement->total_amount);
-        $this->assertCount(2, $agreement->milestones);
+        $this->assertCount(3, $agreement->milestones);
+        $this->assertSame(['Stock and supplier modules', 'Forecast dashboard', 'Turnover'], $agreement->milestones->pluck('title')->all());
 
         // The student reads the figures the client just wrote, not a copy.
         $this->actingAs($student)
@@ -142,15 +157,19 @@ class AgreementScreenTest extends TestCase
                 ->where('agreement.viewer.party', 'student'));
     }
 
-    public function test_the_client_can_reorder_the_milestones(): void
+    /**
+     * The phases are the Section VII services their authors wrote, then
+     * Turnover. The client's timeline form sets their dates; it cannot put
+     * them in another order or rename them.
+     */
+    public function test_the_timeline_form_cannot_reorder_or_rename_the_phases(): void
     {
-        [$owner, , $agreement] = $this->agreement();
+        [$owner, $student, $agreement] = $this->agreement();
 
-        $original = $agreement->milestones;
+        $this->addService($student, $agreement, 'Inventory module');
+        $this->addService($owner, $agreement, 'Reports module');
+        $original = $agreement->refresh()->milestones;
 
-        // The same three rows, first and last swapped. Position is unique per
-        // agreement, so this is the case that collides if the new order is
-        // written straight over the old one.
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
                 'current_team' => $owner->currentTeam,
@@ -158,28 +177,33 @@ class AgreementScreenTest extends TestCase
             ]), [
                 ...$this->terms(),
                 'milestones' => [
-                    $this->milestone($original[2]->id, $original[2]->title),
-                    $this->milestone($original[1]->id, $original[1]->title),
-                    $this->milestone($original[0]->id, $original[0]->title),
+                    $this->milestone($original[2]->id, 'Renamed turnover'),
+                    $this->milestone($original[1]->id, 'Renamed reports'),
+                    $this->milestone($original[0]->id, 'Renamed inventory'),
                 ],
             ])
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $reordered = $agreement->refresh()->milestones;
+        $after = $agreement->refresh()->milestones;
 
-        $this->assertSame([1, 2, 3], $reordered->pluck('position')->all());
-        $this->assertSame(
-            [$original[2]->id, $original[1]->id, $original[0]->id],
-            $reordered->pluck('id')->all(),
-        );
+        $this->assertSame([1, 2, 3], $after->pluck('position')->all());
+        $this->assertSame($original->pluck('id')->all(), $after->pluck('id')->all());
+        $this->assertSame(['Inventory module', 'Reports module', 'Turnover'], $after->pluck('title')->all());
+        /* The dates did land. */
+        $this->assertSame(now()->addWeeks(5)->toDateString(), $after[2]->ends_on->toDateString());
     }
 
-    public function test_dropping_a_milestone_removes_it(): void
+    /**
+     * Leaving a phase out of the timeline form does not delete it: only its
+     * author removes a service, and Turnover is never removed.
+     */
+    public function test_the_timeline_form_cannot_drop_a_phase(): void
     {
         [$owner, , $agreement] = $this->agreement();
 
-        $kept = $agreement->milestones->first();
+        $this->addService($owner, $agreement, 'Inventory module');
+        [$service, $turnover] = $agreement->refresh()->milestones;
 
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
@@ -187,12 +211,48 @@ class AgreementScreenTest extends TestCase
                 'agreement' => $agreement,
             ]), [
                 ...$this->terms(),
-                'milestones' => [$this->milestone($kept->id, $kept->title)],
+                'milestones' => [$this->milestone($turnover->id, $turnover->title)],
             ])
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $this->assertSame([$kept->id], $agreement->refresh()->milestones->pluck('id')->all());
+        $this->assertSame([$service->id, $turnover->id], $agreement->refresh()->milestones->pluck('id')->all());
+    }
+
+    public function test_turnover_has_to_run_at_least_a_month(): void
+    {
+        [$owner, , $agreement] = $this->agreement();
+        $turnover = $agreement->milestones->last();
+
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($turnover->id, $turnover->title),
+                    'starts_on' => now()->toDateString(),
+                    'ends_on' => now()->addMonthNoOverflow()->subDay()->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasErrors([
+                'milestones.0.ends_on' => 'Turnover has to run at least one month. End it on or after '.now()->addMonthNoOverflow()->format('j M Y').'.',
+            ]);
+
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($turnover->id, $turnover->title),
+                    'starts_on' => now()->toDateString(),
+                    'ends_on' => now()->addMonthNoOverflow()->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasNoErrors();
     }
 
     public function test_a_date_with_a_year_past_four_digits_is_refused(): void
@@ -258,8 +318,52 @@ class AgreementScreenTest extends TestCase
                 ]],
             ])
             ->assertSessionHasErrors([
-                'milestones.0.starts_on' => 'Work cannot start in the past. Pick today or a later date.',
+                'milestones.0.starts_on' => 'Dates cannot be in the past. Pick today or a later date.',
             ]);
+
+        /* An end date in the past is refused too, even with no start date. */
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($first->id, $first->title),
+                    'starts_on' => null,
+                    'ends_on' => now()->subDay()->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasErrors([
+                'milestones.0.ends_on' => 'Dates cannot be in the past. Pick today or a later date.',
+            ]);
+    }
+
+    /**
+     * Today counts in Singapore Time: at 7am SGT it is already the next day
+     * in the app, even though it is still the evening before in UTC.
+     */
+    public function test_today_is_counted_in_singapore_time(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-04 23:00:00', 'UTC'));
+
+        [$owner, , $agreement] = $this->agreement();
+        $turnover = $agreement->milestones->last();
+
+        $this->assertSame('2026-10-05', today()->toDateString());
+
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($turnover->id, $turnover->title),
+                    'starts_on' => '2026-10-04',
+                ]],
+            ])
+            ->assertSessionHasErrors(['milestones.0.starts_on' => 'Dates cannot be in the past. Pick today or a later date.']);
     }
 
     public function test_the_timeline_cannot_run_longer_than_a_year(): void
@@ -280,8 +384,23 @@ class AgreementScreenTest extends TestCase
                 ]],
             ])
             ->assertSessionHasErrors([
-                'timeline' => 'The timeline cannot run longer than one year from the start date to the completion date.',
+                'milestones.0.ends_on' => 'Dates cannot be more than one year from today. Pick '.now()->addYear()->format('j M Y').' or earlier.',
             ]);
+
+        /* A start more than a year out is refused the same way. */
+        $this->actingAs($owner)
+            ->patch(route('agreements.update', [
+                'current_team' => $owner->currentTeam,
+                'agreement' => $agreement,
+            ]), [
+                ...$this->terms(),
+                'milestones' => [[
+                    ...$this->milestone($first->id, $first->title),
+                    'starts_on' => now()->addYear()->addDay()->toDateString(),
+                    'ends_on' => now()->addYear()->addMonths(2)->toDateString(),
+                ]],
+            ])
+            ->assertSessionHasErrors(['milestones.0.starts_on', 'milestones.0.ends_on']);
 
         /* Exactly a year is still allowed. */
         $this->actingAs($owner)
@@ -321,8 +440,22 @@ class AgreementScreenTest extends TestCase
             'title' => $title,
             'amount' => 5000,
             'starts_on' => now()->toDateString(),
-            'ends_on' => now()->addWeeks(3)->toDateString(),
+            /* Long enough for Turnover, which runs at least a month. */
+            'ends_on' => now()->addWeeks(5)->toDateString(),
         ];
+    }
+
+    /**
+     * Add a Section VII service through the memorandum, as the given party.
+     */
+    private function addService(User $party, Agreement $agreement, string $objective): void
+    {
+        $this->actingAs($party)
+            ->post(route('agreements.services.store', [
+                'current_team' => $party->currentTeam,
+                'agreement' => $agreement,
+            ]), ['objective' => $objective, 'scope' => "Everything {$objective} covers."])
+            ->assertSessionHasNoErrors();
     }
 
     /**

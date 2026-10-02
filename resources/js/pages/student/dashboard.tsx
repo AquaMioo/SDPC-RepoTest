@@ -87,6 +87,8 @@ type Props = {
         phases: {
             id: number;
             title: string;
+            /** Turnover: never counted in the percentage, so it gets no bar. */
+            isTurnover: boolean;
             progress: number;
             isDone: boolean;
         }[];
@@ -524,53 +526,55 @@ function ProgressCard({ project }: { project: Props['project'] }) {
                         </div>
                     )}
 
-                    {project.phases.map((phase) => (
-                        <div
-                            key={phase.id}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                fontSize: 11.5,
-                            }}
-                        >
-                            <span style={{ width: 64, flex: 'none' }}>
-                                {phase.title}
-                            </span>
-                            <span
-                                role="progressbar"
-                                aria-valuenow={phase.progress}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-label={`${phase.title} verified`}
+                    {project.phases
+                        .filter((phase) => !phase.isTurnover)
+                        .map((phase) => (
+                            <div
+                                key={phase.id}
                                 style={{
-                                    flex: 1,
-                                    height: 5,
-                                    borderRadius: 3,
-                                    background: 'var(--color-divider)',
-                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    fontSize: 11.5,
                                 }}
                             >
+                                <span style={{ width: 64, flex: 'none' }}>
+                                    {phase.title}
+                                </span>
+                                <span
+                                    role="progressbar"
+                                    aria-valuenow={phase.progress}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-label={`${phase.title} verified`}
+                                    style={{
+                                        flex: 1,
+                                        height: 5,
+                                        borderRadius: 3,
+                                        background: 'var(--color-divider)',
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    <span
+                                        style={{
+                                            display: 'block',
+                                            width: `${phase.progress}%`,
+                                            height: '100%',
+                                            background: 'var(--color-accent)',
+                                        }}
+                                    />
+                                </span>
                                 <span
                                     style={{
-                                        display: 'block',
-                                        width: `${phase.progress}%`,
-                                        height: '100%',
-                                        background: 'var(--color-accent)',
+                                        width: 32,
+                                        textAlign: 'right',
+                                        color: MUTED(65),
                                     }}
-                                />
-                            </span>
-                            <span
-                                style={{
-                                    width: 32,
-                                    textAlign: 'right',
-                                    color: MUTED(65),
-                                }}
-                            >
-                                {phase.progress}%
-                            </span>
-                        </div>
-                    ))}
+                                >
+                                    {phase.progress}%
+                                </span>
+                            </div>
+                        ))}
                 </div>
             )}
         </Panel>

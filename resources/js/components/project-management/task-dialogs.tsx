@@ -20,7 +20,12 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
-import { shortDate } from '@/lib/calendar-days';
+import {
+    earliestTurnoverEnd,
+    latestTurnoverStart,
+    shortDate,
+    timelineWindow,
+} from '@/lib/calendar-days';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -38,6 +43,16 @@ export const IN_PLACE = {
 };
 
 type Errors = Record<string, string>;
+
+/** The earlier of two Y-m-d dates, ignoring a missing one. */
+function earlierOf(first: string | null | undefined, second: string): string {
+    return first && first < second ? first : second;
+}
+
+/** The later of two Y-m-d dates, ignoring a missing one. */
+function laterOf(first: string | null | undefined, second: string): string {
+    return first && first > second ? first : second;
+}
 
 function Shell({
     open,
@@ -197,7 +212,8 @@ export function TaskFormDialog({
                         id="task-due"
                         type="date"
                         value={dueOn}
-                        max={finalDeadline ?? undefined}
+                        min={timelineWindow().min}
+                        max={earlierOf(finalDeadline, timelineWindow().max)}
                         disabled={deadlineLocked}
                         onChange={(event) => setDueOn(event.target.value)}
                         aria-invalid={Boolean(errors.due_on)}
@@ -478,6 +494,7 @@ export function ScheduleDialog({
 
     /* Turnover's end is the final deadline: only an approved ask moves it. */
     const endLocked = phase.isTurnover && phase.endsOn !== null;
+    const dateWindow = timelineWindow();
 
     const save = () => {
         setBusy(true);
@@ -518,6 +535,23 @@ export function ScheduleDialog({
                         id="phase-starts"
                         type="date"
                         value={startsOn}
+                        /*
+                         * A date that moves stays between today and a year
+                         * out; Turnover also keeps a month before its end.
+                         */
+                        min={
+                            startsOn === phase.startsOn
+                                ? undefined
+                                : dateWindow.min
+                        }
+                        max={
+                            phase.isTurnover && phase.endsOn
+                                ? earlierOf(
+                                      latestTurnoverStart(phase.endsOn),
+                                      dateWindow.max,
+                                  )
+                                : dateWindow.max
+                        }
                         onChange={(event) => setStartsOn(event.target.value)}
                         aria-invalid={Boolean(errors.starts_on)}
                     />
@@ -534,7 +568,15 @@ export function ScheduleDialog({
                         id="phase-ends"
                         type="date"
                         value={endLocked ? (phase.endsOn ?? '') : endsOn}
-                        min={startsOn || undefined}
+                        min={
+                            phase.isTurnover && startsOn
+                                ? laterOf(
+                                      earliestTurnoverEnd(startsOn),
+                                      dateWindow.min,
+                                  )
+                                : laterOf(startsOn, dateWindow.min)
+                        }
+                        max={dateWindow.max}
                         disabled={endLocked}
                         onChange={(event) => setEndsOn(event.target.value)}
                         aria-invalid={Boolean(errors.ends_on)}
@@ -623,8 +665,9 @@ export function DeadlineRequestDialog({
                         id="proposed-on"
                         type="date"
                         value={proposedOn}
-                        min={min ?? undefined}
-                        max={max ?? undefined}
+                        /* Whatever else holds it, a date asked for is today to a year out. */
+                        min={laterOf(min, timelineWindow().min)}
+                        max={earlierOf(max, timelineWindow().max)}
                         autoFocus
                         onChange={(event) => setProposedOn(event.target.value)}
                         aria-invalid={Boolean(errors.proposed_on)}

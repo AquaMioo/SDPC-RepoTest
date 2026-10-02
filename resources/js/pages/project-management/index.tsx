@@ -30,6 +30,15 @@ import { index as boardIndex } from '@/routes/student/board';
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
+/** The small label over an Objective or a Scope. */
+const KICKER = {
+    fontSize: 10.5,
+    letterSpacing: '.08em',
+    textTransform: 'uppercase',
+    color: MUTED(55),
+    marginBottom: 2,
+} as const;
+
 const STATE_TAG: Record<
     Phase['state'],
     { label: string; variant: 'outline' | 'neutral' | 'accent' }
@@ -152,7 +161,7 @@ export default function ProjectManagement({
                     {agreement !== null && (
                         <Tag
                             variant="outline"
-                            title={`${agreement.summary.verifiedCount} of ${agreement.summary.taskCount} tasks verified`}
+                            title={`${agreement.summary.verifiedCount} of ${agreement.summary.taskCount} tasks verified, Turnover not counted`}
                         >
                             {agreement.summary.progress}% overall
                         </Tag>
@@ -315,7 +324,7 @@ function Workspace({
                     <strong style={{ color: 'var(--color-text)' }}>
                         {summary.verifiedCount} of {summary.taskCount}
                     </strong>{' '}
-                    tasks verified
+                    tasks verified (Turnover not counted)
                 </span>
                 {summary.finalDeadline && !agreement.isCompleted && (
                     <span
@@ -369,6 +378,13 @@ function Workspace({
                     gap: 12,
                 }}
             >
+                {/*
+                 * One card per phase. Every phase before Turnover is a service
+                 * from Section VII of the memorandum: its Objective (the title)
+                 * and its Scope (the description), straight from the entry the
+                 * two sides wrote. Turnover is listed but never counted in the
+                 * percentage.
+                 */}
                 {agreement.phases.map((phase) => (
                     <Panel key={phase.id} padding="lg" gap="sm">
                         <div
@@ -378,44 +394,74 @@ function Workspace({
                                 gap: 8,
                             }}
                         >
-                            <span
-                                style={{ fontSize: 13.5, marginRight: 'auto' }}
-                            >
-                                {phase.title}
-                            </span>
+                            <div style={{ marginRight: 'auto', minWidth: 0 }}>
+                                {!phase.isTurnover && (
+                                    <div style={KICKER}>Objective</div>
+                                )}
+                                <span style={{ fontSize: 13.5 }}>
+                                    {phase.title}
+                                </span>
+                            </div>
                             <Tag variant={STATE_TAG[phase.state].variant}>
                                 {STATE_TAG[phase.state].label}
                             </Tag>
                         </div>
+                        {!phase.isTurnover && phase.description && (
+                            <div>
+                                <div style={KICKER}>Scope</div>
+                                <p
+                                    style={{
+                                        margin: 0,
+                                        fontSize: 12,
+                                        lineHeight: 1.5,
+                                        color: MUTED(70),
+                                        whiteSpace: 'pre-line',
+                                    }}
+                                >
+                                    {phase.description}
+                                </p>
+                            </div>
+                        )}
                         <span style={{ fontSize: 11.5, color: MUTED(58) }}>
                             {shortDate(phase.startsOn)} –{' '}
                             {shortDate(phase.endsOn)}
                         </span>
-                        <div
-                            role="progressbar"
-                            aria-valuenow={phase.progress}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`${phase.title} verified`}
-                            style={{
-                                height: 4,
-                                borderRadius: 2,
-                                background: MUTED(10),
-                                overflow: 'hidden',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: `${phase.progress}%`,
-                                    height: '100%',
-                                    background: 'var(--color-accent)',
-                                }}
-                            />
-                        </div>
-                        <span style={{ fontSize: 11, color: MUTED(55) }}>
-                            {phase.verifiedCount} of {phase.taskCount} tasks
-                            verified
-                        </span>
+                        {phase.isTurnover ? (
+                            <span style={{ fontSize: 11, color: MUTED(55) }}>
+                                {phase.verifiedCount} of {phase.taskCount} tasks
+                                verified · not counted in progress
+                            </span>
+                        ) : (
+                            <>
+                                <div
+                                    role="progressbar"
+                                    aria-valuenow={phase.progress}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-label={`${phase.title} verified`}
+                                    style={{
+                                        height: 4,
+                                        borderRadius: 2,
+                                        background: MUTED(10),
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: `${phase.progress}%`,
+                                            height: '100%',
+                                            background: 'var(--color-accent)',
+                                        }}
+                                    />
+                                </div>
+                                <span
+                                    style={{ fontSize: 11, color: MUTED(55) }}
+                                >
+                                    {phase.verifiedCount} of {phase.taskCount}{' '}
+                                    tasks verified
+                                </span>
+                            </>
+                        )}
                     </Panel>
                 ))}
             </div>
@@ -441,8 +487,17 @@ function Workspace({
                         phase.isTurnover && canComplete
                             ? {
                                   projectTitle: agreement.projectTitle,
-                                  unverifiedCount:
-                                      summary.taskCount - summary.verifiedCount,
+                                  /*
+                                   * Every phase, Turnover included: the
+                                   * summary's counts leave Turnover out.
+                                   */
+                                  unverifiedCount: agreement.phases.reduce(
+                                      (count, each) =>
+                                          count +
+                                          each.taskCount -
+                                          each.verifiedCount,
+                                      0,
+                                  ),
                               }
                             : null
                     }

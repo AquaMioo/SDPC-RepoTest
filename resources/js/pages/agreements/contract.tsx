@@ -1,7 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
-import { DownloadSimpleIcon, ShieldCheckIcon } from '@phosphor-icons/react';
+import {
+    DownloadSimpleIcon,
+    PrinterIcon,
+    ShieldCheckIcon,
+} from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
+import { MemorandumDocument } from '@/components/agreements/memorandum-document';
 import SignatureForm from '@/components/agreements/signature-form';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelDivider, PanelKicker } from '@/components/sdpc/panel';
@@ -9,9 +14,10 @@ import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
     memorandum as memorandumDownload,
+    printable as agreementPrintable,
     show as agreementShow,
 } from '@/routes/agreements';
-import type { Agreement, Memorandum } from '@/types/agreements';
+import type { Agreement, Memorandum, Moa } from '@/types/agreements';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
@@ -37,14 +43,25 @@ type Props = {
  * The Contract screen — the same document as the Agreement screen, read in
  * full rather than summarised.
  *
- * New agreements read as the school's Memorandum of Agreement, with its blanks
- * filled from the agreement. One that somebody signed before the memorandum
- * arrived keeps the clauses it was signed against. Nothing here is legal
- * advice.
+ * New agreements read as the SDPC Memorandum of Agreement, which both parties
+ * add to (SdpcMemorandumContract). One signed under the earlier memorandum
+ * keeps it, with its blanks filled from the agreement, and one signed before
+ * any memorandum keeps the clauses it was signed against. Nothing here is
+ * legal advice.
  */
 export default function AgreementContract({ agreement }: Props) {
     const team = useCurrentTeam();
     const memorandum = agreement.memorandum;
+
+    if (agreement.moa) {
+        return (
+            <SdpcMemorandumContract
+                agreement={agreement}
+                moa={agreement.moa}
+                teamSlug={team.slug}
+            />
+        );
+    }
 
     const clauses = [
         {
@@ -313,6 +330,154 @@ const CLAUSE_BODY = {
     lineHeight: 1.65,
     color: MUTED(65),
 } as const;
+
+/**
+ * The contract screen for the SDPC Memorandum of Agreement.
+ *
+ * The memorandum itself, as paper, with "Add requirement" on each open
+ * section for both parties until somebody signs. Two views of it beside the
+ * screen: the blank template as the school issues it (the PDF), and the
+ * finished copy with every blank filled and every addition in place, laid
+ * out to print and sign by hand.
+ */
+function SdpcMemorandumContract({
+    agreement,
+    moa,
+    teamSlug,
+}: {
+    agreement: Agreement;
+    moa: Moa;
+    teamSlug: string;
+}) {
+    const { viewer } = agreement;
+    const args = { current_team: teamSlug, agreement: agreement.id };
+
+    return (
+        <>
+            <Head title="Memorandum of Agreement" />
+
+            <div
+                style={{
+                    maxWidth: 'clamp(1000px, 100vw - 320px, 1600px)',
+                    margin: '0 auto',
+                    padding: '28px clamp(16px, 4vw, 32px) 72px',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                        marginBottom: 6,
+                    }}
+                >
+                    <div style={{ marginRight: 'auto' }}>
+                        <h3 style={{ margin: 0 }}>Memorandum of Agreement</h3>
+                        <div style={{ fontSize: 12.5, color: MUTED(68) }}>
+                            {agreement.project.title} · contract{' '}
+                            {agreement.reference} · v{agreement.version}
+                        </div>
+                    </div>
+
+                    {/* The template before anything is added: a file, so a plain link. */}
+                    <a
+                        href={memorandumDownload.url(args)}
+                        download
+                        title="Download the blank SDPC MOA template (PDF)"
+                        data-test="download-memorandum"
+                        className="tag-link"
+                        onClick={() =>
+                            toast.success('Downloading the blank template…', {
+                                description: `${agreement.reference} Memorandum of Agreement.pdf`,
+                            })
+                        }
+                    >
+                        <Tag variant="outline">
+                            <DownloadSimpleIcon style={{ marginRight: 5 }} />
+                            Blank template · PDF
+                        </Tag>
+                    </a>
+
+                    {/* The finished copy, every addition in place. */}
+                    <Btn asChild variant="primary">
+                        <Link href={agreementPrintable.url(args)}>
+                            <PrinterIcon />
+                            Printable copy
+                        </Link>
+                    </Btn>
+                </div>
+
+                <p
+                    style={{
+                        margin: '10px 0 18px',
+                        fontSize: 12.5,
+                        lineHeight: 1.6,
+                        color: MUTED(68),
+                        maxWidth: 820,
+                    }}
+                >
+                    {viewer.canAddRequirements
+                        ? 'The school’s wording in every section is fixed. You and the other party can each add requirements where a section allows it; only the person who added a line can edit or remove it, and everything locks the moment either of you signs. Section VII must describe at least one service before anyone can sign.'
+                        : 'The school’s wording is fixed, and what the parties added is shown in place. It can no longer be changed here.'}
+                </p>
+
+                <MemorandumDocument
+                    moa={moa}
+                    reference={`${agreement.reference} · v${agreement.version}`}
+                    editing={
+                        viewer.canAddRequirements
+                            ? { teamSlug, agreementId: agreement.id }
+                            : null
+                    }
+                />
+
+                <div style={{ marginTop: 16 }}>
+                    <SignatureForm
+                        agreement={agreement}
+                        tone="accent"
+                        leading={
+                            <Btn asChild>
+                                <Link href={agreementShow.url(args)}>
+                                    Back to summary
+                                </Link>
+                            </Btn>
+                        }
+                    />
+                </div>
+
+                {agreement.signatures.length > 0 && (
+                    <Panel
+                        gap="md"
+                        style={{ marginTop: 16, padding: '18px 24px' }}
+                    >
+                        <PanelKicker>Contract log</PanelKicker>
+                        {agreement.signatures.map((signature) => (
+                            <div
+                                key={signature.party}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    fontSize: 12.5,
+                                }}
+                            >
+                                <span style={{ marginRight: 'auto' }}>
+                                    {signature.signedName} ·{' '}
+                                    {signature.partyLabel} · account #
+                                    {signature.accountId}
+                                </span>
+                                <span style={{ color: MUTED(68) }}>
+                                    {signature.signedAt}
+                                </span>
+                            </div>
+                        ))}
+                    </Panel>
+                )}
+            </div>
+        </>
+    );
+}
 
 /**
  * The school's Memorandum of Agreement, in the same layout the earlier

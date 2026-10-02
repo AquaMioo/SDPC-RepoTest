@@ -230,7 +230,8 @@ class ClientDashboardTest extends TestCase
          * Four phases, one task each, two verified: the ring reads the tasks
          * the client verified, not the posting — and not a phase status
          * somebody set, which is why the first phase's "Approved" on its own
-         * counts for nothing without verified work behind it.
+         * counts for nothing without verified work behind it. The last phase
+         * is Turnover, whose open task is left out of the figure: 2 of 3.
          */
         foreach ([TaskStatus::Verified, TaskStatus::Verified, TaskStatus::Submitted, TaskStatus::Open] as $position => $status) {
             $milestone = AgreementMilestone::factory()->create([
@@ -246,11 +247,13 @@ class ClientDashboardTest extends TestCase
         }
 
         $this->partialDashboard($client, $team, 'currentProject')
-            ->assertJsonPath('props.currentProject.progress', 50)
+            ->assertJsonPath('props.currentProject.progress', 67)
             ->assertJsonPath('props.currentProject.verifiedCount', 2)
             ->assertJsonPath('props.currentProject.submittedCount', 1)
-            ->assertJsonPath('props.currentProject.taskCount', 4)
-            ->assertJsonCount(4, 'props.currentProject.milestones');
+            ->assertJsonPath('props.currentProject.taskCount', 3)
+            ->assertJsonCount(4, 'props.currentProject.milestones')
+            ->assertJsonPath('props.currentProject.milestones.3.isTurnover', true)
+            ->assertJsonPath('props.currentProject.milestones.0.isTurnover', false);
     }
 
     public function test_the_overview_has_no_current_project_without_an_agreement(): void

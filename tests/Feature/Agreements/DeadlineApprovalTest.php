@@ -26,11 +26,19 @@ use Tests\TestCase;
  * other phases, which may overlap each other.
  *
  * The collaboration fixture runs Design 2 Feb – 22 Feb, Build 23 Feb – 29 Mar
- * and Turnover 30 Mar – 12 Apr 2026, so the final deadline is 12 Apr.
+ * and Turnover 30 Mar – 12 Apr 2026, so the final deadline is 12 Apr. Every
+ * test runs on 26 Jan 2026: a date set on the timeline cannot be in the past.
  */
 class DeadlineApprovalTest extends TestCase
 {
     use RefreshDatabase, StartsCollaboration;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->travelTo('2026-01-26 09:00:00');
+    }
 
     public function test_a_design_or_build_task_needs_a_deadline_but_a_turnover_one_does_not(): void
     {
@@ -311,7 +319,11 @@ class DeadlineApprovalTest extends TestCase
         $this->assertSame(0, DeadlineChangeRequest::query()->count());
     }
 
-    public function test_design_and_build_may_overlap_but_turnover_may_not(): void
+    /**
+     * The service phases (the Section VII objectives) may overlap each other.
+     * Turnover may not overlap them, and runs at least one month.
+     */
+    public function test_services_may_overlap_but_turnover_may_not_and_runs_a_month(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         [$design, $build, $turnover] = $agreement->milestones;
@@ -321,22 +333,26 @@ class DeadlineApprovalTest extends TestCase
                 'ends_on' => $endsOn,
             ]);
 
-        /* Build starts before Design ends: allowed. */
-        $schedule($build, '2026-02-15', '2026-03-20')->assertSessionHasNoErrors();
+        /* The second phase starts before the first ends: allowed. */
+        $schedule($build, '2026-02-15', '2026-03-05')->assertSessionHasNoErrors();
 
-        /* Build running into Turnover: refused. */
+        /* A phase running into Turnover: refused. */
         $schedule($build, '2026-02-15', '2026-03-30')
             ->assertSessionHasErrors(['ends_on' => 'This phase has to end before Turnover starts on 30 Mar 2026.']);
 
-        /* Turnover starting before Build ends: refused. */
-        $schedule($turnover, '2026-03-15', '2026-04-12')
-            ->assertSessionHasErrors(['starts_on' => 'Turnover cannot overlap the other phases. Start it after 20 Mar 2026.']);
+        /* Turnover starting before the other phases end: refused. */
+        $schedule($turnover, '2026-03-01', '2026-04-12')
+            ->assertSessionHasErrors(['starts_on' => 'Turnover cannot overlap the other phases. Start it after 5 Mar 2026.']);
 
-        /* Turnover moving its own start, the end left where it is: allowed. */
-        $schedule($turnover, '2026-03-25', '2026-04-12')->assertSessionHasNoErrors();
+        /* Turnover shorter than a month: refused. */
+        $schedule($turnover, '2026-03-25', '2026-04-12')
+            ->assertSessionHasErrors(['starts_on' => 'Turnover has to run at least one month. Start it on or before 12 Mar 2026.']);
 
-        $this->assertSame('2026-03-20', $build->fresh()->scheduledEndsOn()->toDateString());
-        $this->assertSame('2026-03-25', $turnover->fresh()->scheduledStartsOn()->toDateString());
+        /* Turnover moving its own start, a month or more before the final deadline: allowed. */
+        $schedule($turnover, '2026-03-10', '2026-04-12')->assertSessionHasNoErrors();
+
+        $this->assertSame('2026-03-05', $build->fresh()->scheduledEndsOn()->toDateString());
+        $this->assertSame('2026-03-10', $turnover->fresh()->scheduledStartsOn()->toDateString());
         $this->assertSame('2026-02-22', $design->fresh()->scheduledEndsOn()->toDateString());
     }
 

@@ -16,7 +16,9 @@ use Illuminate\Support\Carbon;
 /**
  * One agreed piece of work: what it is, what it costs, when it runs.
  *
- * A phase of the build (Design, Build, Turnover by default). Since Project
+ * A phase of the build. Under the SDPC memorandum each phase before Turnover
+ * is a Section VII service (title = Objective, description = Scope), and
+ * Turnover is always last. Since Project
  * Management its progress is its checklist: the tasks the client verified
  * over the tasks the student wrote, and its status follows from those — see
  * App\Actions\Agreements\SyncPhaseStatus.
@@ -26,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property int $position
  * @property string $title
  * @property string|null $description
+ * @property int|null $added_by
  * @property int $amount
  * @property Carbon|null $starts_on
  * @property Carbon|null $ends_on
@@ -40,10 +43,11 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Agreement $agreement
  * @property-read User|null $approver
+ * @property-read User|null $author
  * @property-read Collection<int, AgreementTask> $tasks
  */
 #[Fillable([
-    'agreement_id', 'position', 'title', 'description', 'amount', 'starts_on',
+    'agreement_id', 'position', 'title', 'description', 'added_by', 'amount', 'starts_on',
     'ends_on', 'planned_starts_on', 'planned_ends_on', 'status', 'review_note',
     'submitted_at', 'approved_at', 'approved_by',
 ])]
@@ -71,6 +75,19 @@ class AgreementMilestone extends Model
     {
         /* Named for the role it plays, so the column has to be spelled out. */
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Get who wrote this phase into Section VII of the memorandum.
+     *
+     * Null for Turnover, which every agreement has, and for phases written
+     * before the SDPC memorandum.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'added_by');
     }
 
     /**

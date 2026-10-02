@@ -8,6 +8,7 @@ use App\Models\AgreementTask;
 use App\Models\DeadlineChangeRequest;
 use App\Models\User;
 use App\Notifications\Agreements\DeadlineChangeDecided;
+use App\Support\TimelineWindow;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -36,7 +37,21 @@ class DecideDeadlineChange
             $request = $this->lockPending($request);
             $agreement = $request->agreement->load('milestones');
 
+            /*
+             * The ask may have waited: a date that has since passed, or is
+             * now more than a year out, is not one anybody can set any more.
+             */
+            if (! TimelineWindow::contains($request->proposed_on)) {
+                $this->refuse(__('The date asked for is no longer between today and one year from today. Decline this and ask the student for a new one.'));
+            }
+
             if ($request->isForFinalDeadline()) {
+                $turnoverStarts = $agreement->turnoverPhase()?->scheduledStartsOn();
+
+                if ($turnoverStarts !== null && ! TimelineWindow::isLongEnoughForTurnover($turnoverStarts, $request->proposed_on)) {
+                    $this->refuse(TimelineWindow::turnoverTooShortMessage($turnoverStarts));
+                }
+
                 $latestTask = $this->requestDeadlineChange->latestTaskDeadline($agreement);
 
                 if ($latestTask !== null && $request->proposed_on->lt($latestTask)) {

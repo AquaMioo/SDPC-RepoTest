@@ -10,6 +10,7 @@ use App\Models\AgreementTask;
 use App\Models\DeadlineChangeRequest;
 use App\Models\User;
 use App\Notifications\Agreements\DeadlineChangeRequested;
+use App\Support\TimelineWindow;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -112,6 +113,11 @@ class RequestDeadlineChange
                 $this->refuse(__('A task is due on :date, so the final deadline cannot come before it.', [
                     'date' => $latestTask->format('j M Y'),
                 ]));
+            }
+
+            /* Turnover keeps at least a month, so the final deadline cannot squeeze it. */
+            if ($turnoverStarts !== null && ! TimelineWindow::isLongEnoughForTurnover($turnoverStarts, $proposed)) {
+                $this->refuse(TimelineWindow::turnoverTooShortMessage($turnoverStarts));
             }
 
             if ($turnover->deadlineRequests()->pending()->exists()) {

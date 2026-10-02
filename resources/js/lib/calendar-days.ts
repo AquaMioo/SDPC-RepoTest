@@ -5,10 +5,24 @@
  * reading one through `new Date('2026-02-02')` parses it as UTC midnight,
  * which in Manila is already 8am and in some zones is the day before. So dates
  * are turned into a day count through Date.UTC and back, and never touch the
- * browser's local clock except for "today".
+ * browser's local clock.
+ *
+ * "Today" is Singapore Time (GMT+8), the application's clock, whatever zone
+ * the browser is in — so the date boxes allow exactly the days the server
+ * accepts (App\Support\TimelineWindow).
  */
 
 const MS_PER_DAY = 86_400_000;
+
+/** The application's time zone: Singapore Time, GMT+8. */
+export const APP_TIME_ZONE = 'Asia/Singapore';
+
+const APP_DAY = new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+});
 
 /** Days since the epoch for a Y-m-d string. */
 export function dayNumber(isoDate: string): number {
@@ -22,13 +36,64 @@ export function isoFromDayNumber(days: number): string {
     return new Date(days * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
-/** Today, as the person looking at the screen counts it. */
-export function todayDayNumber(): number {
-    const now = new Date();
-
-    return Math.round(
-        Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / MS_PER_DAY,
+/** Today in Singapore Time, as Y-m-d. */
+export function todayIso(): string {
+    const parts = Object.fromEntries(
+        APP_DAY.formatToParts(new Date()).map((part) => [
+            part.type,
+            part.value,
+        ]),
     );
+
+    return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/** Today in Singapore Time, as a day count. */
+export function todayDayNumber(): number {
+    return dayNumber(todayIso());
+}
+
+/**
+ * The Y-m-d string a whole number of months later, without spilling into the
+ * month after (31 Jan + 1 month is 28 Feb), as Carbon's addMonthsNoOverflow.
+ */
+export function addMonthsIso(isoDate: string, months: number): string {
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const target = new Date(Date.UTC(year, month - 1 + months, 1));
+    const lastDay = new Date(
+        Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+
+    target.setUTCDate(Math.min(day, lastDay));
+
+    return target.toISOString().slice(0, 10);
+}
+
+/**
+ * The days any timeline date may be set to: today to one year from today,
+ * Singapore Time. App\Support\TimelineWindow holds the server to the same.
+ */
+export function timelineWindow(): { min: string; max: string } {
+    const today = todayIso();
+    const [year, month, day] = today.split('-').map(Number);
+
+    return {
+        min: today,
+        /* Carbon's addYear: 29 Feb runs on to 1 Mar, as Date.UTC does. */
+        max: new Date(Date.UTC(year + 1, month - 1, day))
+            .toISOString()
+            .slice(0, 10),
+    };
+}
+
+/** The first day a Turnover starting on the given day may end: a month on. */
+export function earliestTurnoverEnd(startsOn: string): string {
+    return addMonthsIso(startsOn, 1);
+}
+
+/** The last day a Turnover ending on the given day may start: a month before. */
+export function latestTurnoverStart(endsOn: string): string {
+    return addMonthsIso(endsOn, -1);
 }
 
 const SHORT = new Intl.DateTimeFormat('en', {

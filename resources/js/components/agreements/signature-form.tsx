@@ -144,6 +144,28 @@ export default function SignatureForm({
 
             <PanelDivider />
 
+            {/*
+             * Said before anyone tries: on the SDPC memorandum neither side
+             * may sign while Section VII describes no service. The server
+             * refuses it too (SignAgreement).
+             */}
+            {isSigning && viewer.signingBlockedBy && (
+                <div
+                    role="status"
+                    style={{
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        lineHeight: 1.5,
+                        color: 'var(--destructive)',
+                        background:
+                            'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                    }}
+                >
+                    Signing is blocked: {viewer.signingBlockedBy}
+                </div>
+            )}
+
             {isSigning && (
                 <div
                     style={{
@@ -264,7 +286,10 @@ export default function SignatureForm({
                 {isSigning && (
                     <Btn
                         variant="primary"
-                        disabled={signature.processing}
+                        disabled={
+                            signature.processing ||
+                            viewer.signingBlockedBy !== null
+                        }
                         onClick={sign}
                     >
                         {signature.processing ? 'Signing…' : 'Sign agreement'}

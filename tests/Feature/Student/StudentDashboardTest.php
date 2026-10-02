@@ -104,7 +104,8 @@ class StudentDashboardTest extends TestCase
         ]);
 
         // Verified, submitted, open. Only the verified one counts: checking a
-        // task off hands it to the client, it does not finish it.
+        // task off hands it to the client, it does not finish it. The last
+        // phase is Turnover, which the figure leaves out: 1 of 2.
         foreach ([TaskStatus::Verified, TaskStatus::Submitted, TaskStatus::Open] as $index => $status) {
             $milestone = AgreementMilestone::factory()->create([
                 'agreement_id' => $agreement->id,
@@ -121,9 +122,10 @@ class StudentDashboardTest extends TestCase
         $this->actingAs($student)
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('project.progress', 33)
+                ->where('project.progress', 50)
                 ->where('project.verifiedCount', 1)
-                ->where('project.taskCount', 3)
+                ->where('project.taskCount', 2)
+                ->where('project.phases.2.isTurnover', true)
                 ->where('project.dueDate', '22 May 2026')
                 ->where('project.statusLabel', 'In progress'));
     }

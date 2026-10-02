@@ -57,6 +57,8 @@ createInertiaApp({
              */
             // The call window: the call alone, full window, no header.
             case name === 'messaging/call':
+            // The printable memorandum: the paper alone, nothing to print around it.
+            case name === 'agreements/printable':
                 return null;
             case name.startsWith('client/'):
             case name.startsWith('student/'):

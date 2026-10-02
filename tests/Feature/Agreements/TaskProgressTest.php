@@ -80,6 +80,9 @@ class TaskProgressTest extends TestCase
 
     public function test_adding_a_task_to_a_completed_phase_reopens_it(): void
     {
+        /* The fixture runs Feb-Apr 2026, and a date set on the timeline cannot be in the past. */
+        $this->travelTo('2026-01-26 09:00:00');
+
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         $design = $agreement->milestones->first();
         $this->tasks($design, [TaskStatus::Verified]);

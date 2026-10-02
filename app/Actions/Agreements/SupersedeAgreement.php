@@ -40,8 +40,8 @@ class SupersedeAgreement
                 /* Same document, next revision — the reference does not change. */
                 'reference' => $agreement->reference,
                 'version' => $agreement->version + 1,
-                /* Nobody has signed the new version, so it is a memorandum. */
-                'template' => AgreementTemplate::Memorandum,
+                /* Nobody has signed the new version, so it is the SDPC memorandum. */
+                'template' => AgreementTemplate::SdpcMemorandum,
                 'status' => AgreementStatus::Draft,
                 'scope_summary' => $agreement->scope_summary,
                 'deliverables' => $agreement->deliverables,
@@ -58,6 +58,8 @@ class SupersedeAgreement
                     'position' => $milestone->position,
                     'title' => $milestone->title,
                     'description' => $milestone->description,
+                    /* A Section VII entry stays its author's to change. */
+                    'added_by' => $milestone->added_by,
                     'amount' => $milestone->amount,
                     'starts_on' => $milestone->starts_on,
                     'ends_on' => $milestone->ends_on,
@@ -71,6 +73,15 @@ class SupersedeAgreement
                         : MilestoneStatus::Pending,
                     'approved_at' => $milestone->approved_at,
                     'approved_by' => $milestone->approved_by,
+                ]);
+            }
+
+            /* What either side added to the memorandum carries across too. */
+            foreach ($agreement->requirements as $requirement) {
+                $successor->requirements()->create([
+                    'section' => $requirement->section,
+                    'user_id' => $requirement->user_id,
+                    'body' => $requirement->body,
                 ]);
             }
 

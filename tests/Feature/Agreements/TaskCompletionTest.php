@@ -30,6 +30,9 @@ class TaskCompletionTest extends TestCase
 
     public function test_the_student_adds_tasks_to_the_end_of_a_phase(): void
     {
+        /* The fixture runs Feb-Apr 2026, and a date set on the timeline cannot be in the past. */
+        $this->travelTo('2026-01-26 09:00:00');
+
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         $design = $agreement->milestones->first();
 
@@ -323,6 +326,9 @@ class TaskCompletionTest extends TestCase
 
     public function test_the_student_plans_phase_dates_without_touching_the_signed_ones(): void
     {
+        /* The fixture runs Feb-Apr 2026, and a date set on the timeline cannot be in the past. */
+        $this->travelTo('2026-01-26 09:00:00');
+
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         $build = $agreement->milestones[1];
         $url = route('agreements.milestones.schedule', $this->asParty($student, $agreement, ['milestone' => $build]));

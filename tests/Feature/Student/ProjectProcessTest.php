@@ -84,12 +84,13 @@ class ProjectProcessTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->has('agreement.phases', 3)
                 /*
-                 * One of three tasks verified. The submitted one counts for
+                 * One of two tasks verified. The submitted one counts for
                  * nothing: handing work over is not the client accepting it.
+                 * The third phase is Turnover, left out of the figure.
                  */
-                ->where('agreement.summary.progress', 33)
+                ->where('agreement.summary.progress', 50)
                 ->where('agreement.summary.verifiedCount', 1)
-                ->where('agreement.summary.taskCount', 3)
+                ->where('agreement.summary.taskCount', 2)
                 ->where('agreement.reference', $agreement->reference)
                 ->where('agreement.phases.0.tasks.0.statusLabel', 'Verified'));
     }

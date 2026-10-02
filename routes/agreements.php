@@ -6,9 +6,11 @@ use App\Http\Controllers\Agreements\AgreementMilestoneController;
 use App\Http\Controllers\Agreements\AgreementSignatureController;
 use App\Http\Controllers\Agreements\AgreementTaskController;
 use App\Http\Controllers\Agreements\DeadlineChangeRequestController;
+use App\Http\Controllers\Agreements\MemorandumRequirementController;
 use App\Http\Controllers\Agreements\PhaseScheduleController;
 use App\Http\Controllers\Agreements\ProjectCompletionController;
 use App\Http\Controllers\Agreements\ProjectManagementController;
+use App\Http\Controllers\Agreements\ServiceDescriptionController;
 use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
@@ -42,7 +44,36 @@ Route::prefix('{current_team}')
         Route::get('agreements/{agreement}/contract', [AgreementController::class, 'contract'])->name('agreements.contract');
         /* The school's blank Memorandum of Agreement, for printing and signing by hand. */
         Route::get('agreements/{agreement}/memorandum', [AgreementController::class, 'memorandum'])->name('agreements.memorandum');
+        /* The same memorandum filled in, every addition in place, laid out to print and sign. */
+        Route::get('agreements/{agreement}/printable', [AgreementController::class, 'printable'])->name('agreements.printable');
         Route::patch('agreements/{agreement}', [AgreementController::class, 'update'])->middleware($trusted)->name('agreements.update');
+
+        /*
+         * What either party adds to the memorandum: lines in its optional
+         * sections, and the Section VII services that become the phases.
+         * Open until somebody signs; each entry is its author's alone to
+         * change. Both route models are declared on the controllers in URL
+         * order, like milestones below, and checked against the agreement.
+         */
+        Route::post('agreements/{agreement}/requirements', [MemorandumRequirementController::class, 'store'])
+            ->middleware($trusted)
+            ->name('agreements.requirements.store');
+        Route::patch('agreements/{agreement}/requirements/{requirement}', [MemorandumRequirementController::class, 'update'])
+            ->middleware($trusted)
+            ->name('agreements.requirements.update');
+        Route::delete('agreements/{agreement}/requirements/{requirement}', [MemorandumRequirementController::class, 'destroy'])
+            ->middleware($trusted)
+            ->name('agreements.requirements.destroy');
+
+        Route::post('agreements/{agreement}/services', [ServiceDescriptionController::class, 'store'])
+            ->middleware($trusted)
+            ->name('agreements.services.store');
+        Route::patch('agreements/{agreement}/services/{service}', [ServiceDescriptionController::class, 'update'])
+            ->middleware($trusted)
+            ->name('agreements.services.update');
+        Route::delete('agreements/{agreement}/services/{service}', [ServiceDescriptionController::class, 'destroy'])
+            ->middleware($trusted)
+            ->name('agreements.services.destroy');
 
         Route::post('agreements/{agreement}/signatures', [AgreementSignatureController::class, 'store'])
             ->middleware($trusted)

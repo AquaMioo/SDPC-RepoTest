@@ -34,6 +34,8 @@ export type CurrentProject = {
     milestones: {
         id: number;
         title: string;
+        /** Turnover: never counted in the percentage, so it gets no bar. */
+        isTurnover: boolean;
         progress: number;
         verifiedCount: number;
         taskCount: number;
@@ -410,51 +412,55 @@ export function ProjectProgressPanel({
                     Progress by milestone
                 </div>
                 <div className="grid gap-2.5">
-                    {project.milestones.map((milestone) => (
-                        <div
-                            key={milestone.id}
-                            id={`milestone-${milestone.id}`}
-                            className="flex items-center gap-2.5"
-                        >
-                            <span
-                                className={
-                                    milestone.isDone
-                                        ? 'shrink-0 text-[15px] text-[var(--color-primary,#4a7c4e)]'
-                                        : 'shrink-0 text-[15px] text-muted-foreground'
-                                }
-                                aria-hidden="true"
-                            >
-                                {milestone.isDone ? (
-                                    <CheckCircleIcon weight="fill" />
-                                ) : (
-                                    <CircleIcon />
-                                )}
-                            </span>
-                            <span className="w-[72px] shrink-0 truncate text-[12.5px]">
-                                {milestone.title}
-                            </span>
-                            {/*
-                             * A measured bar: the share of this phase's tasks
-                             * you verified. Not a status dressed as a number.
-                             */}
-                            <span
-                                className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)]"
-                                role="progressbar"
-                                aria-valuenow={milestone.progress}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-label={`${milestone.title}: ${milestone.verifiedCount} of ${milestone.taskCount} tasks verified`}
+                    {project.milestones
+                        .filter((milestone) => !milestone.isTurnover)
+                        .map((milestone) => (
+                            <div
+                                key={milestone.id}
+                                id={`milestone-${milestone.id}`}
+                                className="flex items-center gap-2.5"
                             >
                                 <span
-                                    className="block h-full rounded-full bg-[var(--color-primary,#4a7c4e)]"
-                                    style={{ width: `${milestone.progress}%` }}
-                                />
-                            </span>
-                            <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">
-                                {milestone.progress}%
-                            </span>
-                        </div>
-                    ))}
+                                    className={
+                                        milestone.isDone
+                                            ? 'shrink-0 text-[15px] text-[var(--color-primary,#4a7c4e)]'
+                                            : 'shrink-0 text-[15px] text-muted-foreground'
+                                    }
+                                    aria-hidden="true"
+                                >
+                                    {milestone.isDone ? (
+                                        <CheckCircleIcon weight="fill" />
+                                    ) : (
+                                        <CircleIcon />
+                                    )}
+                                </span>
+                                <span className="w-[72px] shrink-0 truncate text-[12.5px]">
+                                    {milestone.title}
+                                </span>
+                                {/*
+                                 * A measured bar: the share of this phase's tasks
+                                 * you verified. Not a status dressed as a number.
+                                 */}
+                                <span
+                                    className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--color-text)_9%,transparent)]"
+                                    role="progressbar"
+                                    aria-valuenow={milestone.progress}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-label={`${milestone.title}: ${milestone.verifiedCount} of ${milestone.taskCount} tasks verified`}
+                                >
+                                    <span
+                                        className="block h-full rounded-full bg-[var(--color-primary,#4a7c4e)]"
+                                        style={{
+                                            width: `${milestone.progress}%`,
+                                        }}
+                                    />
+                                </span>
+                                <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">
+                                    {milestone.progress}%
+                                </span>
+                            </div>
+                        ))}
                 </div>
             </div>
 

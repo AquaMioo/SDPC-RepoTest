@@ -32,7 +32,7 @@ import type {
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
-import { shortDate } from '@/lib/calendar-days';
+import { earliestTurnoverEnd, shortDate } from '@/lib/calendar-days';
 import { store as completeProject } from '@/routes/agreements/completion';
 import {
     approve as approveDeadline,
@@ -236,15 +236,33 @@ export function PhaseChecklist({
                         marginRight: 'auto',
                     }}
                 >
+                    {phase.isTurnover ? '' : 'Objective · '}
                     {phase.title}
                 </span>
                 <span style={{ fontSize: 11.5, color: MUTED(55) }}>
                     {phase.verifiedCount} of {phase.taskCount} verified
+                    {phase.isTurnover ? ' · not counted in progress' : ''}
                 </span>
                 <span style={{ fontSize: 11.5, color: MUTED(55) }}>
                     {shortDate(phase.startsOn)} – {shortDate(phase.endsOn)}
                 </span>
             </div>
+
+            {/* The Section VII scope this objective was agreed with. */}
+            {!phase.isTurnover && phase.description && (
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: 12.5,
+                        lineHeight: 1.55,
+                        color: MUTED(68),
+                        whiteSpace: 'pre-line',
+                    }}
+                >
+                    <span style={{ color: MUTED(55) }}>Scope · </span>
+                    {phase.description}
+                </p>
+            )}
 
             {phase.isTurnover && finalDeadline && (
                 <FinalDeadlineBar
@@ -397,7 +415,12 @@ export function PhaseChecklist({
                     url={askFinalDeadline.url(phaseArgs)}
                     subject="the final deadline"
                     currentOn={finalDeadline}
-                    min={phase.startsOn}
+                    /* Turnover runs at least a month from its start. */
+                    min={
+                        phase.startsOn
+                            ? earliestTurnoverEnd(phase.startsOn)
+                            : null
+                    }
                 />
             )}
             {dialog?.kind === 'decline-final' && (

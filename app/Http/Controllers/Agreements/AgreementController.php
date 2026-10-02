@@ -34,14 +34,6 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 class AgreementController extends Controller
 {
     /**
-     * How far surviving milestones are parked while a new order is written.
-     *
-     * Positions are unique per agreement and SaveAgreementRequest caps a
-     * schedule at 12, so anything past that clears every real position.
-     */
-    private const POSITION_PARKING_OFFSET = 100;
-
-    /**
      * Create a new controller instance.
      */
     public function __construct(private PresentAgreement $presentAgreement) {}
@@ -136,22 +128,48 @@ class AgreementController extends Controller
     /**
      * Download the school's Memorandum of Agreement as a PDF.
      *
-     * The blank paper form, exactly as the school issues it, for the two
-     * sides to print, fill in and sign by hand. Named after the agreement so
-     * the copy is easy to find later. Only for agreements written as a
-     * memorandum: one signed under the earlier clauses is not this document.
+     * The blank paper form, exactly as the school issues it: the template as
+     * it reads before either side adds anything. Named after the agreement so
+     * the copy is easy to find later. Each memorandum wording has its own
+     * form (AgreementTemplate::blankForm); the earlier clauses have none.
      */
     public function memorandum(Request $request, Team $currentTeam, Agreement $agreement): BinaryFileResponse
     {
         Gate::authorize('view', $agreement);
 
-        abort_unless($agreement->template === AgreementTemplate::Memorandum, HttpResponse::HTTP_NOT_FOUND);
+        $form = $agreement->template->blankForm();
+
+        abort_if($form === null, HttpResponse::HTTP_NOT_FOUND);
 
         return response()->download(
-            resource_path('documents/memorandum-of-agreement.pdf'),
+            $form,
             "{$agreement->reference} Memorandum of Agreement.pdf",
             ['Content-Type' => 'application/pdf'],
         );
+    }
+
+    /**
+     * Show the SDPC memorandum filled in, laid out to print and sign.
+     *
+     * The finished document beside the blank form above: every blank filled
+     * from the agreement and every party's addition in place, from the same
+     * payload the contract screen edits, so the paper says exactly what the
+     * screen does. The browser prints it, or saves it as a PDF; no PDF package
+     * is needed (see .ai/rules/controllers-agreements.md).
+     */
+    public function printable(Request $request, Team $currentTeam, Agreement $agreement): Response
+    {
+        Gate::authorize('view', $agreement);
+
+        abort_unless($agreement->template === AgreementTemplate::SdpcMemorandum, HttpResponse::HTTP_NOT_FOUND);
+
+        return Inertia::render('agreements/printable', [
+            'agreement' => $this->presentAgreement->handle(
+                $agreement,
+                $request->user(),
+                $this->partyFor($request->user(), $agreement),
+            ),
+        ]);
     }
 
     /**
@@ -165,7 +183,7 @@ class AgreementController extends Controller
                 'confidentiality_terms', 'academic_terms', 'starts_on', 'ends_on',
             ]));
 
-            $this->syncMilestones($agreement, $request->array('milestones'));
+            $this->scheduleMilestones($agreement, $request->array('milestones'));
 
             $agreement->refresh()->syncTotalAmount();
         });
@@ -174,54 +192,24 @@ class AgreementController extends Controller
     }
 
     /**
-     * Replace the milestone set with the one the client submitted.
+     * Write the timeline the client set: each phase's dates.
      *
-     * Rows the client removed are deleted rather than hidden. Editing is only
-     * open before anybody has signed, so nothing being dropped here was ever
-     * agreed to, and keeping orphaned milestones would leave the schedule
-     * showing work that is no longer in the contract.
-     *
-     * The order of operations is load-bearing. `(agreement_id, position)` is
-     * unique, so writing the new order straight over the old one collides the
-     * moment two milestones swap places, or a fresh row is given a position
-     * that a row further down the list is about to free. Dropping the removed
-     * rows first and parking the survivors out of the numbering leaves every
-     * final position empty before anything claims it.
+     * The phases themselves are not this form's to change. Every phase before
+     * Turnover is a Section VII entry, named and described by whoever added it
+     * (ServiceDescriptionController), and Turnover is always the last. So only
+     * rows already on this agreement are touched, and only their dates and the
+     * dormant amount column; an id from another agreement matches nothing.
      *
      * @param  array<int, array<string, mixed>>  $milestones
      */
-    protected function syncMilestones(Agreement $agreement, array $milestones): void
+    protected function scheduleMilestones(Agreement $agreement, array $milestones): void
     {
-        $submittedIds = collect($milestones)
-            ->pluck('id')
-            ->filter()
-            ->map(fn (mixed $id): int => (int) $id)
-            ->all();
-
-        $agreement->milestones()->whereNotIn('id', $submittedIds)->delete();
-        $agreement->milestones()->increment('position', self::POSITION_PARKING_OFFSET);
-
-        foreach (array_values($milestones) as $index => $milestone) {
-            $attributes = [
-                'position' => $index + 1,
-                'title' => $milestone['title'],
-                'description' => $milestone['description'] ?? null,
+        foreach ($milestones as $milestone) {
+            $agreement->milestones()->whereKey((int) $milestone['id'])->update([
                 'amount' => (int) $milestone['amount'],
                 'starts_on' => $milestone['starts_on'] ?? null,
                 'ends_on' => $milestone['ends_on'] ?? null,
-            ];
-
-            $existing = isset($milestone['id'])
-                ? $agreement->milestones()->whereKey($milestone['id'])->first()
-                : null;
-
-            if ($existing !== null) {
-                $existing->update($attributes);
-
-                continue;
-            }
-
-            $agreement->milestones()->create($attributes);
+            ]);
         }
     }
 

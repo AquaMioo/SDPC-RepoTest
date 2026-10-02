@@ -4,8 +4,10 @@ namespace App\Actions\Agreements;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementTemplate;
+use App\Enums\MemorandumSection;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementRequirement;
 use App\Models\AgreementSignature;
 use App\Models\User;
 
@@ -23,6 +25,11 @@ use App\Models\User;
 class PresentAgreement
 {
     /**
+     * Create a new action instance.
+     */
+    public function __construct(private readonly SignAgreement $signAgreement) {}
+
+    /**
      * Build the payload for one agreement as seen by one person.
      *
      * @return array<string, mixed>
@@ -30,7 +37,8 @@ class PresentAgreement
     public function handle(Agreement $agreement, User $viewer, ?AgreementParty $party): array
     {
         $agreement->loadMissing([
-            'milestones',
+            'milestones.author',
+            'requirements.author',
             'signatures.signatory',
             'project.team.clientProfile',
             'student.studentProfile',
@@ -74,6 +82,9 @@ class PresentAgreement
             ],
             'memorandum' => $agreement->template === AgreementTemplate::Memorandum
                 ? $this->memorandum($agreement)
+                : null,
+            'moa' => $agreement->template === AgreementTemplate::SdpcMemorandum
+                ? $this->sdpcMemorandum($agreement, $viewer)
                 : null,
 
             'startsOn' => $agreement->starts_on?->toDateString(),
@@ -122,7 +133,150 @@ class PresentAgreement
                 'canEdit' => $viewer->can('update', $agreement),
                 'canSign' => $viewer->can('sign', $agreement),
                 'canRequestChanges' => $viewer->can('requestChanges', $agreement),
+                'canAddRequirements' => $viewer->can('addRequirements', $agreement),
+                /* What still stops a signature (an empty Section VII, say), said before anyone tries. */
+                'signingBlockedBy' => $agreement->status->acceptsSignatures()
+                    ? $this->signAgreement->reasonItCannotBeSigned($agreement)
+                    : null,
             ],
+        ];
+    }
+
+    /**
+     * The SDPC Memorandum of Agreement, sections I to X, with its blanks
+     * filled in and every party's additions in place.
+     *
+     * The contract screen and its printable copy both read this one shape, so
+     * what either side adds on the screen is exactly what prints. Each
+     * addition says who wrote it and whether this reader may change it. An
+     * optional section with no additions carries an empty list, and the
+     * printable copy then leaves its "add more here" placeholder out.
+     *
+     * @return array<string, mixed>
+     */
+    protected function sdpcMemorandum(Agreement $agreement, User $viewer): array
+    {
+        /** @var array<string, mixed> $template */
+        $template = config('agreements.sdpc_memorandum');
+
+        $parties = $this->moaParties($agreement);
+
+        $fill = fn (string $text): string => strtr($text, [
+            ':ca1_representative' => $parties['ca1Representative'],
+            ':ca2_representative' => $parties['ca2Representative'],
+            ':ca1' => $parties['ca1'],
+            ':ca2' => $parties['ca2'],
+            ':services' => $parties['services'],
+        ]);
+
+        $requirements = $agreement->requirements
+            ->groupBy(fn (AgreementRequirement $requirement): string => $requirement->section->value);
+
+        $sections = array_map(function (array $section) use ($agreement, $viewer, $fill, $requirements): array {
+            $key = $section['section'] ?? null;
+
+            $entries = match (true) {
+                $key === null => [],
+                $key === MemorandumSection::Services->value => $agreement->servicePhases()
+                    ->map(fn (AgreementMilestone $service): array => $this->moaEntry($agreement, $viewer, $service, $service->title, (string) $service->description, $service->author))
+                    ->all(),
+                default => ($requirements[$key] ?? collect())
+                    ->map(fn (AgreementRequirement $requirement): array => $this->moaEntry($agreement, $viewer, $requirement, null, $requirement->body, $requirement->author))
+                    ->values()
+                    ->all(),
+            };
+
+            return [
+                'key' => $key,
+                'numeral' => (string) $section['numeral'],
+                'heading' => (string) $section['heading'],
+                'newPage' => (bool) ($section['new_page'] ?? false),
+                'blocks' => array_values(array_map(fn (array $block): array => match (true) {
+                    isset($block['paragraph']) => ['type' => 'paragraph', 'text' => $fill((string) $block['paragraph'])],
+                    isset($block['lettered']) => ['type' => 'lettered', 'items' => array_values(array_map($fill, (array) $block['lettered']))],
+                    default => ['type' => 'numbered', 'items' => array_values(array_map($fill, (array) ($block['numbered'] ?? [])))],
+                }, (array) $section['blocks'])),
+                'addition' => isset($section['addition']) ? [
+                    'as' => (string) $section['addition']['as'],
+                    'placeholder' => (string) $section['addition']['placeholder'],
+                    'example' => array_values((array) ($section['addition']['example'] ?? [])),
+                    'isRequired' => $key !== null && MemorandumSection::from($key)->isRequired(),
+                ] : null,
+                'entries' => $entries,
+            ];
+        }, (array) $template['sections']);
+
+        return [
+            'title' => (string) $template['title'],
+            'footer' => (string) $template['footer'],
+            ...$parties,
+            'sections' => array_values($sections),
+            'signatories' => [
+                'client' => $this->moaSignatory($agreement, AgreementParty::Client, $parties['ca1Representative']),
+                'student' => $this->moaSignatory($agreement, AgreementParty::Student, $parties['ca2Representative']),
+            ],
+        ];
+    }
+
+    /**
+     * The legend that fills the memorandum's blanks.
+     *
+     * CA1, the Contracting Agency, is the client: its company name, or its
+     * representative when it has none. CA2, the Customer Agency, is the
+     * student representative: the student who signs. The Description of
+     * Services is the capstone/project title.
+     *
+     * @return array{ca1: string, ca2: string, ca1Representative: string, ca2Representative: string, services: string}
+     */
+    protected function moaParties(Agreement $agreement): array
+    {
+        $team = $agreement->project->team;
+        $profile = $team->clientProfile;
+
+        $representative = filled($profile?->owner_name)
+            ? (string) $profile->owner_name
+            : ($team->owner()?->name ?? $team->name);
+
+        return [
+            'ca1' => filled($profile?->business_name) ? (string) $profile->business_name : $representative,
+            'ca2' => $agreement->student->name,
+            'ca1Representative' => $representative,
+            'ca2Representative' => $agreement->student->name,
+            'services' => $agreement->project->title,
+        ];
+    }
+
+    /**
+     * One party's addition, as the memorandum prints it and the editor offers it.
+     *
+     * @return array{id: int, title: string|null, body: string, authorName: string|null, authorSide: string|null, canChange: bool}
+     */
+    protected function moaEntry(Agreement $agreement, User $viewer, AgreementRequirement|AgreementMilestone $entry, ?string $title, string $body, ?User $author): array
+    {
+        return [
+            'id' => $entry->id,
+            'title' => $title,
+            'body' => $body,
+            'authorName' => $author?->name,
+            'authorSide' => $author === null ? null : ($author->id === $agreement->student_id ? 'student' : 'client'),
+            'canChange' => $viewer->can('changeRequirement', [$agreement, $entry]),
+        ];
+    }
+
+    /**
+     * One side's lines in Section X: the name to print, their title, and the
+     * date they signed on SDPC. The signature line itself stays blank for ink.
+     *
+     * @return array{printName: string, title: string, signedOn: string|null}
+     */
+    protected function moaSignatory(Agreement $agreement, AgreementParty $party, string $representative): array
+    {
+        $signature = $this->signatureFor($agreement, $party);
+
+        return [
+            'printName' => $signature?->signed_name ?? $representative,
+            'title' => (string) config("agreements.sdpc_memorandum.signature_titles.{$party->value}"),
+            'signedOn' => $signature?->signed_at->format('F j, Y'),
         ];
     }
 

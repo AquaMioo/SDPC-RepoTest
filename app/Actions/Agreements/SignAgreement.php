@@ -4,12 +4,15 @@ namespace App\Actions\Agreements;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
+use App\Enums\AgreementTemplate;
 use App\Enums\ProjectStatus;
 use App\Models\Agreement;
+use App\Models\AgreementMilestone;
 use App\Models\AgreementSignature;
 use App\Models\User;
 use App\Notifications\Agreements\AgreementSigned;
 use App\Notifications\Client\ProjectStatusChanged;
+use App\Support\TimelineWindow;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -88,13 +91,55 @@ class SignAgreement
      */
     protected function assertTermsAreComplete(Agreement $agreement): void
     {
-        $undated = $agreement->milestones()->whereNull('ends_on')->exists();
+        $reason = $this->reasonItCannotBeSigned($agreement);
 
-        if ($undated) {
-            throw ValidationException::withMessages([
-                'signed_name' => __('Every milestone needs an end date before this agreement can be signed.'),
-            ]);
+        if ($reason !== null) {
+            throw ValidationException::withMessages(['signed_name' => $reason]);
         }
+    }
+
+    /**
+     * Say what still stops either party signing, or null when nothing does.
+     *
+     * The SDPC memorandum's Section VII (Description of Services) is required:
+     * with no service in it, or a service without its scope, neither the
+     * client nor the student may sign. Every phase then needs an end date, and
+     * Turnover both dates at least a month apart. The contract screens read
+     * this too (PresentAgreement), so they say why before anyone tries.
+     */
+    public function reasonItCannotBeSigned(Agreement $agreement): ?string
+    {
+        /* Read fresh, in position order: Turnover last, the services before it. */
+        $milestones = $agreement->milestones()->get();
+        $turnover = $milestones->last();
+
+        if ($agreement->template === AgreementTemplate::SdpcMemorandum) {
+            $services = $milestones->slice(0, -1);
+
+            if ($services->isEmpty()) {
+                return __('Section VII. Description of Services needs at least one service (an objective and its scope) before this agreement can be signed.');
+            }
+
+            if ($services->contains(fn (AgreementMilestone $service): bool => blank($service->description))) {
+                return __('Every service in Section VII needs its scope before this agreement can be signed.');
+            }
+        }
+
+        if ($milestones->contains(fn (AgreementMilestone $milestone): bool => $milestone->ends_on === null)) {
+            return __('Every milestone needs an end date before this agreement can be signed.');
+        }
+
+        if ($agreement->template === AgreementTemplate::SdpcMemorandum) {
+            if ($turnover !== null && $turnover->starts_on === null) {
+                return __('Turnover needs a start date before this agreement can be signed.');
+            }
+
+            if ($turnover !== null && ! TimelineWindow::isLongEnoughForTurnover($turnover->starts_on, $turnover->ends_on)) {
+                return TimelineWindow::turnoverTooShortMessage($turnover->starts_on);
+            }
+        }
+
+        return null;
     }
 
     /**

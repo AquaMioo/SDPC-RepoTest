@@ -20,11 +20,14 @@ use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 /**
- * The contract reads as the school's Memorandum of Agreement.
+ * The earlier school Memorandum of Agreement, kept for agreements signed
+ * under it.
  *
- * Every new agreement uses it, with the blanks of the paper form filled from
- * the agreement. One that somebody signed before it arrived keeps the clauses
- * that signature was given for.
+ * New agreements use the SDPC memorandum (SdpcMemorandumTest). One somebody
+ * signed under this earlier wording keeps it, with the blanks of the paper
+ * form filled from the agreement, and one signed before any memorandum keeps
+ * the clauses that signature was given for. The fixture below pins the
+ * earlier wording, the way such an agreement stands in the database.
  *
  * Routes are pinned with an explicit current_team; see .ai/rules/feature.md.
  */
@@ -32,7 +35,7 @@ class MemorandumOfAgreementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_new_agreement_is_a_memorandum_with_its_blanks_filled(): void
+    public function test_the_earlier_memorandum_reads_with_its_blanks_filled(): void
     {
         [$owner, $student, $agreement] = $this->agreement();
 
@@ -219,17 +222,19 @@ class MemorandumOfAgreementTest extends TestCase
     }
 
     /**
-     * A change request writes a fresh, unsigned version — a memorandum, even
-     * when the version it replaces was on the earlier clauses.
+     * A change request writes a fresh, unsigned version — the SDPC
+     * memorandum, whatever wording the version it replaces was in.
      */
-    public function test_a_revised_version_is_a_memorandum(): void
+    public function test_a_revised_version_is_the_sdpc_memorandum(): void
     {
-        [$owner, , $agreement] = $this->agreement();
-        $agreement->update(['template' => AgreementTemplate::Clauses]);
+        foreach ([AgreementTemplate::Clauses, AgreementTemplate::Memorandum] as $earlier) {
+            [$owner, , $agreement] = $this->agreement();
+            $agreement->update(['template' => $earlier]);
 
-        $successor = app(SupersedeAgreement::class)->handle($agreement->fresh(), $owner, 'Please move the deadline.');
+            $successor = app(SupersedeAgreement::class)->handle($agreement->fresh(), $owner, 'Please move the deadline.');
 
-        $this->assertSame(AgreementTemplate::Memorandum, $successor->fresh()->template);
+            $this->assertSame(AgreementTemplate::SdpcMemorandum, $successor->fresh()->template);
+        }
     }
 
     /**
@@ -254,7 +259,7 @@ class MemorandumOfAgreementTest extends TestCase
                     'description' => null,
                     'amount' => 0,
                     'starts_on' => null,
-                    'ends_on' => '2026-12-01',
+                    'ends_on' => now()->addMonths(2)->toDateString(),
                 ])->all(),
             ])
             ->assertSessionHasNoErrors();
@@ -319,8 +324,8 @@ class MemorandumOfAgreementTest extends TestCase
     }
 
     /**
-     * A drafted agreement between a client called Northwind Trading and a
-     * student, on a posting called Inventory Portal.
+     * An agreement in the earlier memorandum's wording between a client called
+     * Northwind Trading and a student, on a posting called Inventory Portal.
      *
      * @return array{0: User, 1: User, 2: Agreement}
      */
@@ -344,6 +349,9 @@ class MemorandumOfAgreementTest extends TestCase
         ]);
 
         $agreement = app(DraftAgreement::class)->handle($application);
+
+        /* An agreement in the earlier wording, as one signed under it stands. */
+        $agreement->update(['template' => AgreementTemplate::Memorandum]);
 
         if ($dated) {
             $this->date($agreement);

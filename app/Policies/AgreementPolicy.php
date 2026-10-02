@@ -4,9 +4,12 @@ namespace App\Policies;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
+use App\Enums\AgreementTemplate;
 use App\Enums\TeamPermission;
 use App\Enums\TeamRole;
 use App\Models\Agreement;
+use App\Models\AgreementMilestone;
+use App\Models\AgreementRequirement;
 use App\Models\Membership;
 use App\Models\User;
 
@@ -53,6 +56,56 @@ class AgreementPolicy
             && $user->hasTeamPermission($agreement->team, TeamPermission::ManageProjects)
             && $agreement->status->isEditable()
             && ! $agreement->signatures()->exists();
+    }
+
+    /**
+     * Determine whether the user can add to the memorandum's open sections.
+     *
+     * Unlike the timeline, which the client draws, the memorandum takes
+     * additions from both parties: either may append responsibilities,
+     * regulations, terms, and the Section VII services. The base wording is
+     * the school's and nobody edits it. Like every term it closes the moment
+     * anybody signs, and only for the SDPC memorandum, which has the sections.
+     */
+    public function addRequirements(User $user, Agreement $agreement): bool
+    {
+        $party = $this->partyFor($user, $agreement);
+
+        if ($party === null
+            || $agreement->template !== AgreementTemplate::SdpcMemorandum
+            || ! $agreement->status->isEditable()
+            || $agreement->signatures()->exists()) {
+            return false;
+        }
+
+        return $party === AgreementParty::Student
+            || $user->hasTeamPermission($agreement->team, TeamPermission::ManageProjects);
+    }
+
+    /**
+     * Determine whether the user can change or remove one addition.
+     *
+     * Only the person who added it. A Section VII service written before the
+     * SDPC memorandum (no author) belongs to the client, who named the phases
+     * then. Turnover is nobody's addition and never changes here.
+     */
+    public function changeRequirement(User $user, Agreement $agreement, AgreementRequirement|AgreementMilestone $entry): bool
+    {
+        if (! $this->addRequirements($user, $agreement) || $entry->agreement_id !== $agreement->id) {
+            return false;
+        }
+
+        if ($entry instanceof AgreementMilestone) {
+            if ($agreement->turnoverPhase()?->is($entry) ?? true) {
+                return false;
+            }
+
+            return $entry->added_by === null
+                ? $this->partyFor($user, $agreement) === AgreementParty::Client
+                : $entry->added_by === $user->id;
+        }
+
+        return $entry->user_id === $user->id;
     }
 
     /**

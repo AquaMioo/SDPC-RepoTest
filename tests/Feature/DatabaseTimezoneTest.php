@@ -8,13 +8,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * The app and MySQL agree on the clock: both UTC.
+ * The app and MySQL agree on the clock: both Singapore Time (GMT+8).
  *
- * TIMESTAMP columns are converted through the MySQL session's time zone. The
- * self-hosted server runs MySQL on Philippine time, and without pinning the
- * session every value written in UTC on Railway read back eight hours in the
- * future after the move — last_seen_at among them, which kept accounts
- * locked as "in use" with nobody signed in.
+ * TIMESTAMP columns are converted through the MySQL session's time zone, so
+ * the session has to match the app. When they disagreed (a UTC app on a
+ * server left at local time) every value read back eight hours out —
+ * last_seen_at among them, which kept accounts locked as "in use" with
+ * nobody signed in.
  */
 class DatabaseTimezoneTest extends TestCase
 {
@@ -30,10 +30,20 @@ class DatabaseTimezoneTest extends TestCase
     }
 
     #[DataProvider('connections')]
-    public function test_the_connection_talks_to_the_server_in_utc(string $connection): void
+    public function test_the_connection_talks_to_the_server_in_singapore_time(string $connection): void
     {
-        $this->assertSame('UTC', config('app.timezone'));
-        $this->assertSame('+00:00', config("database.connections.{$connection}.timezone"));
+        $this->assertSame('Asia/Singapore', config('app.timezone'));
+        $this->assertSame('+08:00', config("database.connections.{$connection}.timezone"));
+    }
+
+    public function test_the_application_clock_runs_on_singapore_time(): void
+    {
+        $this->travelTo('2026-10-03 23:30:00');
+
+        $this->assertSame('Asia/Singapore', now()->getTimezone()->getName());
+        $this->assertSame(8 * 3600, now()->getOffset());
+        $this->assertSame('2026-10-03', today()->toDateString());
+        $this->assertSame('2026-10-03T15:30:00+00:00', now()->utc()->toIso8601String());
     }
 
     public function test_the_session_time_zone_is_set_on_connect(): void
@@ -42,7 +52,7 @@ class DatabaseTimezoneTest extends TestCase
 
         $pdo->expects($this->once())
             ->method('exec')
-            ->with($this->stringContains("time_zone='+00:00'"));
+            ->with($this->stringContains("time_zone='+08:00'"));
 
         $connector = new class extends MySqlConnector
         {

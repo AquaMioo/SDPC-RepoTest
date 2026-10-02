@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Agreements;
 
 use App\Models\Agreement;
+use App\Rules\WithinTimelineWindow;
+use App\Support\TimelineWindow;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
@@ -25,9 +27,12 @@ class SaveAgreementRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * Milestones arrive whole rather than one at a time: reordering, renaming
-     * and repricing are one negotiation, and applying them piecemeal would let
-     * a half-saved schedule reach the other party.
+     * Milestones arrive whole rather than one at a time, so the schedule is
+     * one negotiation and a half-saved one never reaches the other party.
+     * What the client sets on them is the timeline: each phase's dates. A
+     * phase's name and scope are the Section VII entry its author wrote
+     * (ServiceDescriptionController), so the title sent here is ignored, and
+     * phases are neither added nor removed through this form.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -46,28 +51,28 @@ class SaveAgreementRequest extends FormRequest
             'confidentiality_terms' => ['nullable', 'string', 'max:5000'],
             'academic_terms' => ['nullable', 'string', 'max:5000'],
 
-            'starts_on' => ['nullable', 'date_format:Y-m-d'],
-            'ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:starts_on'],
+            /* Every timeline date: today at the earliest, a year from today at the latest. */
+            'starts_on' => ['nullable', 'date_format:Y-m-d', new WithinTimelineWindow],
+            'ends_on' => ['nullable', 'date_format:Y-m-d', new WithinTimelineWindow, 'after_or_equal:starts_on'],
 
             'milestones' => ['required', 'array', 'min:1', 'max:12'],
-            'milestones.*.id' => ['nullable', 'integer'],
-            'milestones.*.title' => ['required', 'string', 'max:120'],
+            'milestones.*.id' => ['required', 'integer'],
+            'milestones.*.title' => ['nullable', 'string', 'max:120'],
             'milestones.*.description' => ['nullable', 'string', 'max:2000'],
             /* Whole pesos, and a ceiling that stops a typo becoming a contract. */
             'milestones.*.amount' => ['required', 'integer', 'min:0', 'max:10000000'],
-            /* Work starts today or later — never in the past. */
-            'milestones.*.starts_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
-            'milestones.*.ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:milestones.*.starts_on'],
+            'milestones.*.starts_on' => ['nullable', 'date_format:Y-m-d', new WithinTimelineWindow],
+            'milestones.*.ends_on' => ['nullable', 'date_format:Y-m-d', new WithinTimelineWindow, 'after_or_equal:milestones.*.starts_on'],
         ];
     }
 
     /**
-     * Keep the whole timeline within one year.
+     * Give Turnover at least a month.
      *
-     * The phases are the timeline the client draws: work starts on the
-     * earliest phase start and is complete on the latest phase end. More than
-     * a year between the two is not a capstone term, and is almost always a
-     * mistyped year.
+     * The Section VII phases may overlap one another however the two sides
+     * like. Turnover, the last phase, has to run one calendar month or more,
+     * so the hand-over is never squeezed into a few days. The year-long cap
+     * on the whole timeline is the date window on every field above.
      *
      * @return array<int, callable(Validator): void>
      */
@@ -75,28 +80,33 @@ class SaveAgreementRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                $dates = collect($this->input('milestones', []))
-                    ->filter(fn (mixed $milestone): bool => is_array($milestone));
+                $agreement = $this->route('agreement');
 
-                $starts = $dates->pluck('starts_on')->filter(fn (mixed $date): bool => is_string($date) && $date !== '');
-                $ends = $dates->pluck('ends_on')->filter(fn (mixed $date): bool => is_string($date) && $date !== '');
-
-                if ($starts->isEmpty() || $ends->isEmpty()) {
+                if (! $agreement instanceof Agreement) {
                     return;
                 }
 
-                try {
-                    $start = Carbon::createFromFormat('Y-m-d', (string) $starts->min());
-                    $end = Carbon::createFromFormat('Y-m-d', (string) $ends->max());
-                } catch (Throwable) {
-                    return;
-                }
+                $turnoverId = $agreement->loadMissing('milestones')->turnoverPhase()?->id;
 
-                if ($end->greaterThan($start->copy()->addYear())) {
-                    $validator->errors()->add(
-                        'timeline',
-                        __('The timeline cannot run longer than one year from the start date to the completion date.'),
-                    );
+                foreach ((array) $this->input('milestones', []) as $index => $milestone) {
+                    if (! is_array($milestone) || (int) ($milestone['id'] ?? 0) !== $turnoverId) {
+                        continue;
+                    }
+
+                    if ($validator->errors()->hasAny(["milestones.{$index}.starts_on", "milestones.{$index}.ends_on"])) {
+                        return;
+                    }
+
+                    try {
+                        $startsOn = Carbon::createFromFormat('!Y-m-d', (string) ($milestone['starts_on'] ?? ''));
+                        $endsOn = Carbon::createFromFormat('!Y-m-d', (string) ($milestone['ends_on'] ?? ''));
+                    } catch (Throwable) {
+                        return;
+                    }
+
+                    if (! TimelineWindow::isLongEnoughForTurnover($startsOn, $endsOn)) {
+                        $validator->errors()->add("milestones.{$index}.ends_on", TimelineWindow::turnoverTooShortMessage($startsOn));
+                    }
                 }
             },
         ];
@@ -110,7 +120,7 @@ class SaveAgreementRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'milestones.*.starts_on.after_or_equal' => __('Work cannot start in the past. Pick today or a later date.'),
+            'milestones.*.ends_on.after_or_equal' => __('A phase cannot end before it starts.'),
         ];
     }
 

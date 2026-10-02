@@ -13,7 +13,9 @@ use App\Models\AgreementTask;
  * Project Management, the client dashboard and the student dashboard all read
  * this, so the ring, the phase bars and the current phase cannot drift apart
  * between screens. The percentage is the same count Agreement::progress()
- * makes: tasks the client verified over every task.
+ * makes: tasks the client verified over every task outside Turnover. Turnover
+ * is listed with its own counts, flagged isTurnover, but never moves the
+ * overall figure.
  *
  * Phases are equal steps, but inside one a phase with ten tasks moves the
  * overall figure ten times as much as a phase with one — each task is one unit
@@ -44,7 +46,7 @@ class SummariseProgress
      *     finalDeadline: string|null,
      *     daysToFinalDeadline: int|null,
      *     overdueTaskCount: int,
-     *     phases: list<array{id: int, title: string, progress: int, verifiedCount: int, taskCount: int, state: string, isDone: bool}>
+     *     phases: list<array{id: int, title: string, isTurnover: bool, progress: int, verifiedCount: int, taskCount: int, state: string, isDone: bool}>
      * }
      */
     public function handle(Agreement $agreement): array
@@ -56,13 +58,15 @@ class SummariseProgress
         /*
          * The first phase not yet finished is the one being worked. A phase
          * with no tasks is not finished — nothing on it has been verified — so
-         * a fresh agreement reads "Design" as the current phase, not "done".
+         * a fresh agreement reads its first service as the current phase.
          */
         $current = $milestones->first(fn (AgreementMilestone $milestone): bool => ! $this->isComplete($milestone));
 
         $next = $current === null
             ? null
             : $milestones->first(fn (AgreementMilestone $milestone): bool => $milestone->position > $current->position);
+
+        $turnover = $agreement->turnoverPhase();
 
         $taskCount = $agreement->taskCount();
         $verifiedCount = $agreement->verifiedTaskCount();
@@ -95,6 +99,8 @@ class SummariseProgress
                 ->map(fn (AgreementMilestone $milestone): array => [
                     'id' => $milestone->id,
                     'title' => $milestone->title,
+                    /* Left out of the overall percentage; the screens say so. */
+                    'isTurnover' => $turnover !== null && $milestone->is($turnover),
                     'progress' => $this->phaseProgress($milestone),
                     'verifiedCount' => $this->countWithStatus($milestone, TaskStatus::Verified),
                     'taskCount' => $milestone->tasks->count(),

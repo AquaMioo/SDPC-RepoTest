@@ -15,6 +15,7 @@ import { Input, Textarea } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { earliestTurnoverEnd, timelineWindow } from '@/lib/calendar-days';
 import {
     contract as agreementContract,
     update as agreementUpdate,
@@ -37,31 +38,6 @@ const PHASE_COLOURS = [
     'var(--color-accent-700)',
     'var(--color-accent-800)',
 ];
-
-/** A date as a date input writes it: local calendar day, YYYY-MM-DD. */
-function toDateInput(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/**
- * The span the Timeline's date boxes accept: from today, to one year after
- * the earliest phase start (or after today, when no phase has one yet).
- */
-function timelineBounds(startDates: string[]): { min: string; max: string } {
-    const today = toDateInput(new Date());
-    const earliest = startDates
-        .filter((date) => date !== '' && date >= today)
-        .sort()[0];
-
-    const [year, month, day] = (earliest ?? today).split('-').map(Number);
-
-    return {
-        min: today,
-        max: toDateInput(new Date(year + 1, month - 1, day)),
-    };
-}
 
 /** "9–27 Mar", collapsing the month when both ends share one. */
 function dateRange(startsOn: string | null, endsOn: string | null): string {
@@ -141,13 +117,17 @@ export default function AgreementShow({ agreement }: Props) {
     });
 
     /*
-     * The dates the Timeline accepts: work starts today or later, and the
-     * whole timeline fits within a year of its earliest start —
+     * The dates the Timeline accepts: today to a year from today, Singapore
+     * Time. Turnover, the last phase, also runs at least a month.
      * SaveAgreementRequest enforces both.
      */
-    const timelineWindow = timelineBounds(
-        form.data.milestones.map((milestone) => milestone.starts_on),
-    );
+    const dateWindow = timelineWindow();
+    const turnoverIndex = form.data.milestones.length - 1;
+    const isMoa = agreement.template === 'sdpc_moa';
+    const services = isMoa
+        ? (agreement.moa?.sections.find((section) => section.key === 'services')
+              ?.entries ?? [])
+        : [];
 
     /* Per-phase date errors are keyed milestones.N.starts_on / ends_on. */
     const phaseErrors = form.errors as Record<string, string | undefined>;
@@ -259,9 +239,66 @@ export default function AgreementShow({ agreement }: Props) {
                     />
 
                     <Panel style={{ padding: 18, gap: 8 }}>
-                        <CardHeading icon={<ListChecksIcon />} label="Scope" />
+                        <CardHeading
+                            icon={<ListChecksIcon />}
+                            label={isMoa ? 'Services (Section VII)' : 'Scope'}
+                        />
 
-                        {isEditing ? (
+                        {isMoa ? (
+                            /*
+                             * The memorandum's Section VII: each service is an
+                             * objective and its scope, added by either party on
+                             * the memorandum itself, and each is a phase.
+                             */
+                            <>
+                                {services.length === 0 ? (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: 11.5,
+                                            lineHeight: 1.55,
+                                            color: 'var(--destructive)',
+                                        }}
+                                    >
+                                        No service yet. Section VII needs at
+                                        least one before either of you can sign.
+                                    </p>
+                                ) : (
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 7,
+                                            fontSize: 11.5,
+                                            lineHeight: 1.5,
+                                        }}
+                                    >
+                                        {services.map((service) => (
+                                            <div key={service.id}>
+                                                <div>{service.title}</div>
+                                                <div
+                                                    style={{ color: MUTED(58) }}
+                                                >
+                                                    {service.body}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <Link
+                                    href={agreementContract.url({
+                                        current_team: team.slug,
+                                        agreement: agreement.id,
+                                    })}
+                                    data-inline-link=""
+                                    style={{ fontSize: 11.5 }}
+                                >
+                                    {viewer.canAddRequirements
+                                        ? 'Add or edit in the memorandum'
+                                        : 'Read the memorandum'}
+                                </Link>
+                            </>
+                        ) : isEditing ? (
                             <>
                                 <Textarea
                                     aria-label="Scope"
@@ -333,6 +370,10 @@ export default function AgreementShow({ agreement }: Props) {
                          * derived total_amount all stay put (the form still posts
                          * `amount: 0` for every row), so pricing comes back by
                          * restoring this card rather than by a migration.
+                         *
+                         * Read-only, editing or not: each phase is a Section VII
+                         * service named by whoever added it on the memorandum,
+                         * and Turnover is always last.
                          */}
                         <CardHeading icon={<FlagIcon />} label="Milestones" />
 
@@ -345,48 +386,16 @@ export default function AgreementShow({ agreement }: Props) {
                             }}
                         >
                             <tbody>
-                                {isEditing
-                                    ? form.data.milestones.map(
-                                          (milestone, index) => (
-                                              <tr key={index}>
-                                                  <td
-                                                      style={{
-                                                          padding: '3px 0',
-                                                      }}
-                                                  >
-                                                      <Input
-                                                          aria-label={`Milestone ${index + 1} title`}
-                                                          value={
-                                                              milestone.title
-                                                          }
-                                                          maxLength={120}
-                                                          onChange={(event) =>
-                                                              setMilestone(
-                                                                  index,
-                                                                  'title',
-                                                                  event.target
-                                                                      .value,
-                                                              )
-                                                          }
-                                                      />
-                                                  </td>
-                                              </tr>
-                                          ),
-                                      )
-                                    : agreement.milestones.map(
-                                          (milestone, index) => (
-                                              <tr key={milestone.id}>
-                                                  <td
-                                                      style={{
-                                                          padding: '3px 0',
-                                                      }}
-                                                  >
-                                                      Milestone {index + 1} ·{' '}
-                                                      {milestone.title}
-                                                  </td>
-                                              </tr>
-                                          ),
-                                      )}
+                                {agreement.milestones.map(
+                                    (milestone, index) => (
+                                        <tr key={milestone.id}>
+                                            <td style={{ padding: '3px 0' }}>
+                                                Milestone {index + 1} ·{' '}
+                                                {milestone.title}
+                                            </td>
+                                        </tr>
+                                    ),
+                                )}
                             </tbody>
                         </table>
 
@@ -426,8 +435,8 @@ export default function AgreementShow({ agreement }: Props) {
                                                   <Input
                                                       aria-label={`Phase ${index + 1} start`}
                                                       type="date"
-                                                      min={timelineWindow.min}
-                                                      max={timelineWindow.max}
+                                                      min={dateWindow.min}
+                                                      max={dateWindow.max}
                                                       value={
                                                           milestone.starts_on
                                                       }
@@ -444,10 +453,17 @@ export default function AgreementShow({ agreement }: Props) {
                                                       aria-label={`Phase ${index + 1} end`}
                                                       type="date"
                                                       min={
-                                                          milestone.starts_on ||
-                                                          timelineWindow.min
+                                                          /* Turnover runs at least a month. */
+                                                          index ===
+                                                              turnoverIndex &&
+                                                          milestone.starts_on
+                                                              ? earliestTurnoverEnd(
+                                                                    milestone.starts_on,
+                                                                )
+                                                              : milestone.starts_on ||
+                                                                dateWindow.min
                                                       }
-                                                      max={timelineWindow.max}
+                                                      max={dateWindow.max}
                                                       value={milestone.ends_on}
                                                       onChange={(event) =>
                                                           setMilestone(
@@ -506,7 +522,29 @@ export default function AgreementShow({ agreement }: Props) {
                         style={{ padding: '22px 24px', marginBottom: 26 }}
                     >
                         <h6 style={{ margin: 0 }}>Contract terms</h6>
-                        {agreement.template === 'memorandum' ? (
+                        {isMoa ? (
+                            /*
+                             * The SDPC memorandum: the wording is fixed, the
+                             * additions (and the Section VII services, which
+                             * are these phases) are made on the memorandum
+                             * itself by either party. What this form sets is
+                             * the timeline.
+                             */
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: 12,
+                                    color: MUTED(65),
+                                }}
+                            >
+                                This project uses the SDPC Memorandum of
+                                Agreement. Here you set the dates of each phase:
+                                every date falls between today and one year from
+                                today, and Turnover runs at least one month. The
+                                phases themselves are the Section VII services,
+                                which you and the student add on the memorandum.
+                            </p>
+                        ) : agreement.template === 'memorandum' ? (
                             /*
                              * The memorandum's wording is the school's and the
                              * same for every project. What the client sets is

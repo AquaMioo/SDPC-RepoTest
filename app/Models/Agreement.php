@@ -59,6 +59,7 @@ use Illuminate\Support\Carbon;
  * @property-read Agreement|null $successor
  * @property-read Collection<int, AgreementMilestone> $milestones
  * @property-read Collection<int, AgreementSignature> $signatures
+ * @property-read Collection<int, AgreementRequirement> $requirements
  * @property-read Collection<int, Transaction> $transactions
  */
 #[Fillable([
@@ -153,6 +154,19 @@ class Agreement extends Model
     }
 
     /**
+     * Get what either side added to the memorandum's optional sections.
+     *
+     * Section VII's entries are not here: they are the phases themselves
+     * (servicePhases()).
+     *
+     * @return HasMany<AgreementRequirement, $this>
+     */
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(AgreementRequirement::class)->orderBy('id');
+    }
+
+    /**
      * Get the money recorded against this agreement.
      *
      * @return HasMany<Transaction, $this>
@@ -185,9 +199,14 @@ class Agreement extends Model
      * Get how far the agreed work has moved, as a percentage.
      *
      * Granular Task Completion: the tasks the client has verified over every
-     * task in every phase. Nothing a student types in, and nothing a status
-     * merely claims — a task checked off by the student but not yet verified
-     * counts for nothing here, because only the client can say it is done.
+     * task in every phase but Turnover. Nothing a student types in, and
+     * nothing a status merely claims — a task checked off by the student but
+     * not yet verified counts for nothing here, because only the client can
+     * say it is done.
+     *
+     * Turnover is left out of the figure entirely: the percentage measures
+     * the agreed services (the Section VII objectives), and handing the
+     * finished work over is not a share of building it.
      *
      * No tasks is 0%, not a division by zero: a checklist nobody has written
      * yet has nothing done on it.
@@ -207,25 +226,57 @@ class Agreement extends Model
     }
 
     /**
-     * Count every task across the agreement's phases.
+     * Count the tasks progress is measured over: every phase but Turnover.
      */
     public function taskCount(): int
     {
-        $this->loadMissing('milestones.tasks');
-
-        return $this->milestones->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks->count());
+        return $this->progressPhases()->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks->count());
     }
 
     /**
-     * Count the tasks the client has verified.
+     * Count the tasks the client has verified, outside Turnover.
      */
     public function verifiedTaskCount(): int
     {
-        $this->loadMissing('milestones.tasks');
-
-        return $this->milestones->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks
+        return $this->progressPhases()->sum(fn (AgreementMilestone $milestone): int => $milestone->tasks
             ->filter(fn (AgreementTask $task): bool => $task->status === TaskStatus::Verified)
             ->count());
+    }
+
+    /**
+     * Get the phases progress is measured over: all of them but Turnover.
+     *
+     * @return Collection<int, AgreementMilestone>
+     */
+    public function progressPhases(): Collection
+    {
+        $this->loadMissing('milestones.tasks');
+
+        $turnover = $this->turnoverPhase();
+
+        return $this->milestones
+            ->reject(fn (AgreementMilestone $milestone): bool => $turnover !== null && $milestone->is($turnover))
+            ->values();
+    }
+
+    /**
+     * Get the Section VII entries: every phase before Turnover.
+     *
+     * Each is a service the memorandum describes, its title the Objective
+     * and its description the Scope.
+     *
+     * @return Collection<int, AgreementMilestone>
+     */
+    public function servicePhases(): Collection
+    {
+        $this->loadMissing('milestones');
+
+        $turnover = $this->turnoverPhase();
+
+        return $this->milestones
+            ->sortBy('position')
+            ->reject(fn (AgreementMilestone $milestone): bool => $turnover !== null && $milestone->is($turnover))
+            ->values();
     }
 
     /**

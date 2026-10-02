@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Agreements;
 
 use App\Models\Agreement;
+use App\Rules\WithinTimelineWindow;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -34,7 +35,8 @@ class RequestDeadlineChangeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'proposed_on' => ['required', 'date_format:Y-m-d'],
+            /* A date asked for is a timeline date: today to a year from today. */
+            'proposed_on' => ['required', 'date_format:Y-m-d', new WithinTimelineWindow],
             'reason' => ['nullable', 'string', 'max:1000'],
         ];
     }

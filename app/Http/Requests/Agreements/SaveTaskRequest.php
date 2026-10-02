@@ -4,6 +4,8 @@ namespace App\Http\Requests\Agreements;
 
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementTask;
+use App\Rules\WithinTimelineWindow;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -29,7 +31,8 @@ class SaveTaskRequest extends FormRequest
      *
      * A new task in a Design or Build phase must carry a deadline; one in the
      * Turnover phase may, since Turnover's own end is the deadline. Either
-     * way it falls on or before the final deadline. Editing never moves a
+     * way it falls on or before the final deadline, and inside the timeline
+     * window (today to a year from today). Editing never moves a
      * deadline that is already set — that needs the client (see
      * AgreementTaskController::update and DeadlineChangeRequestController).
      *
@@ -40,6 +43,20 @@ class SaveTaskRequest extends FormRequest
         $milestone = $this->route('milestone');
 
         $dueRules = ['date_format:Y-m-d'];
+
+        /*
+         * A deadline being set goes inside the timeline window: not in the
+         * past, not more than a year out. Saving a task that keeps the
+         * deadline it already has (even one now passed) is not setting one.
+         */
+        $task = $this->route('task');
+        $keepsItsDeadline = $task instanceof AgreementTask
+            && $task->due_on !== null
+            && $this->input('due_on') === $task->due_on->toDateString();
+
+        if (! $keepsItsDeadline) {
+            $dueRules[] = new WithinTimelineWindow;
+        }
 
         if (($finalDeadline = $this->finalDeadline()) !== null) {
             $dueRules[] = 'before_or_equal:'.$finalDeadline->toDateString();

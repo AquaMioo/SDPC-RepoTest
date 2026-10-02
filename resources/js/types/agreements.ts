@@ -42,6 +42,71 @@ export type Memorandum = {
     signedOn: string | null;
 };
 
+/** One line a party added to a section of the SDPC memorandum. */
+export type MoaEntry = {
+    id: number;
+    /** Section VII only: the service's Objective. */
+    title: string | null;
+    /** The line itself, or Section VII's Scope. */
+    body: string;
+    authorName: string | null;
+    authorSide: 'client' | 'student' | null;
+    /** Only the author may change or remove it, until somebody signs. */
+    canChange: boolean;
+};
+
+/** A run of the school's base wording: a paragraph, or a numbered/lettered list. */
+export type MoaBlock =
+    | { type: 'paragraph'; text: string }
+    | { type: 'numbered' | 'lettered'; items: string[] };
+
+export type MoaSectionKey =
+    | 'customer_agency'
+    | 'contracting_agency'
+    | 'joint'
+    | 'services'
+    | 'compliance'
+    | 'terms';
+
+export type MoaSection = {
+    /** The sections either side may add to; null for the fixed ones. */
+    key: MoaSectionKey | null;
+    numeral: string;
+    heading: string;
+    /** Starts a fresh page on paper, as the template does. */
+    newPage: boolean;
+    /** `text`/`items` may carry **bold** runs: the filled-in blanks. */
+    blocks: MoaBlock[];
+    addition: {
+        /** How an addition prints: the next number, its own paragraph, or a service. */
+        as: 'numbered' | 'paragraph' | 'services';
+        /** The template's "add more here" line: a prompt, never printed. */
+        placeholder: string;
+        example: string[];
+        isRequired: boolean;
+    } | null;
+    entries: MoaEntry[];
+};
+
+/** The SDPC Memorandum of Agreement, filled in, as PresentAgreement builds it. */
+export type Moa = {
+    title: string;
+    footer: string;
+    /** CA1: the client's company name, or its representative. */
+    ca1: string;
+    /** CA2: the student representative. */
+    ca2: string;
+    ca1Representative: string;
+    ca2Representative: string;
+    /** The Description of Services: the capstone/project title. */
+    services: string;
+    sections: MoaSection[];
+    signatories: Record<
+        'client' | 'student',
+        { printName: string; title: string; signedOn: string | null }
+    >;
+};
+
 export type Agreement = {
     id: number;
     reference: string;
@@ -70,10 +135,12 @@ export type Agreement = {
     scopeSummary: string | null;
     deliverables: string[];
     /**
-     * The wording the contract is in. New agreements are the school's
-     * Memorandum of Agreement; ones somebody signed earlier keep `terms`.
+     * The wording the contract is in. New agreements are the SDPC Memorandum
+     * of Agreement (`moa`); ones somebody signed earlier keep the earlier
+     * memorandum or the clauses (`terms`).
      */
-    template: 'memorandum' | 'clauses';
+    template: 'sdpc_moa' | 'memorandum' | 'clauses';
+    moa: Moa | null;
     memorandum: Memorandum | null;
     terms: {
         intellectualProperty: string | null;
@@ -98,6 +165,10 @@ export type Agreement = {
         canEdit: boolean;
         canSign: boolean;
         canRequestChanges: boolean;
+        /** Either party, until somebody signs: the memorandum's "Add requirement". */
+        canAddRequirements: boolean;
+        /** What still stops anyone signing, e.g. an empty Section VII. */
+        signingBlockedBy: string | null;
     };
 };
 

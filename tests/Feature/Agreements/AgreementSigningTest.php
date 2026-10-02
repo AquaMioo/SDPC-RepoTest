@@ -252,11 +252,26 @@ class AgreementSigningTest extends TestCase
     {
         [$owner, $student, $agreement] = $this->draftAgreement();
 
-        $agreement->milestones->each(fn ($milestone, $index) => $milestone->update([
+        /* Section VII needs a service before anybody may sign; it comes before Turnover. */
+        $turnover = $agreement->milestones->last();
+        $turnover->update(['position' => 2]);
+
+        $agreement->milestones()->create([
+            'position' => 1,
+            'title' => 'Inventory module',
+            'description' => 'Stock, suppliers and reorder alerts.',
+            'added_by' => $owner->id,
             'amount' => 8000,
-            'starts_on' => now()->addWeeks($index * 3)->toDateString(),
-            'ends_on' => now()->addWeeks($index * 3 + 2)->toDateString(),
-        ]));
+            'starts_on' => now()->toDateString(),
+            'ends_on' => now()->addWeeks(2)->toDateString(),
+        ]);
+
+        /* Turnover runs at least a month. */
+        $turnover->update([
+            'amount' => 8000,
+            'starts_on' => now()->addWeeks(3)->toDateString(),
+            'ends_on' => now()->addWeeks(3)->addMonth()->toDateString(),
+        ]);
 
         $agreement->refresh()->syncTotalAmount();
 

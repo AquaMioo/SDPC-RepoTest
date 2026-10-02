@@ -44,8 +44,8 @@ class DraftAgreement
                 'student_id' => $application->user_id,
                 'reference' => $this->nextReference(),
                 'version' => 1,
-                /* The school's Memorandum of Agreement. */
-                'template' => AgreementTemplate::Memorandum,
+                /* The SDPC Memorandum of Agreement. */
+                'template' => AgreementTemplate::SdpcMemorandum,
                 'status' => AgreementStatus::Draft,
                 /* The brief is the honest starting point for the scope. */
                 'scope_summary' => $project->description,

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Agreements;
 
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Support\TimelineWindow;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
@@ -38,12 +39,18 @@ class UpdatePhaseScheduleRequest extends FormRequest
     }
 
     /**
-     * Keep Turnover to itself, and its end where the client agreed it.
+     * Keep Turnover to itself, a month long, and its end where the client
+     * agreed it; keep every date that moves inside the timeline window.
      *
-     * Design and Build may overlap — a build often starts before every screen
-     * is drawn. Turnover may not: it begins after every other phase ends. Its
-     * end is the final deadline, which ends the project, so it only moves
-     * through a change the client approves (DeadlineChangeRequestController).
+     * The Section VII phases (each objective and its scope) may overlap one
+     * another. Turnover may not: it begins after every other phase ends, and
+     * runs at least one month. Its end is the final deadline, which ends the
+     * project, so it only moves through a change the client approves
+     * (DeadlineChangeRequestController).
+     *
+     * A date that moves must fall between today and a year from today. One
+     * that stays put is left alone, so a phase that started last week can
+     * still have its end moved.
      *
      * @return array<int, callable(Validator): void>
      */
@@ -60,21 +67,47 @@ class UpdatePhaseScheduleRequest extends FormRequest
                     return;
                 }
 
-                $phases = $agreement->milestones()->get();
-                $turnover = $phases->sortBy('position')->last();
+                $startsOn = Carbon::parse($this->input('starts_on'));
+                $endsOn = Carbon::parse($this->input('ends_on'));
 
-                if ($turnover === null || $phases->count() < 2) {
+                foreach (['starts_on' => [$startsOn, $milestone->scheduledStartsOn()], 'ends_on' => [$endsOn, $milestone->scheduledEndsOn()]] as $field => [$date, $current]) {
+                    $moved = $current === null || ! $date->isSameDay($current);
+
+                    if ($moved && ! TimelineWindow::contains($date)) {
+                        $validator->errors()->add($field, $date->lt(TimelineWindow::earliest())
+                            ? __('Dates cannot be in the past. Pick today or a later date.')
+                            : __('Dates cannot be more than one year from today. Pick :date or earlier.', [
+                                'date' => TimelineWindow::latest()->format('j M Y'),
+                            ]));
+                    }
+                }
+
+                if ($validator->errors()->isNotEmpty()) {
                     return;
                 }
 
-                $startsOn = Carbon::parse($this->input('starts_on'));
-                $endsOn = Carbon::parse($this->input('ends_on'));
+                $phases = $agreement->milestones()->get();
+                $turnover = $phases->sortBy('position')->last();
+
+                if ($turnover === null) {
+                    return;
+                }
 
                 if ($turnover->is($milestone)) {
                     $finalDeadline = $turnover->scheduledEndsOn();
 
                     if ($finalDeadline !== null && ! $endsOn->isSameDay($finalDeadline)) {
                         $validator->errors()->add('ends_on', __("The final deadline only moves with the client's approval. Ask for a change instead."));
+
+                        return;
+                    }
+
+                    if (! TimelineWindow::isLongEnoughForTurnover($startsOn, $endsOn)) {
+                        $validator->errors()->add('starts_on', __('Turnover has to run at least one month. Start it on or before :date.', [
+                            'date' => TimelineWindow::latestTurnoverStart($endsOn)->format('j M Y'),
+                        ]));
+
+                        return;
                     }
 
                     $latestEnd = $phases

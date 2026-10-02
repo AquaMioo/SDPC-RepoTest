@@ -5,8 +5,8 @@ paths:
 
 # Controllers Agreements
 
-## Milestone positions: delete and park before renumbering
-agreement_milestones is unique on (agreement_id, position). AgreementController::syncMilestones therefore deletes the rows the client dropped FIRST, then bumps every survivor by POSITION_PARKING_OFFSET, and only then writes the new 1..n order. Writing the new order straight over the old one 500s the moment two milestones swap places, or a new row claims a position a later row is about to free.
+## Milestone positions: never write a position somebody else still holds
+agreement_milestones is unique on (agreement_id, position). The client's form no longer reorders phases (AgreementController::scheduleMilestones writes dates only). ServiceDescriptionController adds a Section VII service by moving Turnover up one FIRST and then taking its old position, and on delete steps every later row down one at a time, lowest first. Any new code that renumbers must free a position before something claims it.
 
 Both route models must be declared on AgreementMilestoneController::update, in URL order: (Request, Team $currentTeam, Agreement $agreement, AgreementMilestone $milestone). Omit $agreement and Laravel fills positionally, putting the agreement id into $milestone as a string.
 
@@ -19,5 +19,7 @@ AgreementTaskController guards moves by the task's current status, not just the 
 
 Timeline drags write planned_starts_on/planned_ends_on only — starts_on/ends_on are signed terms. Proof files live on the public disk under task-proofs/ (NOT linked in config/filesystems.php) and are served only through agreements.tasks.proof. Change requests only exist before signing, so tasks never need carrying across versions.
 
-## The MOA download is the school's blank PDF, served through an authenticated route
-The "Contract vN · reference" tag on agreements/contract.tsx links to agreements.memorandum (AgreementController::memorandum). It downloads resources/documents/memorandum-of-agreement.pdf unchanged, named "<reference> Memorandum of Agreement.pdf", behind Gate 'view', and returns 404 for AgreementTemplate::Clauses. The testers chose the blank form, to print, fill in and sign by hand, over a generated PDF, so no PDF package is installed. A filled-in PDF would need barryvdh/laravel-dompdf, which requires the owner's approval. To replace the form, swap the file; don't move it under public/, because the route is what limits it to the agreement's parties.
+## Two views of the MOA: the blank template (PDF) and the finished copy (printable page)
+agreements.memorandum (AgreementController::memorandum) downloads the blank form for the agreement's wording, AgreementTemplate::blankForm(): resources/documents/sdpc-memorandum-of-agreement.pdf for the SDPC memorandum, memorandum-of-agreement.pdf for the earlier one, 404 for Clauses. It is named "<reference> Memorandum of Agreement.pdf" and sits behind Gate 'view'; don't move the files under public/, the route is what limits them to the parties.
+
+The finished copy is agreements.printable (AgreementController::printable, SDPC template only): Inertia page agreements/printable with no layout (app.tsx), drawing the same MemorandumDocument component the contract screen edits, so what is added on screen is exactly what prints. The browser prints it or saves it as a PDF; no PDF package is installed (barryvdh/laravel-dompdf would need the owner's approval). Print CSS in app.css: @page moa (A4, "SDPC MOA" / page number footer), sections IV-X on a new sheet, .no-print hides controls and the "add more here" prompts, so an optional section nobody added to prints with no placeholder.
