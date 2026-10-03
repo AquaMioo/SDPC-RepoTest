@@ -4,6 +4,7 @@ import { Panel, PanelDivider, PanelKicker } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
+import { projectManagement } from '@/routes';
 import { archive, edit as projectsEdit } from '@/routes/projects';
 import { index as applicantsIndex } from '@/routes/projects/applicants';
 import { toggle as intakeToggle } from '@/routes/projects/intake';
@@ -17,8 +18,10 @@ type Props = {
         objectives: string | null;
         category: string;
         industry: string | null;
+        status: string;
         statusLabel: string;
         isEditable: boolean;
+        isArchivable: boolean;
         isDraft: boolean;
         applicationsOpen: boolean;
         isAcceptingApplications: boolean;
@@ -274,13 +277,42 @@ export default function ShowProject({
                             </>
                         )}
 
-                        <Button
-                            variant="secondary"
-                            className="w-full"
-                            onClick={() => router.patch(archive.url(routeArgs))}
-                        >
-                            Archive project
-                        </Button>
+                        {/* Archiving a running build knocked it out of "in
+                            progress", and Complete project then refused it. */}
+                        {project.isArchivable ? (
+                            <Button
+                                variant="secondary"
+                                className="w-full"
+                                onClick={() =>
+                                    router.patch(archive.url(routeArgs))
+                                }
+                            >
+                                Archive project
+                            </Button>
+                        ) : (
+                            <p
+                                className="m-0 text-[12.5px] leading-relaxed text-muted-foreground"
+                                data-test="not-archivable"
+                            >
+                                {project.status === 'completed' ? (
+                                    'This project is complete and stays on record.'
+                                ) : (
+                                    <>
+                                        This project is under way. It ends when
+                                        you press Complete project in{' '}
+                                        <Link
+                                            href={projectManagement.url(
+                                                team.slug,
+                                            )}
+                                            className="underline"
+                                        >
+                                            Project Management
+                                        </Link>
+                                        .
+                                    </>
+                                )}
+                            </p>
+                        )}
                     </Panel>
                 </aside>
             </div>

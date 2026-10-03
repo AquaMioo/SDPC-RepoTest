@@ -94,6 +94,18 @@ class Issue extends Model
     }
 
     /**
+     * Determine if the reported posting may still be taken off the board.
+     *
+     * Not once a signed agreement is running on it, or it is delivered or
+     * withdrawn: closing a build in progress left the client unable to
+     * complete it (ProjectStatus::isModeratable).
+     */
+    public function postingCanBeClosed(): bool
+    {
+        return $this->reportedProject?->status->isModeratable() ?? false;
+    }
+
+    /**
      * The administrator who resolved the report, if one has.
      *
      * @return BelongsTo<User, $this>

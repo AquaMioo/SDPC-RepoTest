@@ -41,6 +41,8 @@ export type AdminPosting = {
     statusLabel: string;
     publishedAt: string | null;
     awaitingDecision: boolean;
+    /** False once it is in progress, completed or archived by the client. */
+    isModeratable: boolean;
 };
 
 /** The three blocks of copy an administrator maintains. */

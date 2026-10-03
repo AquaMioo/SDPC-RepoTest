@@ -59,7 +59,7 @@ class ProjectPolicy
      */
     public function archive(User $user, Project $project): bool
     {
-        return $this->manages($user, $project);
+        return $this->manages($user, $project) && $project->status->isArchivable();
     }
 
     /**

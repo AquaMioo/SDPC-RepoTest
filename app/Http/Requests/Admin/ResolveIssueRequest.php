@@ -34,10 +34,27 @@ class ResolveIssueRequest extends FormRequest
 
             // Closing a posting on a report that names no posting would close
             // nothing and still read as a decision on the queue.
-            if ($action?->needsPosting() && $issue instanceof Issue && ! $issue->isAboutPosting()) {
+            if (! $action?->needsPosting() || ! $issue instanceof Issue) {
+                return;
+            }
+
+            if (! $issue->isAboutPosting()) {
                 $validator->errors()->add(
                     'action',
                     __('This report is not about a posting.'),
+                );
+
+                return;
+            }
+
+            // A build under way ends only through Complete project, which
+            // refuses a project that is no longer in progress.
+            if (! $issue->postingCanBeClosed()) {
+                $validator->errors()->add(
+                    'action',
+                    __('This posting is :status, so it can no longer be closed from here.', [
+                        'status' => strtolower($issue->reportedProject->status->label()),
+                    ]),
                 );
             }
         });

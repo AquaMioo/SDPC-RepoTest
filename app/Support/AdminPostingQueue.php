@@ -32,7 +32,8 @@ class AdminPostingQueue
      *     status: string,
      *     statusLabel: string,
      *     publishedAt: string|null,
-     *     awaitingDecision: bool
+     *     awaitingDecision: bool,
+     *     isModeratable: bool
      * }>
      */
     public function all(): array
@@ -56,6 +57,7 @@ class AdminPostingQueue
                 'statusLabel' => $project->status->label(),
                 'publishedAt' => $project->published_at?->diffForHumans(),
                 'awaitingDecision' => $project->status === ProjectStatus::PendingReview,
+                'isModeratable' => $project->status->isModeratable(),
             ])
             ->all();
     }

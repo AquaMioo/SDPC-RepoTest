@@ -284,6 +284,8 @@ class ProjectController extends Controller
             'status' => $project->status->value,
             'statusLabel' => $project->statusLabel(),
             'isEditable' => $project->status->isEditable(),
+            /* A running or delivered build ends through Complete project only. */
+            'isArchivable' => $project->status->isArchivable(),
             /* A draft is client-only, and saying so is half the fix. */
             'isDraft' => $project->status === ProjectStatus::Draft,
             'applicationsOpen' => $project->applications_open,

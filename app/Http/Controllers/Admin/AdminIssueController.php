@@ -51,7 +51,7 @@ class AdminIssueController extends Controller
                     'resolved' => $issue->isResolved(),
                     'resolution' => $issue->resolution,
                     'handledBy' => $issue->handler?->name,
-                    'actions' => IssueResolution::optionsFor($issue->isAboutPosting()),
+                    'actions' => IssueResolution::optionsFor($issue->postingCanBeClosed()),
                 ])
                 ->values()
                 ->all(),

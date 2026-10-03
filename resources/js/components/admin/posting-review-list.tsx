@@ -135,26 +135,33 @@ export default function PostingReviewList({
                         ))}
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                        {posting.status !== 'open' && (
-                            <Btn
-                                variant="primary"
-                                onClick={() => decide(posting.slug, 'open')}
-                            >
-                                {posting.awaitingDecision
-                                    ? 'Approve'
-                                    : 'Reopen'}
-                            </Btn>
-                        )}
-                        {posting.status !== 'closed' && (
-                            <Btn
-                                variant="ghost"
-                                onClick={() => decide(posting.slug, 'closed')}
-                            >
-                                Close
-                            </Btn>
-                        )}
-                    </div>
+                    {/* A build under way, delivered or withdrawn is not the
+                        queue's to reopen or close: doing so left a running
+                        project unable to be completed. */}
+                    {posting.isModeratable && (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                            {posting.status !== 'open' && (
+                                <Btn
+                                    variant="primary"
+                                    onClick={() => decide(posting.slug, 'open')}
+                                >
+                                    {posting.awaitingDecision
+                                        ? 'Approve'
+                                        : 'Reopen'}
+                                </Btn>
+                            )}
+                            {posting.status !== 'closed' && (
+                                <Btn
+                                    variant="ghost"
+                                    onClick={() =>
+                                        decide(posting.slug, 'closed')
+                                    }
+                                >
+                                    Close
+                                </Btn>
+                            )}
+                        </div>
+                    )}
                 </div>
             ))}
 

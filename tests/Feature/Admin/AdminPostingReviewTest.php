@@ -128,6 +128,61 @@ class AdminPostingReviewTest extends TestCase
         $this->assertSame(ProjectStatus::Closed, $project->refresh()->status);
     }
 
+    public function test_a_closed_posting_can_be_reopened(): void
+    {
+        Notification::fake();
+
+        $project = Project::factory()->create(['status' => ProjectStatus::Closed]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->from(route('admin.dashboard'))
+            ->patch(route('admin.postings.update', ['posting' => $project]), [
+                'status' => ProjectStatus::Open->value,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(ProjectStatus::Open, $project->refresh()->status);
+    }
+
+    public function test_a_build_under_way_delivered_or_withdrawn_is_not_the_queues_to_change(): void
+    {
+        Notification::fake();
+        $admin = User::factory()->admin()->create();
+
+        // Reopening or closing a running build left Complete project refusing
+        // it (sdpc.tech, 2026-10-04); the other two are not the board's either.
+        foreach ([ProjectStatus::InProgress, ProjectStatus::Completed, ProjectStatus::Archived] as $status) {
+            $project = Project::factory()->create(['status' => $status]);
+
+            foreach ([ProjectStatus::Open, ProjectStatus::Closed] as $decision) {
+                $this->actingAs($admin)
+                    ->from(route('admin.dashboard'))
+                    ->patch(route('admin.postings.update', ['posting' => $project]), [
+                        'status' => $decision->value,
+                    ])
+                    ->assertSessionHasErrors('status');
+            }
+
+            $this->assertSame($status, $project->refresh()->status);
+        }
+
+        Notification::assertNothingSent();
+    }
+
+    public function test_the_queue_offers_decisions_only_on_postings_still_the_boards(): void
+    {
+        Project::factory()->pendingReview()->create();
+        Project::factory()->inProgress()->create();
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('postings.0.status', ProjectStatus::PendingReview->value)
+                ->where('postings.0.isModeratable', true)
+                ->where('postings.1.status', ProjectStatus::InProgress->value)
+                ->where('postings.1.isModeratable', false));
+    }
+
     public function test_an_administrator_can_not_set_an_arbitrary_status(): void
     {
         $project = Project::factory()->create(['status' => ProjectStatus::PendingReview]);

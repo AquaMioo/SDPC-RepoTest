@@ -55,6 +55,32 @@ enum ProjectStatus: string
     }
 
     /**
+     * Determine if an administrator may still open or close the posting.
+     *
+     * Only while it is a board decision: waiting, listed or taken down. From
+     * the second signature the status belongs to the agreement, and Complete
+     * project refuses anything that is not in progress, so reopening or
+     * closing a running build would leave the client unable to finish it.
+     * Completed is delivered work and Archived is the client's withdrawal.
+     */
+    public function isModeratable(): bool
+    {
+        return in_array($this, [self::PendingReview, self::Open, self::Closed], true);
+    }
+
+    /**
+     * Determine if the client may withdraw the posting into Archived.
+     *
+     * Not once a signed agreement is running on it — that ends only through
+     * Complete project — and not once it is completed, which the landing page
+     * counts as delivered work.
+     */
+    public function isArchivable(): bool
+    {
+        return in_array($this, [self::Draft, self::PendingReview, self::Open, self::Closed], true);
+    }
+
+    /**
      * Determine if the posting is still work in hand rather than history.
      *
      * A team may only run one posting at a time, so everything from the draft

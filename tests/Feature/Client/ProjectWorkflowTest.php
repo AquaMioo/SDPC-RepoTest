@@ -160,6 +160,43 @@ class ProjectWorkflowTest extends TestCase
         $this->assertFalse($project->applications_open);
     }
 
+    public function test_a_project_under_way_or_delivered_can_not_be_archived(): void
+    {
+        $user = User::factory()->verifiedBusiness()->create();
+
+        // Archiving a running build knocked it out of in progress, and
+        // Complete project then refused it (sdpc.tech, 2026-10-04).
+        foreach ([ProjectStatus::InProgress, ProjectStatus::Completed] as $status) {
+            $project = Project::factory()->create([
+                'team_id' => $user->current_team_id,
+                'status' => $status,
+            ]);
+
+            $this->actingAs($user)
+                ->patch($this->url('projects.archive', $user, ['project' => $project]))
+                ->assertForbidden();
+
+            $this->assertSame($status, $project->refresh()->status);
+        }
+    }
+
+    public function test_the_posting_screen_offers_archive_only_before_the_build_starts(): void
+    {
+        $user = User::factory()->verifiedBusiness()->create();
+        $open = Project::factory()->create(['team_id' => $user->current_team_id]);
+        $running = Project::factory()->inProgress()->create(['team_id' => $user->current_team_id]);
+
+        $this->actingAs($user)
+            ->get($this->url('projects.show', $user, ['project' => $open]))
+            ->assertInertia(fn ($page) => $page->where('project.isArchivable', true));
+
+        $this->actingAs($user)
+            ->get($this->url('projects.show', $user, ['project' => $running]))
+            ->assertInertia(fn ($page) => $page
+                ->where('project.isArchivable', false)
+                ->where('project.status', ProjectStatus::InProgress->value));
+    }
+
     public function test_a_client_can_pause_and_resume_applications(): void
     {
         $user = User::factory()->verifiedBusiness()->create();

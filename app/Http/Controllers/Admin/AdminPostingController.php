@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Review of postings, the third queue alongside business permits and student
@@ -41,6 +42,14 @@ class AdminPostingController extends Controller
 
         $previous = $posting->status;
         $status = ProjectStatus::from($validated['status']);
+
+        if (! $previous->isModeratable()) {
+            throw ValidationException::withMessages([
+                'status' => __('This posting is :status, so it is no longer the review queue\'s to open or close.', [
+                    'status' => strtolower($previous->label()),
+                ]),
+            ]);
+        }
 
         if ($previous === $status) {
             return back();

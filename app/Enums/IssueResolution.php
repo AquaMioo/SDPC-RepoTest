@@ -77,9 +77,12 @@ enum IssueResolution: string
     /**
      * The actions available for a report, as option rows for the screen.
      *
+     * Closing the posting is offered only when the report names one that is
+     * still the board's to close (Issue::postingCanBeClosed).
+     *
      * @return array<array{value: string, label: string}>
      */
-    public static function optionsFor(bool $hasPosting): array
+    public static function optionsFor(bool $canClosePosting): array
     {
         return array_values(array_map(
             fn (self $action): array => [
@@ -88,7 +91,7 @@ enum IssueResolution: string
             ],
             array_filter(
                 self::cases(),
-                fn (self $action): bool => $hasPosting || ! $action->needsPosting(),
+                fn (self $action): bool => $canClosePosting || ! $action->needsPosting(),
             ),
         ));
     }

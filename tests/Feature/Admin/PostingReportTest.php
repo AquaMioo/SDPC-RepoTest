@@ -206,6 +206,28 @@ class PostingReportTest extends TestCase
         $this->assertSame(UserStatus::Approved, $author->fresh()->status);
     }
 
+    public function test_a_build_under_way_is_not_offered_or_closed_from_a_report(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $posting = $this->posting(['status' => ProjectStatus::InProgress]);
+        $issue = Issue::factory()->aboutPosting($posting)->create();
+
+        // Closing a running build left Complete project refusing it
+        // (sdpc.tech, 2026-10-04), so the action is not on the menu...
+        $this->actingAs($admin)
+            ->get(route('admin.issues'))
+            ->assertInertia(fn (Assert $page) => $page->has('issues.0.actions', 3));
+
+        // ...and a hand-made request is turned away.
+        $this->actingAs($admin)
+            ->from(route('admin.issues'))
+            ->patch(route('admin.issues.update', $issue), ['action' => 'close_posting'])
+            ->assertSessionHasErrors('action');
+
+        $this->assertSame(ProjectStatus::InProgress, $posting->refresh()->status);
+        $this->assertSame(IssueStatus::Pending, $issue->fresh()->status);
+    }
+
     public function test_closing_a_posting_is_refused_when_the_report_names_none(): void
     {
         $admin = User::factory()->admin()->create();

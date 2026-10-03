@@ -157,6 +157,34 @@ class ProjectCompletionTest extends TestCase
         $this->assertSame(AgreementStatus::Active, $agreement->fresh()->status);
     }
 
+    public function test_the_migration_puts_knocked_out_builds_back_in_progress_so_they_can_be_completed(): void
+    {
+        ['client' => $client, 'agreement' => $archived] = $this->collaboration();
+        ['agreement' => $reopened] = $this->collaboration();
+        ['agreement' => $negotiating] = $this->collaboration(AgreementStatus::AwaitingSignatures);
+
+        // The three buttons that used to reach a running build.
+        $archived->project->update(['status' => ProjectStatus::Archived]);
+        $reopened->project->update(['status' => ProjectStatus::Open]);
+        $negotiating->project->update(['status' => ProjectStatus::Open]);
+        $delivered = Project::factory()->completed()->create();
+
+        $migration = require database_path('migrations/2026_10_04_015204_restore_in_progress_to_projects_with_an_active_agreement.php');
+        $migration->up();
+
+        $this->assertSame(ProjectStatus::InProgress, $archived->project->fresh()->status);
+        $this->assertSame(ProjectStatus::InProgress, $reopened->project->fresh()->status);
+        // No signed agreement yet, so it is still a posting.
+        $this->assertSame(ProjectStatus::Open, $negotiating->project->fresh()->status);
+        $this->assertSame(ProjectStatus::Completed, $delivered->fresh()->status);
+
+        $this->actingAs($client)
+            ->post($this->completeUrl($client, $archived))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(ProjectStatus::Completed, $archived->project->fresh()->status);
+    }
+
     public function test_the_client_may_complete_with_tasks_still_unverified(): void
     {
         ['client' => $client, 'agreement' => $agreement] = $this->collaboration();
