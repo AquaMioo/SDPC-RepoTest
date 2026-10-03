@@ -174,7 +174,8 @@ export function TaskFormDialog({
                     <Input
                         id="task-title"
                         value={title}
-                        maxLength={160}
+                        /* A Scope task carries a whole Section VII scope. */
+                        maxLength={2000}
                         autoFocus
                         placeholder="e.g. Authentication & roles"
                         onChange={(event) => setTitle(event.target.value)}

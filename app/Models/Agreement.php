@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
+use App\Enums\MemorandumSection;
 use App\Enums\TaskStatus;
 use App\Enums\TeamRole;
 use Carbon\CarbonInterface;
@@ -154,16 +155,26 @@ class Agreement extends Model
     }
 
     /**
-     * Get what either side added to the memorandum's optional sections.
-     *
-     * Section VII's entries are not here: they are the phases themselves
-     * (servicePhases()).
+     * Get what either side added to the memorandum, Section VII included.
      *
      * @return HasMany<AgreementRequirement, $this>
      */
     public function requirements(): HasMany
     {
         return $this->hasMany(AgreementRequirement::class)->orderBy('id');
+    }
+
+    /**
+     * Get the Section VII services: each an Objective (title) and a Scope
+     * (body). They never become phases; when the agreement starts, each
+     * objective is a task in the Objective phase and each scope a task in the
+     * Scope phase (SeedServiceTasks).
+     *
+     * @return HasMany<AgreementRequirement, $this>
+     */
+    public function services(): HasMany
+    {
+        return $this->requirements()->where('section', MemorandumSection::Services);
     }
 
     /**
@@ -255,26 +266,6 @@ class Agreement extends Model
         $turnover = $this->turnoverPhase();
 
         return $this->milestones
-            ->reject(fn (AgreementMilestone $milestone): bool => $turnover !== null && $milestone->is($turnover))
-            ->values();
-    }
-
-    /**
-     * Get the Section VII entries: every phase before Turnover.
-     *
-     * Each is a service the memorandum describes, its title the Objective
-     * and its description the Scope.
-     *
-     * @return Collection<int, AgreementMilestone>
-     */
-    public function servicePhases(): Collection
-    {
-        $this->loadMissing('milestones');
-
-        $turnover = $this->turnoverPhase();
-
-        return $this->milestones
-            ->sortBy('position')
             ->reject(fn (AgreementMilestone $milestone): bool => $turnover !== null && $milestone->is($turnover))
             ->values();
     }

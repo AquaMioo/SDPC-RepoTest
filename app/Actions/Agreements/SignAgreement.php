@@ -8,6 +8,7 @@ use App\Enums\AgreementTemplate;
 use App\Enums\ProjectStatus;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
+use App\Models\AgreementRequirement;
 use App\Models\AgreementSignature;
 use App\Models\User;
 use App\Notifications\Agreements\AgreementSigned;
@@ -29,6 +30,11 @@ use Illuminate\Validation\ValidationException;
  */
 class SignAgreement
 {
+    /**
+     * Create a new action instance.
+     */
+    public function __construct(private readonly SeedServiceTasks $seedServiceTasks) {}
+
     /**
      * Sign the agreement on behalf of one party.
      *
@@ -102,26 +108,27 @@ class SignAgreement
      * Say what still stops either party signing, or null when nothing does.
      *
      * The SDPC memorandum's Section VII (Description of Services) is required:
-     * with no service in it, or a service without its scope, neither the
-     * client nor the student may sign. Every phase then needs an end date, and
-     * Turnover both dates at least a month apart. The contract screens read
-     * this too (PresentAgreement), so they say why before anyone tries.
+     * with no service in it, or a service without its objective or scope,
+     * neither the client nor the student may sign. Every phase then needs an
+     * end date, and Turnover both dates at least a month apart. The contract
+     * screens read this too (PresentAgreement), so they say why before anyone
+     * tries.
      */
     public function reasonItCannotBeSigned(Agreement $agreement): ?string
     {
-        /* Read fresh, in position order: Turnover last, the services before it. */
+        /* Read fresh, in position order: Turnover last. */
         $milestones = $agreement->milestones()->get();
         $turnover = $milestones->last();
 
         if ($agreement->template === AgreementTemplate::SdpcMemorandum) {
-            $services = $milestones->slice(0, -1);
+            $services = $agreement->services()->get();
 
             if ($services->isEmpty()) {
                 return __('Section VII. Description of Services needs at least one service (an objective and its scope) before this agreement can be signed.');
             }
 
-            if ($services->contains(fn (AgreementMilestone $service): bool => blank($service->description))) {
-                return __('Every service in Section VII needs its scope before this agreement can be signed.');
+            if ($services->contains(fn (AgreementRequirement $service): bool => blank($service->title) || blank($service->body))) {
+                return __('Every service in Section VII needs its objective and its scope before this agreement can be signed.');
             }
         }
 
@@ -165,6 +172,10 @@ class SignAgreement
 
     /**
      * Put the agreement into force and start the project.
+     *
+     * The Section VII services go into Project Management here, once: each
+     * objective a task in the Objective phase, each scope one in the Scope
+     * phase (SeedServiceTasks).
      */
     protected function activate(Agreement $agreement): void
     {
@@ -172,6 +183,8 @@ class SignAgreement
             'status' => AgreementStatus::Active,
             'activated_at' => now(),
         ]);
+
+        $this->seedServiceTasks->handle($agreement);
 
         $project = $agreement->project;
 

@@ -6,6 +6,7 @@ use App\Actions\Agreements\DraftAgreement;
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
+use App\Enums\MemorandumSection;
 use App\Enums\ProjectStatus;
 use App\Models\Agreement;
 use App\Models\Application;
@@ -252,21 +253,19 @@ class AgreementSigningTest extends TestCase
     {
         [$owner, $student, $agreement] = $this->draftAgreement();
 
-        /* Section VII needs a service before anybody may sign; it comes before Turnover. */
-        $turnover = $agreement->milestones->last();
-        $turnover->update(['position' => 2]);
-
-        $agreement->milestones()->create([
-            'position' => 1,
+        /* Section VII needs a service before anybody may sign. */
+        $agreement->requirements()->create([
+            'section' => MemorandumSection::Services,
             'title' => 'Inventory module',
-            'description' => 'Stock, suppliers and reorder alerts.',
-            'added_by' => $owner->id,
-            'amount' => 8000,
-            'starts_on' => now()->toDateString(),
-            'ends_on' => now()->addWeeks(2)->toDateString(),
+            'body' => 'Stock, suppliers and reorder alerts.',
+            'user_id' => $owner->id,
         ]);
 
-        /* Turnover runs at least a month. */
+        /* Objective and Scope may overlap; Turnover follows them and runs at least a month. */
+        [$objective, $scope, $turnover] = $agreement->milestones;
+
+        $objective->update(['amount' => 8000, 'starts_on' => now()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
+        $scope->update(['starts_on' => now()->addWeek()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
         $turnover->update([
             'amount' => 8000,
             'starts_on' => now()->addWeeks(3)->toDateString(),

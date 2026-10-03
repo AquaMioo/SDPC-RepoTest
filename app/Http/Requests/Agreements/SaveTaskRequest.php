@@ -63,7 +63,8 @@ class SaveTaskRequest extends FormRequest
         }
 
         return [
-            'title' => ['required', 'string', 'max:160'],
+            /* As long as a Section VII scope, which arrives as a Scope task (SeedServiceTasks). */
+            'title' => ['required', 'string', 'max:2000'],
             'description' => ['nullable', 'string', 'max:2000'],
             'due_on' => $milestone instanceof AgreementMilestone
                 ? [$milestone->isTurnover() ? 'nullable' : 'required', ...$dueRules]

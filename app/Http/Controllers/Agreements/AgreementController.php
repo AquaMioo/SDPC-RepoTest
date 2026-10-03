@@ -194,9 +194,9 @@ class AgreementController extends Controller
     /**
      * Write the timeline the client set: each phase's dates.
      *
-     * The phases themselves are not this form's to change. Every phase before
-     * Turnover is a Section VII entry, named and described by whoever added it
-     * (ServiceDescriptionController), and Turnover is always the last. So only
+     * The phases themselves are not this form's to change: they are fixed
+     * (Objective, Scope, Turnover), and Section VII's services fill the first
+     * two as tasks once the work starts (SeedServiceTasks). So only
      * rows already on this agreement are touched, and only their dates and the
      * dormant amount column; an id from another agreement matches nothing.
      *

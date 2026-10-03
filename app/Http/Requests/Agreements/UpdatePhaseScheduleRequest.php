@@ -42,7 +42,7 @@ class UpdatePhaseScheduleRequest extends FormRequest
      * Keep Turnover to itself, a month long, and its end where the client
      * agreed it; keep every date that moves inside the timeline window.
      *
-     * The Section VII phases (each objective and its scope) may overlap one
+     * The Objective and Scope phases may overlap one
      * another. Turnover may not: it begins after every other phase ends, and
      * runs at least one month. Its end is the final deadline, which ends the
      * project, so it only moves through a change the client approves

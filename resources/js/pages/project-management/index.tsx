@@ -30,15 +30,6 @@ import { index as boardIndex } from '@/routes/student/board';
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
-/** The small label over an Objective or a Scope. */
-const KICKER = {
-    fontSize: 10.5,
-    letterSpacing: '.08em',
-    textTransform: 'uppercase',
-    color: MUTED(55),
-    marginBottom: 2,
-} as const;
-
 const STATE_TAG: Record<
     Phase['state'],
     { label: string; variant: 'outline' | 'neutral' | 'accent' }
@@ -379,11 +370,10 @@ function Workspace({
                 }}
             >
                 {/*
-                 * One card per phase. Every phase before Turnover is a service
-                 * from Section VII of the memorandum: its Objective (the title)
-                 * and its Scope (the description), straight from the entry the
-                 * two sides wrote. Turnover is listed but never counted in the
-                 * percentage.
+                 * One card per phase: Objective, Scope and Turnover. The
+                 * Section VII services fill the first two as tasks (each
+                 * objective in Objective, each scope in Scope). Turnover is
+                 * listed but never counted in the percentage.
                  */}
                 {agreement.phases.map((phase) => (
                     <Panel key={phase.id} padding="lg" gap="sm">
@@ -394,34 +384,15 @@ function Workspace({
                                 gap: 8,
                             }}
                         >
-                            <div style={{ marginRight: 'auto', minWidth: 0 }}>
-                                {!phase.isTurnover && (
-                                    <div style={KICKER}>Objective</div>
-                                )}
-                                <span style={{ fontSize: 13.5 }}>
-                                    {phase.title}
-                                </span>
-                            </div>
+                            <span
+                                style={{ fontSize: 13.5, marginRight: 'auto' }}
+                            >
+                                {phase.title}
+                            </span>
                             <Tag variant={STATE_TAG[phase.state].variant}>
                                 {STATE_TAG[phase.state].label}
                             </Tag>
                         </div>
-                        {!phase.isTurnover && phase.description && (
-                            <div>
-                                <div style={KICKER}>Scope</div>
-                                <p
-                                    style={{
-                                        margin: 0,
-                                        fontSize: 12,
-                                        lineHeight: 1.5,
-                                        color: MUTED(70),
-                                        whiteSpace: 'pre-line',
-                                    }}
-                                >
-                                    {phase.description}
-                                </p>
-                            </div>
-                        )}
                         <span style={{ fontSize: 11.5, color: MUTED(58) }}>
                             {shortDate(phase.startsOn)} –{' '}
                             {shortDate(phase.endsOn)}

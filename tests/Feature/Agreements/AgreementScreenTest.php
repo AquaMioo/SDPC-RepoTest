@@ -96,10 +96,8 @@ class AgreementScreenTest extends TestCase
     {
         [$owner, $student, $agreement] = $this->agreement();
 
-        /* The phases are the Section VII services, then Turnover. */
-        $this->addService($owner, $agreement, 'Stock and supplier modules');
-        $this->addService($student, $agreement, 'Forecast dashboard');
-        [$stock, $forecast, $turnover] = $agreement->refresh()->milestones;
+        /* The phases are Objective, Scope and Turnover. */
+        [$objective, $scope, $turnover] = $agreement->milestones;
 
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
@@ -115,15 +113,15 @@ class AgreementScreenTest extends TestCase
                 'ends_on' => now()->addMonths(3)->toDateString(),
                 'milestones' => [
                     [
-                        'id' => $stock->id,
+                        'id' => $objective->id,
                         'amount' => 8000,
                         'starts_on' => now()->toDateString(),
                         'ends_on' => now()->addWeeks(3)->toDateString(),
                     ],
                     [
-                        'id' => $forecast->id,
+                        'id' => $scope->id,
                         'amount' => 14000,
-                        /* The services may overlap. */
+                        /* Objective and Scope may overlap. */
                         'starts_on' => now()->addWeeks(2)->toDateString(),
                         'ends_on' => now()->addWeeks(8)->toDateString(),
                     ],
@@ -142,7 +140,7 @@ class AgreementScreenTest extends TestCase
 
         $this->assertSame(22000, $agreement->total_amount);
         $this->assertCount(3, $agreement->milestones);
-        $this->assertSame(['Stock and supplier modules', 'Forecast dashboard', 'Turnover'], $agreement->milestones->pluck('title')->all());
+        $this->assertSame(['Objective', 'Scope', 'Turnover'], $agreement->milestones->pluck('title')->all());
 
         // The student reads the figures the client just wrote, not a copy.
         $this->actingAs($student)
@@ -158,17 +156,15 @@ class AgreementScreenTest extends TestCase
     }
 
     /**
-     * The phases are the Section VII services their authors wrote, then
-     * Turnover. The client's timeline form sets their dates; it cannot put
-     * them in another order or rename them.
+     * The phases are Objective, Scope and Turnover. The client's timeline
+     * form sets their dates; it cannot put them in another order or rename
+     * them.
      */
     public function test_the_timeline_form_cannot_reorder_or_rename_the_phases(): void
     {
-        [$owner, $student, $agreement] = $this->agreement();
+        [$owner, , $agreement] = $this->agreement();
 
-        $this->addService($student, $agreement, 'Inventory module');
-        $this->addService($owner, $agreement, 'Reports module');
-        $original = $agreement->refresh()->milestones;
+        $original = $agreement->milestones;
 
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
@@ -178,8 +174,8 @@ class AgreementScreenTest extends TestCase
                 ...$this->terms(),
                 'milestones' => [
                     $this->milestone($original[2]->id, 'Renamed turnover'),
-                    $this->milestone($original[1]->id, 'Renamed reports'),
-                    $this->milestone($original[0]->id, 'Renamed inventory'),
+                    $this->milestone($original[1]->id, 'Renamed scope'),
+                    $this->milestone($original[0]->id, 'Renamed objective'),
                 ],
             ])
             ->assertRedirect()
@@ -189,21 +185,19 @@ class AgreementScreenTest extends TestCase
 
         $this->assertSame([1, 2, 3], $after->pluck('position')->all());
         $this->assertSame($original->pluck('id')->all(), $after->pluck('id')->all());
-        $this->assertSame(['Inventory module', 'Reports module', 'Turnover'], $after->pluck('title')->all());
+        $this->assertSame(['Objective', 'Scope', 'Turnover'], $after->pluck('title')->all());
         /* The dates did land. */
         $this->assertSame(now()->addWeeks(5)->toDateString(), $after[2]->ends_on->toDateString());
     }
 
     /**
-     * Leaving a phase out of the timeline form does not delete it: only its
-     * author removes a service, and Turnover is never removed.
+     * Leaving a phase out of the timeline form does not delete it.
      */
     public function test_the_timeline_form_cannot_drop_a_phase(): void
     {
         [$owner, , $agreement] = $this->agreement();
 
-        $this->addService($owner, $agreement, 'Inventory module');
-        [$service, $turnover] = $agreement->refresh()->milestones;
+        [$objective, $scope, $turnover] = $agreement->milestones;
 
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
@@ -216,7 +210,7 @@ class AgreementScreenTest extends TestCase
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $this->assertSame([$service->id, $turnover->id], $agreement->refresh()->milestones->pluck('id')->all());
+        $this->assertSame([$objective->id, $scope->id, $turnover->id], $agreement->refresh()->milestones->pluck('id')->all());
     }
 
     public function test_turnover_has_to_run_at_least_a_month(): void
@@ -443,19 +437,6 @@ class AgreementScreenTest extends TestCase
             /* Long enough for Turnover, which runs at least a month. */
             'ends_on' => now()->addWeeks(5)->toDateString(),
         ];
-    }
-
-    /**
-     * Add a Section VII service through the memorandum, as the given party.
-     */
-    private function addService(User $party, Agreement $agreement, string $objective): void
-    {
-        $this->actingAs($party)
-            ->post(route('agreements.services.store', [
-                'current_team' => $party->currentTeam,
-                'agreement' => $agreement,
-            ]), ['objective' => $objective, 'scope' => "Everything {$objective} covers."])
-            ->assertSessionHasNoErrors();
     }
 
     /**

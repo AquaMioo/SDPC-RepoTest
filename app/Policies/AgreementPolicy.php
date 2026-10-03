@@ -8,7 +8,6 @@ use App\Enums\AgreementTemplate;
 use App\Enums\TeamPermission;
 use App\Enums\TeamRole;
 use App\Models\Agreement;
-use App\Models\AgreementMilestone;
 use App\Models\AgreementRequirement;
 use App\Models\Membership;
 use App\Models\User;
@@ -85,27 +84,19 @@ class AgreementPolicy
     /**
      * Determine whether the user can change or remove one addition.
      *
-     * Only the person who added it. A Section VII service written before the
-     * SDPC memorandum (no author) belongs to the client, who named the phases
-     * then. Turnover is nobody's addition and never changes here.
+     * Only the person who added it. One with no author (its account was
+     * deleted, or it came over from the phases of the first SDPC version)
+     * belongs to the client.
      */
-    public function changeRequirement(User $user, Agreement $agreement, AgreementRequirement|AgreementMilestone $entry): bool
+    public function changeRequirement(User $user, Agreement $agreement, AgreementRequirement $entry): bool
     {
         if (! $this->addRequirements($user, $agreement) || $entry->agreement_id !== $agreement->id) {
             return false;
         }
 
-        if ($entry instanceof AgreementMilestone) {
-            if ($agreement->turnoverPhase()?->is($entry) ?? true) {
-                return false;
-            }
-
-            return $entry->added_by === null
-                ? $this->partyFor($user, $agreement) === AgreementParty::Client
-                : $entry->added_by === $user->id;
-        }
-
-        return $entry->user_id === $user->id;
+        return $entry->user_id === null
+            ? $this->partyFor($user, $agreement) === AgreementParty::Client
+            : $entry->user_id === $user->id;
     }
 
     /**

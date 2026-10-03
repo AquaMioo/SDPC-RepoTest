@@ -58,18 +58,24 @@ return [
     | the blank form). Nobody edits this text on the site. The blanks are
     | filled from the agreement by PresentAgreement:
     |
-    |   :ca1                 CA1, the Contracting Agency: the client's company
-    |                        name, or its representative when it has none
-    |   :ca2                 CA2, the Customer Agency: the student representative
-    |   :ca1_representative  the client's representative (the individual at CA1)
-    |   :ca2_representative  the student representative (the individual at CA2)
-    |   :services            the Description of Services: the project title
+    |   :ca1                 CA1, the Contracting Agency: the Client
+    |                        Representative, the client account's name
+    |   :ca2                 CA2, the Customer Agency: the Student
+    |                        Representative, the student account's name
+    |   :ca1_representative  the same client account name (the individual at CA1)
+    |   :ca2_representative  the same student account name (the individual at CA2)
+    |   :services            the Description of Services: the capstone/project title
     |
-    | **Double asterisks** mark bold runs. `section` names the sections either
-    | side may add to (App\Enums\MemorandumSection); `addition.placeholder` is
-    | the template's "add more here" line, which the editor shows as a prompt
-    | and the printed copy leaves out when nothing was added. Section VII's
-    | additions are required, and each is an Objective with its Scope.
+    | **Double asterisks** mark bold runs. Every part of every section is
+    | numbered the way the template numbers its lists (1., 2., ... with a., b.
+    | under them), so no two parts read as one run of text; an item may carry
+    | its own lettered list. A section's lead-in line (IV-VI) stays unnumbered,
+    | as in the template. `section` names the sections either side may add to
+    | (App\Enums\MemorandumSection); `addition.placeholder` is the template's
+    | "add more here" line, which the editor shows as a prompt and the printed
+    | copy leaves out when nothing was added. Additions continue the section's
+    | numbering. Section VII's additions are required: each is an Objective
+    | (printed bold) followed by its Scope.
     |
     | The template prints IX's "Revisions and Modifications" paragraph twice,
     | word for word; the copy is kept once here.
@@ -85,14 +91,18 @@ return [
                 'numeral' => 'I',
                 'heading' => 'PARTIES',
                 'blocks' => [
-                    ['paragraph' => 'The parties to this MOA are the CONTRACTING AGENCY, **:ca1**, hereafter referenced as "CA1" and the CUSTOMER AGENCY, **:ca2**, referenced as "CA2".'],
+                    ['numbered' => [
+                        'The parties to this MOA are the CONTRACTING AGENCY, **:ca1**, hereafter referenced as "CA1" and the CUSTOMER AGENCY, **:ca2**, referenced as "CA2".',
+                    ]],
                 ],
             ],
             [
                 'numeral' => 'II',
                 'heading' => 'PURPOSE',
                 'blocks' => [
-                    ['paragraph' => 'The purpose of this Memorandum of Agreement (MOA) is to specifically identify the scope of services to be provided, establish the authorized individual or agency as the decision-maker or owner in the agreement, as well as the financial and human resources that are required for the provision of services. This MOA will also clearly identify the roles and responsibilities of each party as they relate to providing the consolidated services that serve both CA1 and CA2.'],
+                    ['numbered' => [
+                        'The purpose of this Memorandum of Agreement (MOA) is to specifically identify the scope of services to be provided, establish the authorized individual or agency as the decision-maker or owner in the agreement, as well as the financial and human resources that are required for the provision of services. This MOA will also clearly identify the roles and responsibilities of each party as they relate to providing the consolidated services that serve both CA1 and CA2.',
+                    ]],
                 ],
             ],
             [
@@ -174,18 +184,22 @@ return [
                 'section' => 'compliance',
                 'new_page' => true,
                 'blocks' => [
-                    ['paragraph' => 'In accordance with the Data Privacy Act of 2012 (Republic Act No. 10173) and the National Privacy Commission (NPC) Circular No. 16-03 on Personal Data Breach Management, if an employee from either agency, or subcontractor, or agent of either, knows or reasonably suspects that any personal data (personal information or sensitive personal information) obtained has been lost, stolen, or otherwise subject to unauthorized access, the discovering agency shall immediately notify the other through the appropriate Program Manager and their respective Data Protection Officer (DPO).'],
-                    ['paragraph' => 'Furthermore, the responsible agency must notify the National Privacy Commission (NPC) and the affected data subjects within seventy-two (72) hours upon knowledge of, or reasonable belief that, a personal data breach requiring notification has occurred. The notification must include the following information:'],
-                    ['lettered' => [
-                        'Cause(s) of the breach incident',
-                        'Date(s) of the breach incident',
-                        'Estimated size of the affected population (number of personal records)',
-                        'The type of data exposed',
-                        'Any mitigating factors',
+                    ['numbered' => [
+                        'In accordance with the Data Privacy Act of 2012 (Republic Act No. 10173) and the National Privacy Commission (NPC) Circular No. 16-03 on Personal Data Breach Management, if an employee from either agency, or subcontractor, or agent of either, knows or reasonably suspects that any personal data (personal information or sensitive personal information) obtained has been lost, stolen, or otherwise subject to unauthorized access, the discovering agency shall immediately notify the other through the appropriate Program Manager and their respective Data Protection Officer (DPO).',
+                        [
+                            'text' => 'Furthermore, the responsible agency must notify the National Privacy Commission (NPC) and the affected data subjects within seventy-two (72) hours upon knowledge of, or reasonable belief that, a personal data breach requiring notification has occurred. The notification must include the following information:',
+                            'lettered' => [
+                                'Cause(s) of the breach incident',
+                                'Date(s) of the breach incident',
+                                'Estimated size of the affected population (number of personal records)',
+                                'The type of data exposed',
+                                'Any mitigating factors',
+                            ],
+                        ],
+                        'In the event of a security breach, CA1 and CA2 must comply with all notification actions and data protection protocols as required by Philippine law and NPC regulations. Any costs associated with the breach will be the responsibility of the agency that caused the breach.',
                     ]],
-                    ['paragraph' => 'In the event of a security breach, CA1 and CA2 must comply with all notification actions and data protection protocols as required by Philippine law and NPC regulations. Any costs associated with the breach will be the responsibility of the agency that caused the breach.'],
                 ],
-                'addition' => ['placeholder' => 'Enter additional regulations that may pertain to this MOA.', 'as' => 'paragraph'],
+                'addition' => ['placeholder' => 'Enter additional regulations that may pertain to this MOA.', 'as' => 'numbered'],
             ],
             [
                 'numeral' => 'IX',
@@ -193,18 +207,22 @@ return [
                 'section' => 'terms',
                 'new_page' => true,
                 'blocks' => [
-                    ['paragraph' => '**Revisions and Modifications:** Minor revisions necessary for project completion are acceptable. Major updates or additional features beyond the agreed scope will not be accepted unless accompanied by a separate written agreement and additional payment.'],
-                    ['paragraph' => '**Termination:** Either party may request the termination of this Agreement for a valid reason, subject to proper notification and approval. Work completed up to termination shall be compensated accordingly.'],
-                    ['paragraph' => '**Duration (if applicable):** This Agreement takes effect on the specified date and remains valid until the Student/Team has successfully passed Capstone 2, unless terminated earlier by mutual consent.'],
+                    ['numbered' => [
+                        '**Revisions and Modifications:** Minor revisions necessary for project completion are acceptable. Major updates or additional features beyond the agreed scope will not be accepted unless accompanied by a separate written agreement and additional payment.',
+                        '**Termination:** Either party may request the termination of this Agreement for a valid reason, subject to proper notification and approval. Work completed up to termination shall be compensated accordingly.',
+                        '**Duration (if applicable):** This Agreement takes effect on the specified date and remains valid until the Student/Team has successfully passed Capstone 2, unless terminated earlier by mutual consent.',
+                    ]],
                 ],
-                'addition' => ['placeholder' => 'Describe the terms and conditions under which this agreement may be modified or terminated by the parties.', 'as' => 'paragraph'],
+                'addition' => ['placeholder' => 'Describe the terms and conditions under which this agreement may be modified or terminated by the parties.', 'as' => 'numbered'],
             ],
             [
                 'numeral' => 'X',
                 'heading' => 'EFFECTIVE DATE AND SIGNATURE',
                 'new_page' => true,
                 'blocks' => [
-                    ['paragraph' => 'This MOA shall be effective upon the signature of authorized officials of CA1 and CA2. It shall continue in perpetuity with yearly amendments as appropriate unless canceled in its entirety by either party in accordance with the applicable clauses contained herein. The terms will be reviewed annually. The MOA is automatically renewed unless written notice to modify the agreement is given by either party within 60 days of new fiscal year. The MOA can be terminated anytime by either party with written notice 60 days in advance of termination date.'],
+                    ['numbered' => [
+                        'This MOA shall be effective upon the signature of authorized officials of CA1 and CA2. It shall continue in perpetuity with yearly amendments as appropriate unless canceled in its entirety by either party in accordance with the applicable clauses contained herein. The terms will be reviewed annually. The MOA is automatically renewed unless written notice to modify the agreement is given by either party within 60 days of new fiscal year. The MOA can be terminated anytime by either party with written notice 60 days in advance of termination date.',
+                    ]],
                 ],
             ],
         ],
@@ -288,15 +306,18 @@ return [
     | Default Milestones
     |--------------------------------------------------------------------------
     |
-    | The phases a new agreement starts with: Turnover alone, always the last
-    | phase. Every phase before it is a Section VII service either side adds
-    | to the memorandum (its Objective and Scope), so Design and Build are no
-    | longer seeded. The amount is zero and the dates blank until the client
-    | sets them, so nothing here asserts a price or a deadline nobody agreed.
+    | The phases a new agreement starts with: Objective, Scope and Turnover
+    | (always the last). They replace Design and Build. Section VII never adds
+    | a phase: when the agreement starts, each service's Objective becomes a
+    | task in the Objective phase and its Scope a task in the Scope phase
+    | (App\Actions\Agreements\SeedServiceTasks). Objective and Scope may
+    | overlap; Turnover runs at least a month. The amount is zero and the
+    | dates blank until the client sets them, so nothing here asserts a price
+    | or a deadline nobody agreed.
     |
     */
 
-    'default_milestones' => ['Turnover'],
+    'default_milestones' => ['Objective', 'Scope', 'Turnover'],
 
     /*
     |--------------------------------------------------------------------------

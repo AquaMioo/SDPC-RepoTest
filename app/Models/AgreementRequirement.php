@@ -11,15 +11,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * One line a party added to an optional section of the Memorandum of Agreement.
+ * One entry a party added to the Memorandum of Agreement.
  *
  * Appended after the section's base wording, on screen and on the printed
- * copy. Only its author may change or remove it, and only until somebody signs
- * (AgreementPolicy::changeRequirement).
+ * copy. In Section VII ('services') the title is the Objective and the body
+ * the Scope; elsewhere there is only the body. Only its author may change or
+ * remove it, and only until somebody signs (AgreementPolicy::changeRequirement).
  *
  * @property int $id
  * @property int $agreement_id
  * @property MemorandumSection $section
+ * @property string|null $title
  * @property int|null $user_id
  * @property string $body
  * @property Carbon|null $created_at
@@ -27,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property-read Agreement $agreement
  * @property-read User|null $author
  */
-#[Fillable(['agreement_id', 'section', 'user_id', 'body'])]
+#[Fillable(['agreement_id', 'section', 'title', 'user_id', 'body'])]
 class AgreementRequirement extends Model
 {
     /** @use HasFactory<AgreementRequirementFactory> */

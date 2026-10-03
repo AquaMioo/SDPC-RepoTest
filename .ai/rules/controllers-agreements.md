@@ -6,7 +6,7 @@ paths:
 # Controllers Agreements
 
 ## Milestone positions: never write a position somebody else still holds
-agreement_milestones is unique on (agreement_id, position). The client's form no longer reorders phases (AgreementController::scheduleMilestones writes dates only). ServiceDescriptionController adds a Section VII service by moving Turnover up one FIRST and then taking its old position, and on delete steps every later row down one at a time, lowest first. Any new code that renumbers must free a position before something claims it.
+agreement_milestones is unique on (agreement_id, position). The client's form no longer reorders, adds or drops phases (AgreementController::scheduleMilestones writes dates only), and Section VII services are requirement rows, not phases, so nothing renumbers phases today. Any new code that renumbers must free a position before something claims it.
 
 Both route models must be declared on AgreementMilestoneController::update, in URL order: (Request, Team $currentTeam, Agreement $agreement, AgreementMilestone $milestone). Omit $agreement and Laravel fills positionally, putting the agreement id into $milestone as a string.
 

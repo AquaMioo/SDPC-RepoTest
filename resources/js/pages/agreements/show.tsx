@@ -248,7 +248,8 @@ export default function AgreementShow({ agreement }: Props) {
                             /*
                              * The memorandum's Section VII: each service is an
                              * objective and its scope, added by either party on
-                             * the memorandum itself, and each is a phase.
+                             * the memorandum itself. They are not phases: the
+                             * phases are Objective, Scope and Turnover.
                              */
                             <>
                                 {services.length === 0 ? (
@@ -371,9 +372,9 @@ export default function AgreementShow({ agreement }: Props) {
                          * `amount: 0` for every row), so pricing comes back by
                          * restoring this card rather than by a migration.
                          *
-                         * Read-only, editing or not: each phase is a Section VII
-                         * service named by whoever added it on the memorandum,
-                         * and Turnover is always last.
+                         * Read-only, editing or not: the phases are Objective,
+                         * Scope and Turnover (always last). The Section VII
+                         * services fill the first two once the work starts.
                          */}
                         <CardHeading icon={<FlagIcon />} label="Milestones" />
 
@@ -526,7 +527,7 @@ export default function AgreementShow({ agreement }: Props) {
                             /*
                              * The SDPC memorandum: the wording is fixed, the
                              * additions (and the Section VII services, which
-                             * are these phases) are made on the memorandum
+                             * fill the Objective and Scope phases) are made on the memorandum
                              * itself by either party. What this form sets is
                              * the timeline.
                              */
@@ -541,8 +542,11 @@ export default function AgreementShow({ agreement }: Props) {
                                 Agreement. Here you set the dates of each phase:
                                 every date falls between today and one year from
                                 today, and Turnover runs at least one month. The
-                                phases themselves are the Section VII services,
-                                which you and the student add on the memorandum.
+                                Objective and Scope phases may overlap. When the
+                                work starts, each Section VII service you and
+                                the student add on the memorandum puts its
+                                objective in the Objective phase and its scope
+                                in the Scope phase.
                             </p>
                         ) : agreement.template === 'memorandum' ? (
                             /*

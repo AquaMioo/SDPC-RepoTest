@@ -11,10 +11,11 @@ namespace App\Enums;
  * added an entry may change or remove it.
  *
  * Section VII is the one that must have entries: no signature is accepted
- * until it describes at least one service. Its entries are the agreement's
- * phases themselves (agreement_milestones before Turnover: the title is the
- * Objective, the description the Scope), which is how they reach Project
- * Management. The other sections keep their entries in agreement_requirements.
+ * until it describes at least one service, an Objective (the row's title)
+ * with its Scope (the body). Every section keeps its entries in
+ * agreement_requirements. Section VII never adds a phase: when the agreement
+ * starts, each objective becomes a task in the Objective phase and each scope
+ * a task in the Scope phase (SeedServiceTasks).
  */
 enum MemorandumSection: string
 {
@@ -45,7 +46,8 @@ enum MemorandumSection: string
     }
 
     /**
-     * The sections whose entries are stored in agreement_requirements.
+     * The sections that take a single line through "Add requirement".
+     * Section VII takes an Objective and a Scope through its own modal.
      *
      * @return list<self>
      */

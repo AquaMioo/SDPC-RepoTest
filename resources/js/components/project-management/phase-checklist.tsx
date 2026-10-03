@@ -236,7 +236,6 @@ export function PhaseChecklist({
                         marginRight: 'auto',
                     }}
                 >
-                    {phase.isTurnover ? '' : 'Objective · '}
                     {phase.title}
                 </span>
                 <span style={{ fontSize: 11.5, color: MUTED(55) }}>
@@ -247,22 +246,6 @@ export function PhaseChecklist({
                     {shortDate(phase.startsOn)} – {shortDate(phase.endsOn)}
                 </span>
             </div>
-
-            {/* The Section VII scope this objective was agreed with. */}
-            {!phase.isTurnover && phase.description && (
-                <p
-                    style={{
-                        margin: 0,
-                        fontSize: 12.5,
-                        lineHeight: 1.55,
-                        color: MUTED(68),
-                        whiteSpace: 'pre-line',
-                    }}
-                >
-                    <span style={{ color: MUTED(55) }}>Scope · </span>
-                    {phase.description}
-                </p>
-            )}
 
             {phase.isTurnover && finalDeadline && (
                 <FinalDeadlineBar

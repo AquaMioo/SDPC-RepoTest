@@ -5,7 +5,6 @@ namespace Tests\Feature\Agreements;
 use App\Actions\Agreements\DraftAgreement;
 use App\Actions\Agreements\SummariseProgress;
 use App\Actions\Agreements\SupersedeAgreement;
-use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
 use App\Enums\ApplicationStatus;
@@ -13,7 +12,6 @@ use App\Enums\MemorandumSection;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskStatus;
 use App\Models\Agreement;
-use App\Models\AgreementMilestone;
 use App\Models\AgreementRequirement;
 use App\Models\AgreementTask;
 use App\Models\Application;
@@ -27,12 +25,15 @@ use Tests\TestCase;
 /**
  * The SDPC Memorandum of Agreement.
  *
- * Sections I to X in the template's wording, the blanks filled from the
- * agreement (CA1 the client, CA2 the student representative, the Description
- * of Services the project title). Either party adds to the optional sections
- * and to Section VII, which is required and whose services are the project's
- * phases. Only the author changes an addition, and everything locks at the
- * first signature.
+ * Sections I to X in the template's wording, every part numbered, the blanks
+ * filled from the agreement: CA1 is the Client Representative (the client
+ * account's name), CA2 the Student Representative (the student account's
+ * name), the Description of Services the project title. Either party adds to
+ * the optional sections and to Section VII, which is required. Section VII
+ * never adds a phase: the phases are Objective, Scope and Turnover, and when
+ * the work starts each objective becomes a task in Objective and each scope a
+ * task in Scope. Only the author changes an addition, and everything locks at
+ * the first signature.
  *
  * Routes are pinned with an explicit current_team; see .ai/rules/feature.md.
  */
@@ -45,8 +46,8 @@ class SdpcMemorandumTest extends TestCase
         [$owner, $student, $agreement] = $this->agreement();
 
         $this->assertSame(AgreementTemplate::SdpcMemorandum, $agreement->template);
-        /* Design and Build are gone: Turnover alone until Section VII adds services. */
-        $this->assertSame(['Turnover'], $agreement->milestones->pluck('title')->all());
+        /* Design and Build are gone; the phases are Objective, Scope and Turnover. */
+        $this->assertSame(['Objective', 'Scope', 'Turnover'], $agreement->milestones->pluck('title')->all());
 
         foreach ([$owner, $student] as $reader) {
             $this->actingAs($reader)
@@ -57,27 +58,79 @@ class SdpcMemorandumTest extends TestCase
                     ->where('agreement.template', 'sdpc_moa')
                     ->where('agreement.memorandum', null)
                     ->where('agreement.moa.title', 'MEMORANDUM OF AGREEMENT (MOA)')
-                    ->where('agreement.moa.ca1', 'Northwind Trading')
+                    /* CA1 and CA2 are the two accounts' names, never the company. */
+                    ->where('agreement.moa.ca1', $owner->name)
                     ->where('agreement.moa.ca2', $student->name)
-                    ->where('agreement.moa.ca1Representative', 'Maria Santos')
+                    ->where('agreement.moa.ca1Representative', $owner->name)
                     ->where('agreement.moa.ca2Representative', $student->name)
                     ->where('agreement.moa.services', 'Inventory Portal')
                     ->has('agreement.moa.sections', 10)
                     ->where('agreement.moa.sections.0.heading', 'PARTIES')
-                    ->where('agreement.moa.sections.0.blocks.0.text', 'The parties to this MOA are the CONTRACTING AGENCY, **Northwind Trading**, hereafter referenced as "CA1" and the CUSTOMER AGENCY, **'.$student->name.'**, referenced as "CA2".')
-                    ->where('agreement.moa.sections.2.blocks.0.items.1', 'CA2 designates **'.$student->name.'** as having the final authority on all policy or procedural matters pertaining to CA2.')
-                    ->where('agreement.moa.sections.2.blocks.0.items.3', '**Maria Santos** at CA1 and **'.$student->name.'** at CA2 will be the Contract Administrators for this MOA.')
-                    ->where('agreement.moa.sections.4.blocks.1.items.0', 'Offer training and meetings as necessary to meet the needs of CA2 in order to enhance effectiveness of **Inventory Portal** provided per this MOA.')
+                    ->where('agreement.moa.sections.0.blocks.0.type', 'numbered')
+                    ->where('agreement.moa.sections.0.blocks.0.items.0.text', 'The parties to this MOA are the CONTRACTING AGENCY, **'.$owner->name.'**, hereafter referenced as "CA1" and the CUSTOMER AGENCY, **'.$student->name.'**, referenced as "CA2".')
+                    ->where('agreement.moa.sections.2.blocks.0.items.1.text', 'CA2 designates **'.$student->name.'** as having the final authority on all policy or procedural matters pertaining to CA2.')
+                    ->where('agreement.moa.sections.2.blocks.0.items.3.text', '**'.$owner->name.'** at CA1 and **'.$student->name.'** at CA2 will be the Contract Administrators for this MOA.')
+                    ->where('agreement.moa.sections.4.blocks.1.items.0.text', 'Offer training and meetings as necessary to meet the needs of CA2 in order to enhance effectiveness of **Inventory Portal** provided per this MOA.')
                     ->where('agreement.moa.sections.6.key', 'services')
                     ->where('agreement.moa.sections.6.addition.isRequired', true)
                     ->where('agreement.moa.sections.3.addition.isRequired', false)
                     ->where('agreement.moa.sections.9.heading', 'EFFECTIVE DATE AND SIGNATURE')
-                    ->where('agreement.moa.signatories.client.printName', 'Maria Santos')
+                    ->where('agreement.moa.signatories.client.printName', $owner->name)
                     ->where('agreement.moa.signatories.client.title', 'Client Representative')
                     ->where('agreement.moa.signatories.student.title', 'Student Representative')
                     ->where('agreement.moa.signatories.student.signedOn', null)
                     ->where('agreement.viewer.canAddRequirements', true));
         }
+    }
+
+    /**
+     * Every part of every section is numbered like the template's lists, so
+     * no two parts read as one run of text. Only the IV-VI lead-in lines
+     * stay unnumbered, as in the template.
+     */
+    public function test_every_part_of_every_section_is_numbered(): void
+    {
+        [$owner, , $agreement] = $this->agreement();
+
+        $this->actingAs($owner)
+            ->get($this->url('agreements.contract', $owner, $agreement))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('agreement.moa.sections', function ($sections): bool {
+                    $sections = collect($sections);
+                    $types = $sections->mapWithKeys(fn ($section) => [$section['numeral'] => collect($section['blocks'])->pluck('type')->all()]);
+
+                    $this->assertSame([
+                        'I' => ['numbered'],
+                        'II' => ['numbered'],
+                        'III' => ['numbered'],
+                        'IV' => ['paragraph', 'numbered'],
+                        'V' => ['paragraph', 'numbered'],
+                        'VI' => ['paragraph', 'numbered'],
+                        'VII' => [],
+                        'VIII' => ['numbered'],
+                        'IX' => ['numbered'],
+                        'X' => ['numbered'],
+                    ], $types->all());
+
+                    $viii = $sections->firstWhere('numeral', 'VIII');
+                    $this->assertCount(3, $viii['blocks'][0]['items']);
+                    /* VIII.2 carries its own a.-e. list. */
+                    $this->assertSame([], $viii['blocks'][0]['items'][0]['lettered']);
+                    $this->assertCount(5, $viii['blocks'][0]['items'][1]['lettered']);
+                    $this->assertSame('Cause(s) of the breach incident', $viii['blocks'][0]['items'][1]['lettered'][0]);
+
+                    $ix = $sections->firstWhere('numeral', 'IX');
+                    $this->assertCount(3, $ix['blocks'][0]['items']);
+                    $this->assertStringStartsWith('**Termination:**', $ix['blocks'][0]['items'][1]['text']);
+
+                    /* Additions continue the numbering in every open section. */
+                    foreach (['IV', 'V', 'VI', 'VIII', 'IX'] as $numeral) {
+                        $this->assertSame('numbered', $sections->firstWhere('numeral', $numeral)['addition']['as']);
+                    }
+                    $this->assertSame('services', $sections->firstWhere('numeral', 'VII')['addition']['as']);
+
+                    return true;
+                }));
     }
 
     /**
@@ -103,15 +156,40 @@ class SdpcMemorandumTest extends TestCase
                 }));
     }
 
-    public function test_ca1_is_the_representative_when_the_client_has_no_company_name(): void
+    /**
+     * CA1 is the client account's name: not the company name, not the
+     * profile's representative field. The poster of the project, or the
+     * business's owner account once the poster is gone.
+     */
+    public function test_ca1_is_the_client_account_name(): void
     {
         [$owner, , $agreement] = $this->agreement();
-        $owner->currentTeam->clientProfile->update(['business_name' => '']);
+
+        $this->assertSame('Northwind Trading', $owner->currentTeam->clientProfile->business_name);
+        $this->assertSame('Maria Santos', $owner->currentTeam->clientProfile->owner_name);
 
         $this->actingAs($owner)
             ->get($this->url('agreements.contract', $owner, $agreement))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('agreement.moa.ca1', 'Maria Santos'));
+                ->where('agreement.moa.ca1', $owner->name)
+                ->where('agreement.moa.ca1Representative', $owner->name));
+
+        /* A teammate posted it: their account is the representative. */
+        $poster = User::factory()->client()->create(['name' => 'Rafael Cruz']);
+        $agreement->project->update(['created_by' => $poster->id]);
+
+        $this->actingAs($owner)
+            ->get($this->url('agreements.contract', $owner, $agreement))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('agreement.moa.ca1', 'Rafael Cruz'));
+
+        /* The poster's account is gone: the business's owner account. */
+        $agreement->project->update(['created_by' => null]);
+
+        $this->actingAs($owner)
+            ->get($this->url('agreements.contract', $owner, $agreement))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('agreement.moa.ca1', $owner->name));
     }
 
     public function test_both_parties_add_requirements_and_only_the_author_may_change_one(): void
@@ -128,6 +206,7 @@ class SdpcMemorandumTest extends TestCase
             ->get($this->url('agreements.contract', $owner, $agreement))
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('agreement.moa.sections.3.entries.0.body', 'Attend the weekly stand-up.')
+                ->where('agreement.moa.sections.3.entries.0.title', null)
                 ->where('agreement.moa.sections.3.entries.0.authorSide', 'client')
                 ->where('agreement.moa.sections.3.entries.0.canChange', true)
                 ->where('agreement.moa.sections.8.entries.0.body', 'Source code is handed over on a USB drive.')
@@ -191,41 +270,46 @@ class SdpcMemorandumTest extends TestCase
     }
 
     /**
-     * Each Section VII service is a phase, written before Turnover, so
-     * Turnover stays the last phase whatever is added or removed.
+     * Section VII never adds a phase: its services are kept with the other
+     * additions, and the phases stay Objective, Scope and Turnover.
      */
-    public function test_a_service_becomes_a_phase_before_turnover(): void
+    public function test_a_service_is_kept_in_section_vii_and_never_adds_a_phase(): void
     {
         [$owner, $student, $agreement] = $this->agreement();
 
         $this->addService($owner, $agreement, 'Inventory module', 'Stock, suppliers and reorder alerts.');
         $this->addService($student, $agreement, 'Reports module', 'Monthly sales and stock reports.');
 
-        $phases = $agreement->refresh()->milestones;
+        $this->assertSame(['Objective', 'Scope', 'Turnover'], $agreement->refresh()->milestones->pluck('title')->all());
 
-        $this->assertSame(['Inventory module', 'Reports module', 'Turnover'], $phases->pluck('title')->all());
-        $this->assertSame([1, 2, 3], $phases->pluck('position')->all());
-        $this->assertSame('Stock, suppliers and reorder alerts.', $phases[0]->description);
-        $this->assertSame($owner->id, $phases[0]->added_by);
-        $this->assertSame($student->id, $phases[1]->added_by);
-        $this->assertNull($phases[2]->added_by);
+        $services = $agreement->services()->get();
+        $this->assertSame(['Inventory module', 'Reports module'], $services->pluck('title')->all());
+        $this->assertSame(['Stock, suppliers and reorder alerts.', 'Monthly sales and stock reports.'], $services->pluck('body')->all());
+        $this->assertSame([$owner->id, $student->id], $services->pluck('user_id')->all());
 
-        /* Removing the first closes the gap; Turnover is still last. */
+        $this->actingAs($student)
+            ->get($this->url('agreements.contract', $student, $agreement))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('agreement.moa.sections.6.entries', 2)
+                ->where('agreement.moa.sections.6.entries.0.title', 'Inventory module')
+                ->where('agreement.moa.sections.6.entries.0.body', 'Stock, suppliers and reorder alerts.')
+                ->where('agreement.moa.sections.6.entries.0.canChange', false)
+                ->where('agreement.moa.sections.6.entries.1.canChange', true));
+
         $this->actingAs($owner)
-            ->delete($this->url('agreements.services.destroy', $owner, $agreement, ['service' => $phases[0]]))
+            ->delete($this->url('agreements.services.destroy', $owner, $agreement, ['service' => $services->first()]))
             ->assertRedirect();
 
-        $after = $agreement->refresh()->milestones;
-        $this->assertSame(['Reports module', 'Turnover'], $after->pluck('title')->all());
-        $this->assertSame([1, 2], $after->pluck('position')->all());
+        $this->assertSame(['Reports module'], $agreement->services()->pluck('title')->all());
+        $this->assertSame(3, $agreement->milestones()->count());
     }
 
-    public function test_only_the_author_changes_a_service_and_turnover_is_never_one(): void
+    public function test_only_the_author_changes_a_service(): void
     {
         [$owner, $student, $agreement] = $this->agreement();
 
         $this->addService($owner, $agreement, 'Inventory module', 'Stock and suppliers.');
-        [$service, $turnover] = $agreement->refresh()->milestones;
+        $service = $agreement->services()->firstOrFail();
 
         $this->actingAs($student)
             ->patch($this->url('agreements.services.update', $student, $agreement, ['service' => $service]), ['objective' => 'Hijacked', 'scope' => 'x'])
@@ -234,22 +318,33 @@ class SdpcMemorandumTest extends TestCase
             ->delete($this->url('agreements.services.destroy', $student, $agreement, ['service' => $service]))
             ->assertForbidden();
 
-        foreach ([$owner, $student] as $party) {
-            $this->actingAs($party)
-                ->patch($this->url('agreements.services.update', $party, $agreement, ['service' => $turnover]), ['objective' => 'Renamed', 'scope' => 'x'])
-                ->assertForbidden();
-            $this->actingAs($party)
-                ->delete($this->url('agreements.services.destroy', $party, $agreement, ['service' => $turnover]))
-                ->assertForbidden();
-        }
-
         $this->actingAs($owner)
             ->patch($this->url('agreements.services.update', $owner, $agreement, ['service' => $service]), ['objective' => 'Inventory and suppliers', 'scope' => 'Stock, suppliers and purchase orders.'])
             ->assertSessionHasNoErrors();
 
         $this->assertSame('Inventory and suppliers', $service->fresh()->title);
-        $this->assertSame('Stock, suppliers and purchase orders.', $service->fresh()->description);
-        $this->assertSame('Turnover', $turnover->fresh()->title);
+        $this->assertSame('Stock, suppliers and purchase orders.', $service->fresh()->body);
+    }
+
+    /**
+     * The services routes only reach Section VII: a line in another section,
+     * even the user's own, is not a service.
+     */
+    public function test_the_services_routes_only_reach_section_vii(): void
+    {
+        [$owner, , $agreement] = $this->agreement();
+        $this->addRequirement($owner, $agreement, MemorandumSection::Joint, 'Meet every Friday.');
+        $line = AgreementRequirement::query()->firstOrFail();
+
+        $this->actingAs($owner)
+            ->patch($this->url('agreements.services.update', $owner, $agreement, ['service' => $line]), ['objective' => 'x', 'scope' => 'y'])
+            ->assertForbidden();
+        $this->actingAs($owner)
+            ->delete($this->url('agreements.services.destroy', $owner, $agreement, ['service' => $line]))
+            ->assertNotFound();
+
+        $this->assertSame('Meet every Friday.', $line->fresh()->body);
+        $this->assertNull($line->fresh()->title);
     }
 
     public function test_a_service_needs_both_an_objective_and_a_scope(): void
@@ -263,7 +358,11 @@ class SdpcMemorandumTest extends TestCase
                 'scope' => 'Describe the scope of the service.',
             ]);
 
-        $this->assertSame(1, $agreement->milestones()->count());
+        $this->actingAs($owner)
+            ->post($this->url('agreements.services.store', $owner, $agreement), ['objective' => str_repeat('a', 121), 'scope' => str_repeat('b', 2001)])
+            ->assertSessionHasErrors(['objective', 'scope']);
+
+        $this->assertSame(0, $agreement->services()->count());
     }
 
     /**
@@ -273,7 +372,7 @@ class SdpcMemorandumTest extends TestCase
     public function test_neither_party_can_sign_while_section_vii_is_empty(): void
     {
         [$owner, $student, $agreement] = $this->agreement();
-        $this->dateTurnover($agreement);
+        $this->datePhases($agreement);
 
         $message = 'Section VII. Description of Services needs at least one service (an objective and its scope) before this agreement can be signed.';
 
@@ -290,9 +389,8 @@ class SdpcMemorandumTest extends TestCase
 
         $this->assertSame(0, $agreement->signatures()->count());
 
-        /* One service, dated, and both may sign: the second signature starts the work. */
+        /* One service, and both may sign: the second signature starts the work. */
         $this->addService($student, $agreement, 'Inventory module', 'Stock and suppliers.');
-        $this->dateServices($agreement);
 
         $this->actingAs($owner)
             ->get($this->url('agreements.show', $owner, $agreement))
@@ -308,35 +406,30 @@ class SdpcMemorandumTest extends TestCase
         $this->assertSame(AgreementStatus::Active, $agreement->fresh()->status);
     }
 
-    public function test_a_service_without_its_scope_blocks_signing(): void
+    public function test_a_service_without_its_objective_or_scope_blocks_signing(): void
     {
         [$owner, , $agreement] = $this->agreement();
-        $this->dateTurnover($agreement);
+        $this->datePhases($agreement);
 
-        /* A phase from before the SDPC memorandum: a name, no scope, no author. */
-        $turnover = $agreement->milestones->last();
-        $turnover->update(['position' => 2]);
-        AgreementMilestone::factory()->create([
-            'agreement_id' => $agreement->id,
-            'position' => 1,
-            'title' => 'Design',
-            'description' => null,
-            'starts_on' => now()->toDateString(),
-            'ends_on' => now()->addWeek()->toDateString(),
-        ]);
+        /* Carried over from the first SDPC version with no scope written. */
+        $agreement->requirements()->create(['section' => MemorandumSection::Services, 'title' => 'Design', 'body' => '']);
 
         $this->actingAs($owner)
             ->post($this->url('agreements.signatures.store', $owner, $agreement), $this->signature($owner->name))
-            ->assertSessionHasErrors(['signed_name' => 'Every service in Section VII needs its scope before this agreement can be signed.']);
+            ->assertSessionHasErrors(['signed_name' => 'Every service in Section VII needs its objective and its scope before this agreement can be signed.']);
     }
 
-    public function test_a_turnover_shorter_than_a_month_blocks_signing(): void
+    public function test_every_phase_needs_dates_and_turnover_a_month_before_signing(): void
     {
         [$owner, , $agreement] = $this->agreement();
         $this->addService($owner, $agreement, 'Inventory module', 'Stock and suppliers.');
-        $this->dateServices($agreement);
 
-        $agreement->refresh()->milestones->last()->update([
+        $this->actingAs($owner)
+            ->post($this->url('agreements.signatures.store', $owner, $agreement), $this->signature($owner->name))
+            ->assertSessionHasErrors(['signed_name' => 'Every milestone needs an end date before this agreement can be signed.']);
+
+        $this->datePhases($agreement);
+        $agreement->refresh()->turnoverPhase()->update([
             'starts_on' => now()->addWeeks(3)->toDateString(),
             'ends_on' => now()->addWeeks(5)->toDateString(),
         ]);
@@ -354,10 +447,10 @@ class SdpcMemorandumTest extends TestCase
         [$owner, $student, $agreement] = $this->agreement();
         $this->addRequirement($owner, $agreement, MemorandumSection::Joint, 'Meet every Friday.');
         $this->addService($owner, $agreement, 'Inventory module', 'Stock and suppliers.');
-        $this->dateServices($agreement);
+        $this->datePhases($agreement);
 
-        $requirement = AgreementRequirement::query()->firstOrFail();
-        $service = $agreement->refresh()->milestones->first();
+        $requirement = $agreement->requirements()->where('section', MemorandumSection::Joint)->firstOrFail();
+        $service = $agreement->services()->firstOrFail();
 
         $this->actingAs($student)
             ->post($this->url('agreements.signatures.store', $student, $agreement), $this->signature($student->name))
@@ -384,6 +477,7 @@ class SdpcMemorandumTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('agreement.viewer.canAddRequirements', false)
                 ->where('agreement.moa.sections.5.entries.0.canChange', false)
+                ->where('agreement.moa.sections.6.entries.0.canChange', false)
                 ->where('agreement.moa.signatories.student.printName', $student->name)
                 ->where('agreement.moa.signatories.student.signedOn', now()->format('F j, Y')));
     }
@@ -450,32 +544,113 @@ class SdpcMemorandumTest extends TestCase
 
         $successor = app(SupersedeAgreement::class)->handle($agreement->fresh(), $student, 'Please add a reports module.');
 
-        $this->assertSame(['Inventory module', 'Turnover'], $successor->milestones->pluck('title')->all());
-        $this->assertSame($owner->id, $successor->milestones->first()->added_by);
-        $this->assertSame('Provide test data.', $successor->requirements()->firstOrFail()->body);
-        $this->assertSame($student->id, $successor->requirements()->firstOrFail()->user_id);
+        $this->assertSame(['Objective', 'Scope', 'Turnover'], $successor->milestones->pluck('title')->all());
+
+        $service = $successor->services()->firstOrFail();
+        $this->assertSame('Inventory module', $service->title);
+        $this->assertSame('Stock and suppliers.', $service->body);
+        $this->assertSame($owner->id, $service->user_id);
+
+        $line = $successor->requirements()->where('section', MemorandumSection::ContractingAgency)->firstOrFail();
+        $this->assertSame('Provide test data.', $line->body);
+        $this->assertSame($student->id, $line->user_id);
     }
 
     /**
-     * Project Monitoring reads the Objective and Scope straight from the
-     * Section VII entries: no Design or Build.
+     * When the work starts, every objective lands in the Objective phase and
+     * every scope in the Scope phase: two separate tasks, never one, and
+     * never a phase of their own.
      */
-    public function test_project_management_shows_each_service_as_objective_and_scope(): void
+    public function test_project_management_gets_each_objective_and_each_scope_separately(): void
     {
-        [$owner, $student, $agreement] = $this->signedAgreement();
+        [, $student, $agreement] = $this->signedAgreement();
 
         $this->actingAs($student)
             ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->has('agreement.phases', 3)
-                ->where('agreement.phases.0.title', 'Inventory module')
-                ->where('agreement.phases.0.description', 'Stock and suppliers.')
-                ->where('agreement.phases.0.isTurnover', false)
-                ->where('agreement.phases.1.title', 'Reports module')
-                ->where('agreement.phases.1.description', 'Monthly reports.')
+                ->where('agreement.phases.0.title', 'Objective')
+                ->where('agreement.phases.1.title', 'Scope')
                 ->where('agreement.phases.2.title', 'Turnover')
-                ->where('agreement.phases.2.isTurnover', true));
+                ->where('agreement.phases.2.isTurnover', true)
+                ->has('agreement.phases.0.tasks', 2)
+                ->where('agreement.phases.0.tasks.0.title', 'Inventory module')
+                ->where('agreement.phases.0.tasks.1.title', 'Reports module')
+                ->has('agreement.phases.1.tasks', 2)
+                ->where('agreement.phases.1.tasks.0.title', 'Stock and suppliers.')
+                ->where('agreement.phases.1.tasks.1.title', 'Monthly reports.')
+                ->has('agreement.phases.2.tasks', 0)
+                ->where('agreement.phases.0.tasks.0.status', 'open'));
+    }
+
+    /**
+     * The tasks are seeded once, by the second signature: the first changes
+     * nothing in the phases, and an agreement in an earlier wording gets none.
+     */
+    public function test_the_tasks_are_seeded_once_and_only_for_the_sdpc_memorandum(): void
+    {
+        [$owner, $student, $agreement] = $this->agreement();
+        $this->addService($owner, $agreement, 'Inventory module', 'Stock and suppliers.');
+        $this->datePhases($agreement);
+
+        $this->actingAs($owner)
+            ->post($this->url('agreements.signatures.store', $owner, $agreement), $this->signature($owner->name))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(0, AgreementTask::query()->count());
+
+        $this->actingAs($student)
+            ->post($this->url('agreements.signatures.store', $student, $agreement), $this->signature($student->name))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(2, AgreementTask::query()->count());
+
+        /* Signing again is refused, so nothing is seeded twice. */
+        $this->actingAs($student)
+            ->post($this->url('agreements.signatures.store', $student, $agreement), $this->signature($student->name))
+            ->assertForbidden();
+        $this->assertSame(2, AgreementTask::query()->count());
+
+        /* The earlier wording has no Section VII: neither services nor seeded tasks. */
+        [$owner, $student, $earlier] = $this->agreement();
+        $earlier->update(['template' => AgreementTemplate::Memorandum]);
+
+        $this->actingAs($owner)
+            ->post($this->url('agreements.services.store', $owner, $earlier), ['objective' => 'x', 'scope' => 'y'])
+            ->assertForbidden();
+
+        $earlier->requirements()->create(['section' => MemorandumSection::Services, 'title' => 'Stray', 'body' => 'Stray']);
+        $this->datePhases($earlier);
+        $this->signBoth($owner, $student, $earlier);
+
+        $this->assertSame(AgreementStatus::Active, $earlier->fresh()->status);
+        $this->assertSame(0, $earlier->fresh()->taskCount() + $earlier->fresh()->turnoverPhase()->tasks()->count());
+    }
+
+    /**
+     * A long scope arrives whole, and the student can still give its task a
+     * first deadline without the title being refused.
+     */
+    public function test_a_long_scope_arrives_whole_and_its_task_can_be_edited(): void
+    {
+        $scope = 'To address the difficulty of client acquisition of tertiary students, the system will feature a dedicated platform where students and local clients can connect directly minimizing the need for relying on personal referrals and traditional client developer acquisition methods.';
+        $this->assertGreaterThan(255, strlen($scope));
+
+        [$owner, $student, $agreement] = $this->agreement();
+        $this->addService($owner, $agreement, 'To design and develop a system that addresses the difficulty of client acquisition of tertiary students', $scope);
+        $this->datePhases($agreement);
+        $this->signBoth($owner, $student, $agreement);
+
+        $task = $agreement->fresh()->milestones[1]->tasks()->firstOrFail();
+        $this->assertSame($scope, $task->title);
+
+        $this->actingAs($student)
+            ->patch(route('agreements.tasks.update', ['current_team' => $student->currentTeam, 'agreement' => $agreement, 'task' => $task]), [
+                'title' => $scope,
+                'due_on' => now()->addWeek()->toDateString(),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(now()->addWeek()->toDateString(), $task->fresh()->due_on->toDateString());
     }
 
     /**
@@ -484,79 +659,98 @@ class SdpcMemorandumTest extends TestCase
      */
     public function test_turnover_is_left_out_of_the_progress_figure(): void
     {
-        [$owner, $student, $agreement] = $this->signedAgreement();
-        [$inventory, $reports, $turnover] = $agreement->milestones;
+        [$owner, , $agreement] = $this->signedAgreement();
+        [$objective, , $turnover] = $agreement->milestones;
 
-        AgreementTask::factory()->create(['agreement_milestone_id' => $inventory->id, 'status' => TaskStatus::Verified]);
-        AgreementTask::factory()->create(['agreement_milestone_id' => $reports->id, 'status' => TaskStatus::Open]);
+        /* The four seeded tasks (two objectives, two scopes): one verified. */
+        $objective->tasks()->first()->update(['status' => TaskStatus::Verified]);
         /* Turnover: one verified, two open. None of them may move the figure. */
         AgreementTask::factory()->create(['agreement_milestone_id' => $turnover->id, 'status' => TaskStatus::Verified]);
         AgreementTask::factory()->count(2)->create(['agreement_milestone_id' => $turnover->id, 'status' => TaskStatus::Open]);
 
         $agreement = $agreement->fresh();
 
-        $this->assertSame(50, $agreement->progress());
-        $this->assertSame(2, $agreement->taskCount());
+        $this->assertSame(25, $agreement->progress());
+        $this->assertSame(4, $agreement->taskCount());
         $this->assertSame(1, $agreement->verifiedTaskCount());
 
         $summary = app(SummariseProgress::class)->handle($agreement);
-        $this->assertSame(50, $summary['progress']);
-        $this->assertSame(2, $summary['taskCount']);
+        $this->assertSame(25, $summary['progress']);
+        $this->assertSame(4, $summary['taskCount']);
         $this->assertTrue($summary['phases'][2]['isTurnover']);
         $this->assertFalse($summary['phases'][0]['isTurnover']);
 
         $this->actingAs($owner)
             ->get(route('project-management', ['current_team' => $owner->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('agreement.summary.progress', 50)
-                ->where('agreement.summary.taskCount', 2)
+                ->where('agreement.summary.progress', 25)
+                ->where('agreement.summary.taskCount', 4)
                 ->where('agreement.summary.verifiedCount', 1));
     }
 
     /**
-     * Existing agreements nobody signed move to the SDPC memorandum, without
-     * the Design and Build placeholders; signed ones are left as they are.
+     * The first SDPC version made every service a phase. Open agreements, and
+     * active ones with no task written yet, move to Objective, Scope and
+     * Turnover with their services kept in Section VII; anything with work
+     * already tracked, or on another wording, is left alone.
      */
-    public function test_the_migration_moves_only_unsigned_agreements_and_drops_their_placeholders(): void
+    public function test_the_migration_moves_service_phases_into_objective_and_scope(): void
     {
-        [, $student, $signed] = $this->agreement();
-        [, , $unsigned] = $this->agreement();
+        $migration = require database_path('migrations/2026_10_03_134324_move_section_vii_services_into_objective_and_scope.php');
+        $migration->down();
 
-        foreach ([$signed, $unsigned] as $agreement) {
-            $agreement->update(['template' => AgreementTemplate::Memorandum]);
-            $agreement->milestones()->update(['position' => 3, 'starts_on' => now()->addMonth()->toDateString()]);
-            foreach (['Design', 'Build'] as $index => $title) {
-                AgreementMilestone::factory()->create(['agreement_id' => $agreement->id, 'position' => $index + 1, 'title' => $title, 'description' => null]);
-            }
+        [$owner, $student, $draft] = $this->agreement();
+        [, , $active] = $this->agreement();
+        [, , $worked] = $this->agreement();
+        [, , $clauses] = $this->agreement();
+
+        foreach ([$draft, $active, $worked, $clauses] as $agreement) {
+            $agreement->milestones()->delete();
+            DB::table('agreement_milestones')->insert([
+                $this->phaseRow($agreement, 1, 'Inventory module', 'Stock and suppliers.', $owner->id, '2026-11-02', '2026-11-20'),
+                $this->phaseRow($agreement, 2, 'Reports module', 'Monthly reports.', $student->id, '2026-11-10', '2026-12-01'),
+                $this->phaseRow($agreement, 3, 'Turnover', null, null, '2026-12-02', '2027-01-05'),
+            ]);
         }
 
-        $signed->signatures()->create([
-            'user_id' => $student->id,
-            'party' => AgreementParty::Student,
-            'signed_name' => $student->name,
-            'acknowledgements' => array_keys(config('agreements.acknowledgements')),
-            'signed_at' => now(),
-        ]);
-        $signed->update(['status' => AgreementStatus::AwaitingSignatures]);
+        $active->update(['status' => AgreementStatus::Active]);
+        $worked->update(['status' => AgreementStatus::Active]);
+        AgreementTask::factory()->create(['agreement_milestone_id' => $worked->milestones()->first()->id]);
+        $clauses->update(['template' => AgreementTemplate::Clauses]);
 
-        $migration = require database_path('migrations/2026_10_03_033635_adopt_the_sdpc_memorandum_of_agreement.php');
-        $migration->down();
         $migration->up();
 
-        $this->assertSame(AgreementTemplate::SdpcMemorandum, $unsigned->fresh()->template);
-        $this->assertSame(['Turnover'], $unsigned->fresh()->milestones->pluck('title')->all());
-        $this->assertSame([1], $unsigned->fresh()->milestones->pluck('position')->all());
-        /* Turnover keeps the dates it was given. */
-        $this->assertSame(now()->addMonth()->toDateString(), $unsigned->fresh()->milestones->first()->starts_on->toDateString());
+        foreach ([$draft, $active] as $agreement) {
+            $phases = $agreement->fresh()->milestones;
+            $this->assertSame(['Objective', 'Scope', 'Turnover'], $phases->pluck('title')->all());
+            $this->assertSame([1, 2, 3], $phases->pluck('position')->all());
+            /* The two phases span the services' dates; Turnover keeps its own. */
+            $this->assertSame('2026-11-02', $phases[0]->starts_on->toDateString());
+            $this->assertSame('2026-12-01', $phases[1]->ends_on->toDateString());
+            $this->assertSame('2027-01-05', $phases[2]->ends_on->toDateString());
 
-        $this->assertSame(AgreementTemplate::Memorandum, $signed->fresh()->template);
-        $this->assertSame(['Design', 'Build', 'Turnover'], $signed->fresh()->milestones->pluck('title')->all());
-        $this->assertTrue(DB::getSchemaBuilder()->hasColumn('agreement_milestones', 'added_by'));
+            $services = $agreement->services()->get();
+            $this->assertSame(['Inventory module', 'Reports module'], $services->pluck('title')->all());
+            $this->assertSame(['Stock and suppliers.', 'Monthly reports.'], $services->pluck('body')->all());
+            $this->assertSame([$owner->id, $student->id], $services->pluck('user_id')->all());
+        }
+
+        /* Only the active one gets its tasks: objectives in Objective, scopes in Scope. */
+        $this->assertSame(0, $draft->fresh()->taskCount());
+        [$objective, $scope] = $active->fresh()->milestones;
+        $this->assertSame(['Inventory module', 'Reports module'], $objective->tasks()->pluck('title')->all());
+        $this->assertSame(['Stock and suppliers.', 'Monthly reports.'], $scope->tasks()->pluck('title')->all());
+
+        foreach ([$worked, $clauses] as $untouched) {
+            $this->assertSame(['Inventory module', 'Reports module', 'Turnover'], $untouched->fresh()->milestones->pluck('title')->all());
+            $this->assertSame(0, $untouched->services()->count());
+        }
+
     }
 
     /**
-     * A drafted agreement between Northwind Trading (represented by Maria
-     * Santos) and a student, on a posting called Inventory Portal.
+     * A drafted agreement between Northwind Trading (profile representative
+     * Maria Santos) and a student, on a posting the owner account posted.
      *
      * @return array{0: User, 1: User, 2: Agreement}
      */
@@ -569,6 +763,7 @@ class SdpcMemorandumTest extends TestCase
 
         $project = Project::factory()->create([
             'team_id' => $owner->current_team_id,
+            'created_by' => $owner->id,
             'title' => 'Inventory Portal',
             'status' => ProjectStatus::Open,
         ]);
@@ -585,7 +780,7 @@ class SdpcMemorandumTest extends TestCase
     }
 
     /**
-     * Two services, dated, and both signatures: an active agreement.
+     * Two services, dated phases, and both signatures: an active agreement.
      *
      * @return array{0: User, 1: User, 2: Agreement}
      */
@@ -595,15 +790,19 @@ class SdpcMemorandumTest extends TestCase
 
         $this->addService($owner, $agreement, 'Inventory module', 'Stock and suppliers.');
         $this->addService($student, $agreement, 'Reports module', 'Monthly reports.');
-        $this->dateServices($agreement);
+        $this->datePhases($agreement);
+        $this->signBoth($owner, $student, $agreement);
 
+        return [$owner, $student, $agreement->fresh()->load('milestones')];
+    }
+
+    private function signBoth(User $owner, User $student, Agreement $agreement): void
+    {
         foreach ([$owner, $student] as $party) {
             $this->actingAs($party)
                 ->post($this->url('agreements.signatures.store', $party, $agreement), $this->signature($party->name))
                 ->assertSessionHasNoErrors();
         }
-
-        return [$owner, $student, $agreement->fresh()->load('milestones')];
     }
 
     private function addRequirement(User $party, Agreement $agreement, MemorandumSection $section, string $body): void
@@ -621,24 +820,37 @@ class SdpcMemorandumTest extends TestCase
     }
 
     /**
-     * Date every service (they may overlap) and give Turnover a month after them.
+     * Objective and Scope overlap; Turnover follows them for a month.
      */
-    private function dateServices(Agreement $agreement): void
+    private function datePhases(Agreement $agreement): void
     {
-        $agreement->refresh()->servicePhases()->each(fn (AgreementMilestone $service) => $service->update([
-            'starts_on' => now()->toDateString(),
-            'ends_on' => now()->addWeeks(2)->toDateString(),
-        ]));
+        [$objective, $scope, $turnover] = $agreement->refresh()->milestones;
 
-        $this->dateTurnover($agreement);
+        $objective->update(['starts_on' => now()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
+        $scope->update(['starts_on' => now()->addWeek()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
+        $turnover->update(['starts_on' => now()->addWeeks(3)->toDateString(), 'ends_on' => now()->addWeeks(3)->addMonth()->toDateString()]);
     }
 
-    private function dateTurnover(Agreement $agreement): void
+    /**
+     * One agreement_milestones row as the first SDPC version wrote it.
+     *
+     * @return array<string, mixed>
+     */
+    private function phaseRow(Agreement $agreement, int $position, string $title, ?string $description, ?int $addedBy, string $startsOn, string $endsOn): array
     {
-        $agreement->refresh()->turnoverPhase()->update([
-            'starts_on' => now()->addWeeks(3)->toDateString(),
-            'ends_on' => now()->addWeeks(3)->addMonth()->toDateString(),
-        ]);
+        return [
+            'agreement_id' => $agreement->id,
+            'position' => $position,
+            'title' => $title,
+            'description' => $description,
+            'added_by' => $addedBy,
+            'amount' => 0,
+            'starts_on' => $startsOn,
+            'ends_on' => $endsOn,
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
     }
 
     /**

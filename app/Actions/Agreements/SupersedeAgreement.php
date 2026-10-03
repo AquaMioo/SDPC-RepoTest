@@ -58,8 +58,6 @@ class SupersedeAgreement
                     'position' => $milestone->position,
                     'title' => $milestone->title,
                     'description' => $milestone->description,
-                    /* A Section VII entry stays its author's to change. */
-                    'added_by' => $milestone->added_by,
                     'amount' => $milestone->amount,
                     'starts_on' => $milestone->starts_on,
                     'ends_on' => $milestone->ends_on,
@@ -76,10 +74,11 @@ class SupersedeAgreement
                 ]);
             }
 
-            /* What either side added to the memorandum carries across too. */
+            /* What either side added to the memorandum carries across too, Section VII included. */
             foreach ($agreement->requirements as $requirement) {
                 $successor->requirements()->create([
                     'section' => $requirement->section,
+                    'title' => $requirement->title,
                     'user_id' => $requirement->user_id,
                     'body' => $requirement->body,
                 ]);

@@ -37,8 +37,9 @@ class PresentAgreement
     public function handle(Agreement $agreement, User $viewer, ?AgreementParty $party): array
     {
         $agreement->loadMissing([
-            'milestones.author',
+            'milestones',
             'requirements.author',
+            'project.creator',
             'signatures.signatory',
             'project.team.clientProfile',
             'student.studentProfile',
@@ -175,16 +176,10 @@ class PresentAgreement
         $sections = array_map(function (array $section) use ($agreement, $viewer, $fill, $requirements): array {
             $key = $section['section'] ?? null;
 
-            $entries = match (true) {
-                $key === null => [],
-                $key === MemorandumSection::Services->value => $agreement->servicePhases()
-                    ->map(fn (AgreementMilestone $service): array => $this->moaEntry($agreement, $viewer, $service, $service->title, (string) $service->description, $service->author))
-                    ->all(),
-                default => ($requirements[$key] ?? collect())
-                    ->map(fn (AgreementRequirement $requirement): array => $this->moaEntry($agreement, $viewer, $requirement, null, $requirement->body, $requirement->author))
-                    ->values()
-                    ->all(),
-            };
+            $entries = $key === null ? [] : ($requirements[$key] ?? collect())
+                ->map(fn (AgreementRequirement $requirement): array => $this->moaEntry($agreement, $viewer, $requirement))
+                ->values()
+                ->all();
 
             return [
                 'key' => $key,
@@ -194,7 +189,11 @@ class PresentAgreement
                 'blocks' => array_values(array_map(fn (array $block): array => match (true) {
                     isset($block['paragraph']) => ['type' => 'paragraph', 'text' => $fill((string) $block['paragraph'])],
                     isset($block['lettered']) => ['type' => 'lettered', 'items' => array_values(array_map($fill, (array) $block['lettered']))],
-                    default => ['type' => 'numbered', 'items' => array_values(array_map($fill, (array) ($block['numbered'] ?? [])))],
+                    /* A numbered item is its text, or its text with a lettered list under it. */
+                    default => ['type' => 'numbered', 'items' => array_values(array_map(fn (string|array $item): array => is_string($item)
+                        ? ['text' => $fill($item), 'lettered' => []]
+                        : ['text' => $fill((string) $item['text']), 'lettered' => array_values(array_map($fill, (array) ($item['lettered'] ?? [])))],
+                        (array) ($block['numbered'] ?? [])))],
                 }, (array) $section['blocks'])),
                 'addition' => isset($section['addition']) ? [
                     'as' => (string) $section['addition']['as'],
@@ -221,26 +220,27 @@ class PresentAgreement
     /**
      * The legend that fills the memorandum's blanks.
      *
-     * CA1, the Contracting Agency, is the client: its company name, or its
-     * representative when it has none. CA2, the Customer Agency, is the
-     * student representative: the student who signs. The Description of
-     * Services is the capstone/project title.
+     * CA1, the Contracting Agency, is the Client Representative: the name on
+     * the client account that posted the project (the business's owner
+     * account when the poster is gone). CA2, the Customer Agency, is the
+     * Student Representative: the name on the student account. The
+     * Description of Services is the capstone/project title. The same two
+     * names are the individuals Section III and the signature lines name.
      *
      * @return array{ca1: string, ca2: string, ca1Representative: string, ca2Representative: string, services: string}
      */
     protected function moaParties(Agreement $agreement): array
     {
         $team = $agreement->project->team;
-        $profile = $team->clientProfile;
 
-        $representative = filled($profile?->owner_name)
-            ? (string) $profile->owner_name
-            : ($team->owner()?->name ?? $team->name);
+        $client = $agreement->project->creator?->name
+            ?? $team->owner()?->name
+            ?? $team->name;
 
         return [
-            'ca1' => filled($profile?->business_name) ? (string) $profile->business_name : $representative,
+            'ca1' => $client,
             'ca2' => $agreement->student->name,
-            'ca1Representative' => $representative,
+            'ca1Representative' => $client,
             'ca2Representative' => $agreement->student->name,
             'services' => $agreement->project->title,
         ];
@@ -251,12 +251,15 @@ class PresentAgreement
      *
      * @return array{id: int, title: string|null, body: string, authorName: string|null, authorSide: string|null, canChange: bool}
      */
-    protected function moaEntry(Agreement $agreement, User $viewer, AgreementRequirement|AgreementMilestone $entry, ?string $title, string $body, ?User $author): array
+    protected function moaEntry(Agreement $agreement, User $viewer, AgreementRequirement $entry): array
     {
+        $author = $entry->author;
+
         return [
             'id' => $entry->id,
-            'title' => $title,
-            'body' => $body,
+            /* Section VII's Objective; null in every other section. */
+            'title' => $entry->title,
+            'body' => $entry->body,
             'authorName' => $author?->name,
             'authorSide' => $author === null ? null : ($author->id === $agreement->student_id ? 'student' : 'client'),
             'canChange' => $viewer->can('changeRequirement', [$agreement, $entry]),

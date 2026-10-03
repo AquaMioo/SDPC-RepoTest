@@ -55,10 +55,17 @@ export type MoaEntry = {
     canChange: boolean;
 };
 
-/** A run of the school's base wording: a paragraph, or a numbered/lettered list. */
+/** One numbered part of a section, with its own a., b., ... list when it has one. */
+export type MoaNumberedItem = { text: string; lettered: string[] };
+
+/**
+ * A run of the school's base wording: a lead-in paragraph, or a numbered
+ * list (every part of every section is numbered, as the template does).
+ */
 export type MoaBlock =
     | { type: 'paragraph'; text: string }
-    | { type: 'numbered' | 'lettered'; items: string[] };
+    | { type: 'lettered'; items: string[] }
+    | { type: 'numbered'; items: MoaNumberedItem[] };
 
 export type MoaSectionKey =
     | 'customer_agency'

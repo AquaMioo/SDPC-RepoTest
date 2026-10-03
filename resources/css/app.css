@@ -421,8 +421,15 @@ html[data-mod='admin'] {
     padding-left: 0.4em;
 }
 
-.moa-services > li > div + div {
-    margin-top: 2px;
+/* A numbered part's own a., b., ... list, as VIII.2 has. */
+.moa-sublist {
+    margin: 8px 0 0;
+    padding-left: 2em;
+}
+
+.moa-sublist > li {
+    margin-bottom: 4px;
+    padding-left: 0.4em;
 }
 
 .moa-prompt {

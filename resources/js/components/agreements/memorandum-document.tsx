@@ -179,20 +179,38 @@ function SectionBody({
                     );
                 }
 
+                if (block.type === 'lettered') {
+                    return (
+                        <ol key={index} className="moa-list" type="a">
+                            {block.items.map((item) => (
+                                <li key={item}>
+                                    <Bold text={item} />
+                                </li>
+                            ))}
+                        </ol>
+                    );
+                }
+
+                /* Additions continue the section's numbering: IV picks up at 6. */
                 const appended =
                     as === 'numbered' && index === lastNumbered
                         ? section.entries
                         : [];
 
                 return (
-                    <ol
-                        key={index}
-                        className="moa-list"
-                        type={block.type === 'lettered' ? 'a' : '1'}
-                    >
+                    <ol key={index} className="moa-list" type="1">
                         {block.items.map((item) => (
-                            <li key={item}>
-                                <Bold text={item} />
+                            <li key={item.text}>
+                                <Bold text={item.text} />
+                                {item.lettered.length > 0 && (
+                                    <ol className="moa-sublist" type="a">
+                                        {item.lettered.map((letter) => (
+                                            <li key={letter}>
+                                                <Bold text={letter} />
+                                            </li>
+                                        ))}
+                                    </ol>
+                                )}
                             </li>
                         ))}
                         {appended.map((entry) => (
@@ -213,16 +231,17 @@ function SectionBody({
                     </p>
                 ))}
 
+            {/*
+             * Section VII: each service numbered, its Objective in bold and its
+             * Scope straight after it in plain text — no labels.
+             */}
             {as === 'services' && section.entries.length > 0 && (
-                <ol className="moa-list moa-services">
+                <ol className="moa-list moa-services" type="1">
                     {section.entries.map((entry) => (
                         <li key={entry.id}>
-                            <div>
-                                <strong>Objective:</strong> {entry.title}
-                            </div>
-                            <div className="moa-added">
-                                <strong>Scope:</strong> {entry.body}
-                            </div>
+                            <strong>{entry.title}</strong>
+                            {': '}
+                            <span className="moa-added">{entry.body}</span>
                             {controls(entry)}
                         </li>
                     ))}
@@ -299,7 +318,7 @@ function Prompt({
                     {addition.isRequired
                         ? isEmpty
                             ? 'Required: neither side can sign until Section VII describes at least one service.'
-                            : 'Required. Each service is a phase in Project Management.'
+                            : 'Required. When the work starts, each objective goes to the Objective phase and each scope to the Scope phase in Project Management.'
                         : 'Optional. Left out of the printed copy when nothing is added.'}
                 </span>
             </div>

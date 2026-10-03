@@ -40,7 +40,8 @@ type Target = {
  * "Add requirement" and its edit twin, for one section of the memorandum.
  *
  * Section VII asks for a service: an Objective (its title) and a Scope (what
- * it covers), and each becomes a phase in Project Management. Every other
+ * it covers); when the work starts the objective goes to Project Management's
+ * Objective phase and the scope to its Scope phase, separately. Every other
  * section takes one line, appended after the school's own wording. Either
  * way it goes in under the writer's name, and only they may change it.
  */
@@ -122,7 +123,7 @@ export function MemorandumEntryDialog({
                     </DialogTitle>
                     <DialogDescription>
                         {isService
-                            ? 'Name the objective and describe its scope. Each service becomes a phase in Project Management, with the objective as its title and the scope as its description.'
+                            ? 'Name the objective and describe its scope. When the work starts, the objective is added to the Objective phase and the scope to the Scope phase in Project Management, as separate items.'
                             : 'It is added after the section’s own wording, which nobody can change. Only you can edit or remove it, and only until somebody signs.'}
                     </DialogDescription>
                 </DialogHeader>
@@ -201,8 +202,7 @@ export function MemorandumEntryDialog({
 }
 
 /**
- * Confirm removing an entry the reader added. A removed Section VII service
- * also leaves the project's phases.
+ * Confirm removing an entry the reader added.
  */
 export function RemoveEntryDialog({
     open,
@@ -247,7 +247,7 @@ export function RemoveEntryDialog({
                     </DialogTitle>
                     <DialogDescription>
                         {isService
-                            ? 'It leaves Section VII and the project’s phases, along with the dates set for it.'
+                            ? 'Its objective and scope leave Section VII and the printed copy.'
                             : 'It leaves the memorandum and the printed copy.'}
                     </DialogDescription>
                 </DialogHeader>

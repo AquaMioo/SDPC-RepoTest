@@ -29,10 +29,9 @@ class SaveAgreementRequest extends FormRequest
      *
      * Milestones arrive whole rather than one at a time, so the schedule is
      * one negotiation and a half-saved one never reaches the other party.
-     * What the client sets on them is the timeline: each phase's dates. A
-     * phase's name and scope are the Section VII entry its author wrote
-     * (ServiceDescriptionController), so the title sent here is ignored, and
-     * phases are neither added nor removed through this form.
+     * What the client sets on them is the timeline: each phase's dates. The
+     * phases are fixed (Objective, Scope, Turnover), so the title sent here
+     * is ignored, and phases are neither added nor removed through this form.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -69,7 +68,7 @@ class SaveAgreementRequest extends FormRequest
     /**
      * Give Turnover at least a month.
      *
-     * The Section VII phases may overlap one another however the two sides
+     * The Objective and Scope phases may overlap one another however the two sides
      * like. Turnover, the last phase, has to run one calendar month or more,
      * so the hand-over is never squeezed into a few days. The year-long cap
      * on the whole timeline is the date window on every field above.

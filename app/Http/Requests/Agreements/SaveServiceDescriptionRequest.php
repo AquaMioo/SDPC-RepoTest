@@ -2,8 +2,9 @@
 
 namespace App\Http\Requests\Agreements;
 
+use App\Enums\MemorandumSection;
 use App\Models\Agreement;
-use App\Models\AgreementMilestone;
+use App\Models\AgreementRequirement;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -11,16 +12,13 @@ use Illuminate\Validation\Validator;
 
 /**
  * One Section VII service: its Objective (a title) and its Scope (what it
- * covers). Each becomes a phase of the project, before Turnover, which is how
- * the Objective and Scope reach Project Management.
+ * covers). When the agreement starts, the objective becomes a task in the
+ * Objective phase and the scope a task in the Scope phase (SeedServiceTasks).
  */
 class SaveServiceDescriptionRequest extends FormRequest
 {
-    /**
-     * How many services Section VII takes: the schedule holds 12 phases, and
-     * Turnover is always one of them.
-     */
-    public const MAX_SERVICES = 11;
+    /** How many services Section VII takes, so the printed copy stays a contract. */
+    public const MAX_SERVICES = 20;
 
     /**
      * Determine if the user is authorized to make this request.
@@ -37,9 +35,12 @@ class SaveServiceDescriptionRequest extends FormRequest
             return false;
         }
 
-        return $service instanceof AgreementMilestone
-            ? Gate::allows('changeRequirement', [$agreement, $service])
-            : Gate::allows('addRequirements', $agreement);
+        if ($service instanceof AgreementRequirement) {
+            return $service->section === MemorandumSection::Services
+                && Gate::allows('changeRequirement', [$agreement, $service]);
+        }
+
+        return Gate::allows('addRequirements', $agreement);
     }
 
     /**
@@ -56,7 +57,7 @@ class SaveServiceDescriptionRequest extends FormRequest
     }
 
     /**
-     * Keep Section VII within the schedule's twelve phases.
+     * Keep Section VII to a printable length.
      *
      * @return array<int, callable(Validator): void>
      */
@@ -67,12 +68,12 @@ class SaveServiceDescriptionRequest extends FormRequest
                 $agreement = $this->route('agreement');
 
                 if ($validator->errors()->isNotEmpty()
-                    || $this->route('service') instanceof AgreementMilestone
+                    || $this->route('service') instanceof AgreementRequirement
                     || ! $agreement instanceof Agreement) {
                     return;
                 }
 
-                if ($agreement->servicePhases()->count() >= self::MAX_SERVICES) {
+                if ($agreement->services()->count() >= self::MAX_SERVICES) {
                     $validator->errors()->add('objective', __('Section VII takes at most :max services.', ['max' => self::MAX_SERVICES]));
                 }
             },
