@@ -1243,17 +1243,20 @@ export default function Messages({
                                         gap: 10,
                                     }}
                                 >
-                                    {active.messages.length === 0 && (
-                                        <span
-                                            style={{
-                                                fontSize: 12.5,
-                                                color: MUTED(55),
-                                                margin: 'auto',
-                                            }}
-                                        >
-                                            No messages yet. Say hello.
-                                        </span>
-                                    )}
+                                    {/* Not while the thread waits on an
+                                        acceptance: nobody can say hello yet. */}
+                                    {active.messages.length === 0 &&
+                                        !active.chatLock && (
+                                            <span
+                                                style={{
+                                                    fontSize: 12.5,
+                                                    color: MUTED(55),
+                                                    margin: 'auto',
+                                                }}
+                                            >
+                                                No messages yet. Say hello.
+                                            </span>
+                                        )}
 
                                     {active.messages.map((message) => (
                                         <MessageRow
