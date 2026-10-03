@@ -52,6 +52,7 @@ class GroupChatMembersTest extends TestCase
     {
         [, $creator, $team, $thread] = $this->creatorThread();
         $mate = $this->teammate($team);
+        $this->openForChat($thread);
 
         $this->invite($creator, $team, $thread, $mate)->assertSessionHasNoErrors();
 
@@ -265,6 +266,7 @@ class GroupChatMembersTest extends TestCase
         $mate = $this->teammate($team);
         $uninvited = $this->teammate($team);
         $thread->members()->attach($mate);
+        $this->openForChat($thread);
 
         $this->actingAs($mate)
             ->post(route('messages.send', ['current_team' => $team, 'conversation' => $thread]), ['body' => 'Mockups are up.'])
@@ -358,6 +360,17 @@ class GroupChatMembersTest extends TestCase
         ]);
 
         return [$client->fresh(), $thread, $project];
+    }
+
+    /**
+     * Both sides accept each other, which is what lets anyone write in the thread.
+     */
+    private function openForChat(Conversation $thread): void
+    {
+        Application::query()
+            ->where('project_id', $thread->project_id)
+            ->where('user_id', $thread->user_id)
+            ->update(['status' => ApplicationStatus::Accepted]);
     }
 
     /**

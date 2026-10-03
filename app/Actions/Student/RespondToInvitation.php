@@ -6,6 +6,7 @@ use App\Actions\Agreements\DraftAgreement;
 use App\Actions\Messaging\SeatTeammatesInProjectChat;
 use App\Enums\ApplicationStatus;
 use App\Models\Application;
+use App\Models\Conversation;
 use App\Notifications\Client\InvitationAccepted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -64,6 +65,17 @@ class RespondToInvitation
 
             /* Acceptance produces the contract, not the start of the work. */
             $this->draftAgreement->handle($application);
+
+            /*
+             * Both sides have now accepted each other, which is what opens
+             * the thread for chat (Conversation::isOpenForChat). The invitation
+             * normally opened it already; one sent before that, or a thread
+             * that is gone, is made here so the chat is there to unlock.
+             */
+            Conversation::firstOrCreate([
+                'project_id' => $application->project_id,
+                'user_id' => $application->user_id,
+            ]);
 
             /*
              * The student's own team joins the thread the invitation opened:

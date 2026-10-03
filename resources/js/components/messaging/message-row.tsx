@@ -112,9 +112,12 @@ export default function MessageRow({
     onReply,
     onRemoveForEveryone,
     onRemoveForMe,
+    canRespond = true,
 }: {
     message: ChatMessage;
     reactionChoices: string[];
+    /** False while the thread is locked: no reacting or replying until both sides accept. */
+    canRespond?: boolean;
     /** Ticking clock, so the edit window closes on its own. */
     now: number;
     isEditing: boolean;
@@ -362,52 +365,56 @@ export default function MessageRow({
                          * the thread scroll the bubble into view. Neither is
                          * wanted for a menu this small (QA 2026-09-20).
                          */}
-                        <DropdownMenu
-                            open={pickerOpen}
-                            onOpenChange={setPickerOpen}
-                            modal={false}
-                        >
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    type="button"
-                                    className="msg-action"
-                                    title="React"
-                                    aria-label="React to this message"
-                                >
-                                    <SmileyIcon size={16} />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                                align={message.isMine ? 'end' : 'start'}
-                                className="nocturne flex min-w-0 gap-1 p-1"
-                                onCloseAutoFocus={(event) =>
-                                    event.preventDefault()
-                                }
+                        {canRespond && (
+                            <DropdownMenu
+                                open={pickerOpen}
+                                onOpenChange={setPickerOpen}
+                                modal={false}
                             >
-                                {reactionChoices.map((emoji) => (
+                                <DropdownMenuTrigger asChild>
                                     <button
-                                        key={emoji}
                                         type="button"
-                                        className="msg-emoji"
-                                        title={`React ${emoji}`}
-                                        aria-label={`React ${emoji}`}
-                                        onClick={() => react(emoji)}
+                                        className="msg-action"
+                                        title="React"
+                                        aria-label="React to this message"
                                     >
-                                        {emoji}
+                                        <SmileyIcon size={16} />
                                     </button>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align={message.isMine ? 'end' : 'start'}
+                                    className="nocturne flex min-w-0 gap-1 p-1"
+                                    onCloseAutoFocus={(event) =>
+                                        event.preventDefault()
+                                    }
+                                >
+                                    {reactionChoices.map((emoji) => (
+                                        <button
+                                            key={emoji}
+                                            type="button"
+                                            className="msg-emoji"
+                                            title={`React ${emoji}`}
+                                            aria-label={`React ${emoji}`}
+                                            onClick={() => react(emoji)}
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
 
-                        <button
-                            type="button"
-                            className="msg-action"
-                            title="Reply"
-                            aria-label="Reply to this message"
-                            onClick={onReply}
-                        >
-                            <ArrowBendUpLeftIcon size={16} />
-                        </button>
+                        {canRespond && (
+                            <button
+                                type="button"
+                                className="msg-action"
+                                title="Reply"
+                                aria-label="Reply to this message"
+                                onClick={onReply}
+                            >
+                                <ArrowBendUpLeftIcon size={16} />
+                            </button>
+                        )}
 
                         <DropdownMenu
                             open={menuOpen}

@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeftIcon, CheckCircleIcon } from '@phosphor-icons/react';
+import { useLayoutEffect, useRef } from 'react';
 
 import ReportAccountDialog from '@/components/report-account-dialog';
 import { Btn } from '@/components/sdpc/btn';
@@ -14,6 +15,15 @@ import {
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
+
+/** A cover letter's bounds, in words. ApplyToProjectRequest holds the server to the same. */
+const COVER_LETTER_MIN_WORDS = 5;
+const COVER_LETTER_MAX_WORDS = 50;
+
+/** Words are runs of anything but whitespace, as the server counts them. */
+function countWords(text: string): number {
+    return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+}
 
 type Props = {
     project: {
@@ -57,6 +67,26 @@ export default function StudentProject({
     const team = useCurrentTeam();
 
     const form = useForm({ cover_letter: '' });
+
+    /* Words, not characters — ApplyToProjectRequest counts the same way. */
+    const coverLetterWords = countWords(form.data.cover_letter);
+    const coverLetterFits =
+        coverLetterWords >= COVER_LETTER_MIN_WORDS &&
+        coverLetterWords <= COVER_LETTER_MAX_WORDS;
+
+    /* Grow the box to its content once the content is taller than the box. */
+    const coverLetterBox = useRef<HTMLTextAreaElement>(null);
+
+    useLayoutEffect(() => {
+        const box = coverLetterBox.current;
+
+        if (!box) {
+            return;
+        }
+
+        box.style.height = 'auto';
+        box.style.height = `${box.scrollHeight + 2}px`;
+    }, [form.data.cover_letter]);
 
     const isOpen = project.isAcceptingApplications && application === null;
 
@@ -167,6 +197,7 @@ export default function StudentProject({
                             >
                                 <Field
                                     label="Why you are a fit"
+                                    hint={`${COVER_LETTER_MIN_WORDS} to ${COVER_LETTER_MAX_WORDS} words.`}
                                     error={
                                         form.errors.cover_letter ??
                                         // @ts-expect-error server-side guard key
@@ -177,7 +208,15 @@ export default function StudentProject({
                                     {(props) => (
                                         <textarea
                                             {...props}
-                                            className="min-h-[130px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            ref={coverLetterBox}
+                                            rows={5}
+                                            /*
+                                             * Fills the panel, cannot be dragged,
+                                             * and grows only once the words
+                                             * outrun its starting height.
+                                             */
+                                            className="block min-h-[130px] w-full resize-none overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            style={{ resize: 'none' }}
                                             maxLength={2000}
                                             placeholder="What you have built before, and how you would approach this."
                                             value={form.data.cover_letter}
@@ -190,11 +229,33 @@ export default function StudentProject({
                                         />
                                     )}
                                 </Field>
+                                <span
+                                    aria-live="polite"
+                                    style={{
+                                        marginTop: -8,
+                                        fontSize: 11.5,
+                                        color: coverLetterFits
+                                            ? MUTED(55)
+                                            : 'var(--destructive)',
+                                    }}
+                                >
+                                    {coverLetterWords} /{' '}
+                                    {COVER_LETTER_MAX_WORDS} words
+                                    {coverLetterWords > 0 &&
+                                    coverLetterWords < COVER_LETTER_MIN_WORDS
+                                        ? ` · at least ${COVER_LETTER_MIN_WORDS}`
+                                        : coverLetterWords >
+                                            COVER_LETTER_MAX_WORDS
+                                          ? ' · too long'
+                                          : ''}
+                                </span>
 
                                 <Btn
                                     variant="primary"
                                     type="submit"
-                                    disabled={form.processing}
+                                    disabled={
+                                        form.processing || !coverLetterFits
+                                    }
                                     style={{ alignSelf: 'start' }}
                                 >
                                     {form.processing

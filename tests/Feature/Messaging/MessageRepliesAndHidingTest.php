@@ -240,7 +240,8 @@ class MessageRepliesAndHidingTest extends TestCase
         Application::factory()->create([
             'project_id' => $project->id,
             'user_id' => $student->id,
-            'status' => ApplicationStatus::Pending,
+            /* Both sides have accepted each other, so the thread is open for chat. */
+            'status' => ApplicationStatus::Accepted,
         ]);
 
         return [$client->fresh(), $student->fresh(), $project];

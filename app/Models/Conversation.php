@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\AgreementStatus;
+use App\Enums\ApplicationSource;
+use App\Enums\ApplicationStatus;
 use App\Enums\UserRole;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -202,6 +204,49 @@ class Conversation extends Model
         }
 
         return $user->belongsToTeam($this->project->team);
+    }
+
+    /**
+     * Whether the two sides may write to each other yet.
+     *
+     * Not until both have accepted each other: the thread opens with the
+     * introduction (a client's invitation, or an application) so it is in
+     * both inboxes, but it stays read-only until the application behind it is
+     * Accepted — by the client for an application, by the student for an
+     * invitation. Messages, reactions and calls all wait on this.
+     */
+    public function isOpenForChat(): bool
+    {
+        return Application::query()
+            ->where('project_id', $this->project_id)
+            ->where('user_id', $this->user_id)
+            ->where('status', ApplicationStatus::Accepted)
+            ->exists();
+    }
+
+    /**
+     * Why the thread is still read-only, for the screen, or null once it is open.
+     */
+    public function chatLockReason(User $viewer): ?string
+    {
+        if ($this->isOpenForChat()) {
+            return null;
+        }
+
+        $application = Application::query()
+            ->where('project_id', $this->project_id)
+            ->where('user_id', $this->user_id)
+            ->first();
+
+        $invited = $application?->source === ApplicationSource::Invited;
+        $isStudentSide = $this->sideFor($viewer) === UserRole::Student;
+
+        return match (true) {
+            $invited && $isStudentSide => __('Accept the invitation to start chatting with this client.'),
+            $invited => __('Chat opens once the student accepts your invitation.'),
+            $isStudentSide => __('Chat opens once the client accepts your application.'),
+            default => __('Chat opens once you accept this application.'),
+        };
     }
 
     /**

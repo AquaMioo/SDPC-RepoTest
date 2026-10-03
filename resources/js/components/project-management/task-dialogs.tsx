@@ -256,11 +256,14 @@ export function SubmitTaskDialog({
     onOpenChange,
     url,
     task,
+    fileRequired,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     url: string;
     task: Task;
+    /** Objective and Scope tasks need a file as proof; Turnover's do not. */
+    fileRequired: boolean;
 }) {
     const [note, setNote] = useState(task.proofNote ?? '');
     const [link, setLink] = useState(task.proofUrl ?? '');
@@ -345,7 +348,9 @@ export function SubmitTaskDialog({
                 </div>
 
                 <div className="field">
-                    <label htmlFor="proof-file">File (optional)</label>
+                    <label htmlFor="proof-file">
+                        {fileRequired ? 'File' : 'File (optional)'}
+                    </label>
                     {task.proofName && !file && (
                         <label
                             style={{
@@ -381,6 +386,10 @@ export function SubmitTaskDialog({
                     <Input
                         id="proof-file"
                         type="file"
+                        /* A file kept from the last submission still counts. */
+                        required={
+                            fileRequired && !(task.proofName && !removeFile)
+                        }
                         accept="image/jpeg,image/png,image/webp,application/pdf"
                         onChange={(event) =>
                             setFile(event.target.files?.[0] ?? null)

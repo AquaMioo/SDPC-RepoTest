@@ -8,6 +8,22 @@ import { index as notificationsIndex, read } from '@/routes/notifications';
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
 
+/**
+ * The green "something new" dot on a header icon. The Messages icon and the
+ * bell share this one style, so the two dots sit at the same size and height
+ * on every screen.
+ */
+export const NAV_BADGE_DOT = {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: 'var(--color-accent)',
+    pointerEvents: 'none',
+} as const;
+
 export type NotificationRow = {
     id: string;
     from: string;
@@ -84,7 +100,8 @@ export function NotificationMenu({
     const visible = rows.slice(0, 5);
 
     return (
-        <div ref={wrap} style={{ position: 'relative' }}>
+        /* Flex, so the bell's button sits on the header's centre line exactly like the Messages icon beside it. */
+        <div ref={wrap} style={{ position: 'relative', display: 'flex' }}>
             <Btn
                 icon
                 variant="bare"
@@ -96,18 +113,7 @@ export function NotificationMenu({
             >
                 <BellIcon size={22} />
                 {unread > 0 && (
-                    <span
-                        aria-hidden="true"
-                        style={{
-                            position: 'absolute',
-                            top: 6,
-                            right: 6,
-                            width: 7,
-                            height: 7,
-                            borderRadius: '50%',
-                            background: 'var(--color-accent)',
-                        }}
-                    />
+                    <span aria-hidden="true" style={NAV_BADGE_DOT} />
                 )}
             </Btn>
 

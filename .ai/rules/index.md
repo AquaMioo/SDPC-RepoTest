@@ -31,6 +31,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/pages/** | .ai/rules/pages.md |
 | app/Policies/ProjectPolicy.php, app/Policies/AgreementPolicy.php | .ai/rules/policies.md |
 | app/Services/Recommendation/** | .ai/rules/recommendation.md |
+| app/Http/Requests/Agreements/** | .ai/rules/requests-agreements.md |
 | app/Http/Requests/Client/UpdateClientProfileRequest.php | .ai/rules/requests-client.md |
 | app/Http/Responses/** | .ai/rules/responses.md |
 | resources/js/routes/** | .ai/rules/routes.md |

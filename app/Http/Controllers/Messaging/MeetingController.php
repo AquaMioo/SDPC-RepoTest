@@ -59,6 +59,9 @@ class MeetingController extends Controller
 
         abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
 
+        /* A call is chatting too: it waits until both sides have accepted each other. */
+        abort_unless($conversation->isOpenForChat(), HttpResponse::HTTP_FORBIDDEN);
+
         $scheduledAt = $request->validated('scheduled_at');
 
         /** @var array{0: Meeting, 1: bool} $opened */

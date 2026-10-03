@@ -90,6 +90,8 @@ class TaskCompletionTest extends TestCase
 
     public function test_checking_a_task_off_hands_it_over_without_completing_it(): void
     {
+        Storage::fake(AgreementTask::PROOF_DISK);
+
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         $task = $this->task($agreement);
 
@@ -97,6 +99,7 @@ class TaskCompletionTest extends TestCase
             ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), [
                 'proof_note' => 'Wireframes reviewed in Monday consult.',
                 'proof_url' => 'https://figma.com/file/abc',
+                'proof_file' => UploadedFile::fake()->image('wireframes.png'),
             ])
             ->assertSessionHasNoErrors();
 
@@ -108,20 +111,35 @@ class TaskCompletionTest extends TestCase
         $this->assertSame(0, $agreement->fresh()->progress());
     }
 
+    /**
+     * A work-phase task (Objective, Scope; Design and Build before them)
+     * needs a file as proof: a note or a link alone is not enough. Turnover
+     * keeps its note-or-link-or-file rule.
+     */
     public function test_checking_a_task_off_needs_some_proof(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         $task = $this->task($agreement);
+        $url = route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task]));
 
-        $this->actingAs($student)
-            ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), [])
-            ->assertSessionHasErrors('proof_note');
+        $this->actingAs($student)->post($url, [])
+            ->assertSessionHasErrors(['proof_file' => 'Attach a file (an image or a PDF) as proof before submitting.']);
 
-        $this->actingAs($student)
-            ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), ['proof_url' => 'javascript:alert(1)'])
+        $this->actingAs($student)->post($url, ['proof_note' => 'Done', 'proof_url' => 'https://figma.com/file/abc'])
+            ->assertSessionHasErrors(['proof_file' => 'Attach a file (an image or a PDF) as proof before submitting.']);
+
+        $this->actingAs($student)->post($url, ['proof_url' => 'javascript:alert(1)'])
             ->assertSessionHasErrors('proof_url');
 
         $this->assertSame(TaskStatus::Open, $task->refresh()->status);
+
+        $turnoverTask = AgreementTask::factory()->create(['agreement_milestone_id' => $agreement->milestones->last()->id]);
+        $turnoverUrl = route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $turnoverTask]));
+
+        $this->actingAs($student)->post($turnoverUrl, [])->assertSessionHasErrors('proof_note');
+        $this->actingAs($student)->post($turnoverUrl, ['proof_note' => 'Handed over the repository.'])->assertSessionHasNoErrors();
+
+        $this->assertSame(TaskStatus::Submitted, $turnoverTask->refresh()->status);
     }
 
     public function test_the_client_verifies_a_submitted_task(): void
@@ -167,8 +185,12 @@ class TaskCompletionTest extends TestCase
         $this->assertSame('Add the admin role too.', $task->review_note);
 
         // Resubmitting answers the note, so it clears.
+        Storage::fake(AgreementTask::PROOF_DISK);
         $this->actingAs($student)
-            ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), ['proof_note' => 'Admin role added.'])
+            ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), [
+                'proof_note' => 'Admin role added.',
+                'proof_file' => UploadedFile::fake()->image('admin-role.png'),
+            ])
             ->assertSessionHasNoErrors();
 
         $this->assertNull($task->refresh()->review_note);
@@ -279,8 +301,9 @@ class TaskCompletionTest extends TestCase
                 ->where('can.verify', false)
                 ->where('can.complete', false));
 
+        Storage::fake(AgreementTask::PROOF_DISK);
         $this->actingAs($teammate)
-            ->post(route('agreements.tasks.submit', $asTeammate(['task' => $task])), ['proof_note' => 'Done'])
+            ->post(route('agreements.tasks.submit', $asTeammate(['task' => $task])), ['proof_note' => 'Done', 'proof_file' => UploadedFile::fake()->image('done.png')])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(TaskStatus::Submitted, $task->refresh()->status);
@@ -452,8 +475,8 @@ class TaskCompletionTest extends TestCase
         $this->actingAs($student)->post(route('agreements.tasks.submit', $params), [])->assertSessionHasNoErrors();
         $this->actingAs($student)->delete(route('agreements.tasks.withdraw', $params));
 
-        // Removing the only proof leaves nothing to submit with.
-        $this->actingAs($student)->post(route('agreements.tasks.submit', $params), ['remove_file' => true])->assertSessionHasErrors('proof_note');
+        // Removing the only proof leaves nothing to submit with: a work-phase task needs its file.
+        $this->actingAs($student)->post(route('agreements.tasks.submit', $params), ['remove_file' => true, 'proof_note' => 'Still done'])->assertSessionHasErrors('proof_file');
     }
 
     /**

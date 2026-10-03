@@ -5,6 +5,7 @@ import {
     CalendarBlankIcon,
     CheckIcon,
     ClockCounterClockwiseIcon,
+    FilePdfIcon,
     FlagCheckeredIcon,
     LinkSimpleIcon,
     PaperclipIcon,
@@ -362,6 +363,7 @@ export function PhaseChecklist({
                     onOpenChange={(open) => !open && setDialog(null)}
                     url={submitTask.url(taskArgs(dialog.task))}
                     task={dialog.task}
+                    fileRequired={!phase.isTurnover}
                 />
             )}
             {dialog?.kind === 'return' && (
@@ -825,22 +827,11 @@ function TaskRow({
                             Open link
                         </a>
                     )}
-                    {/* A plain anchor: the proof route streams a file, it is not an Inertia page. */}
                     {task.proofHref && (
-                        <a
+                        <ProofFile
                             href={task.proofHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            data-inline-link=""
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                            }}
-                        >
-                            <PaperclipIcon />
-                            {task.proofName ?? 'Attachment'}
-                        </a>
+                            name={task.proofName}
+                        />
                     )}
                     {task.submittedAt && (
                         <span>Submitted {task.submittedAt}</span>
@@ -848,6 +839,111 @@ function TaskRow({
                 </div>
             )}
         </div>
+    );
+}
+
+/** A proof file the browser can draw as a picture. */
+const PREVIEWABLE_IMAGE = /\.(jpe?g|png|webp)$/i;
+const PDF_FILE = /\.pdf$/i;
+
+/**
+ * The file a student attached as proof, shown as what it is: the picture
+ * itself for an image, a PDF document icon for a PDF, and a plain link for
+ * anything else. Each opens the file in a new tab.
+ *
+ * Plain anchors and a plain img: the proof route streams the file (inline,
+ * behind the project's own check), it is not an Inertia page.
+ */
+function ProofFile({ href, name }: { href: string; name: string | null }) {
+    const label = name ?? 'Attachment';
+
+    if (PREVIEWABLE_IMAGE.test(label)) {
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${label}`}
+                aria-label={`Open ${label}`}
+                style={{ display: 'block', flex: 'none', lineHeight: 0 }}
+            >
+                <img
+                    src={href}
+                    alt={label}
+                    loading="lazy"
+                    style={{
+                        display: 'block',
+                        width: 180,
+                        maxWidth: '100%',
+                        height: 120,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: `1px solid ${MUTED(14)}`,
+                        background: MUTED(6),
+                    }}
+                />
+            </a>
+        );
+    }
+
+    if (PDF_FILE.test(label)) {
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${label}`}
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    maxWidth: '100%',
+                    padding: '8px 12px 8px 8px',
+                    borderRadius: 8,
+                    border: `1px solid ${MUTED(14)}`,
+                    background: MUTED(4),
+                    textDecoration: 'none',
+                    color: 'var(--color-text)',
+                }}
+            >
+                <FilePdfIcon
+                    size={30}
+                    weight="duotone"
+                    color="#c0392b"
+                    style={{ flex: 'none' }}
+                />
+                <span style={{ minWidth: 0 }}>
+                    <span
+                        style={{
+                            display: 'block',
+                            fontSize: 12,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: 220,
+                        }}
+                    >
+                        {label}
+                    </span>
+                    <span style={{ fontSize: 10.5, color: MUTED(55) }}>
+                        PDF document
+                    </span>
+                </span>
+            </a>
+        );
+    }
+
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-inline-link=""
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+            <PaperclipIcon />
+            {label}
+        </a>
     );
 }
 

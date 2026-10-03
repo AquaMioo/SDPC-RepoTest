@@ -410,10 +410,25 @@ html[data-mod='admin'] {
     text-align: justify;
 }
 
+/*
+ * Tailwind's preflight strips every list's markers (list-style: none), which
+ * left the MOA's 1., 2., 3. invisible. The memorandum draws its own: numbers
+ * on every list, letters on the a., b. lists.
+ */
 .moa-list {
     margin: 0 0 10px 3.4em;
     padding-left: 2em;
     text-align: justify;
+    list-style: decimal outside;
+}
+
+.moa-list[type='a'] {
+    list-style-type: lower-alpha;
+}
+
+.moa-list > li::marker,
+.moa-sublist > li::marker {
+    font-weight: 400;
 }
 
 .moa-list > li {
@@ -425,6 +440,7 @@ html[data-mod='admin'] {
 .moa-sublist {
     margin: 8px 0 0;
     padding-left: 2em;
+    list-style: lower-alpha outside;
 }
 
 .moa-sublist > li {

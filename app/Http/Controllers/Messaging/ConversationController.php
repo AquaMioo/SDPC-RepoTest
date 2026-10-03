@@ -24,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -238,6 +239,12 @@ class ConversationController extends Controller
                 /* A call running now, so anybody who missed the ring can join. */
                 'call' => $this->callInProgress($active),
                 /*
+                 * Why nobody can write here yet, or null once both sides have
+                 * accepted each other. The screen swaps the composer and the
+                 * call buttons for this line while it is set.
+                 */
+                'chatLock' => $active->chatLockReason($user),
+                /*
                  * Messages this viewer removed for themselves are not sent at
                  * all, rather than sent and hidden in the browser: the body is
                  * the thing they asked to stop seeing.
@@ -344,6 +351,11 @@ class ConversationController extends Controller
         $user = $request->user();
 
         abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
+
+        /* Nobody writes until both sides have accepted each other (Conversation::isOpenForChat). */
+        if (! $conversation->isOpenForChat()) {
+            throw ValidationException::withMessages(['body' => $conversation->chatLockReason($user)]);
+        }
 
         /*
          * Read before anything is written. Once the new message exists the
@@ -506,6 +518,7 @@ class ConversationController extends Controller
         abort_unless($conversation->isParticipant($user), HttpResponse::HTTP_FORBIDDEN);
         abort_unless($message->conversation_id === $conversation->id, HttpResponse::HTTP_NOT_FOUND);
         abort_if($message->isRemoved(), HttpResponse::HTTP_FORBIDDEN);
+        abort_unless($conversation->isOpenForChat(), HttpResponse::HTTP_FORBIDDEN);
 
         $emoji = $request->validated('emoji');
 

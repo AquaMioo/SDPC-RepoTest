@@ -1671,9 +1671,17 @@ class MessagingTest extends TestCase
 
     /**
      * An open thread between a posting and a student.
+     *
+     * Open means both sides have accepted each other — the only state a
+     * thread can be written to in (Conversation::isOpenForChat).
      */
     private function thread(Project $project, User $student): Conversation
     {
+        Application::query()->updateOrCreate(
+            ['project_id' => $project->id, 'user_id' => $student->id],
+            ['status' => ApplicationStatus::Accepted],
+        );
+
         return Conversation::create([
             'project_id' => $project->id,
             'user_id' => $student->id,

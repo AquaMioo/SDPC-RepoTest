@@ -9,6 +9,8 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Feature\Agreements\Concerns\StartsCollaboration;
 use Tests\TestCase;
@@ -104,8 +106,9 @@ class TaskProgressTest extends TestCase
         $design = $agreement->milestones->first();
         [$task] = $this->tasks($design, [TaskStatus::Open]);
 
+        Storage::fake(AgreementTask::PROOF_DISK);
         $this->actingAs($student)
-            ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), ['proof_note' => 'Done'])
+            ->post(route('agreements.tasks.submit', $this->asParty($student, $agreement, ['task' => $task])), ['proof_note' => 'Done', 'proof_file' => UploadedFile::fake()->image('done.png')])
             ->assertSessionHasNoErrors();
 
         // Every outstanding task handed over reads as "in review".

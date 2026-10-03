@@ -11,7 +11,10 @@ import AccountStatusBanner from '@/components/account-status-banner';
 import IncomingCallAlert from '@/components/messaging/incoming-call-alert';
 import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
-import { NotificationMenu } from '@/components/sdpc/notification-menu';
+import {
+    NAV_BADGE_DOT,
+    NotificationMenu,
+} from '@/components/sdpc/notification-menu';
 import type { NotificationRow } from '@/components/sdpc/notification-menu';
 import {
     Tooltip,
@@ -492,17 +495,7 @@ function IconAction({
                     >
                         {children}
                         {badge > 0 && (
-                            <span
-                                style={{
-                                    position: 'absolute',
-                                    top: 2,
-                                    right: 2,
-                                    minWidth: 8,
-                                    height: 8,
-                                    borderRadius: 4,
-                                    background: 'var(--color-accent)',
-                                }}
-                            />
+                            <span aria-hidden="true" style={NAV_BADGE_DOT} />
                         )}
                     </Link>
                 </Btn>

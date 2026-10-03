@@ -193,6 +193,48 @@ class ProjectBoardTest extends TestCase
         $this->assertSame(0, Application::count());
     }
 
+    /**
+     * A cover letter is measured in words, 5 to 50, never in characters:
+     * four long words are too few, fifty short ones are fine, fifty-one are
+     * too many, and whitespace is not a word.
+     */
+    public function test_a_cover_letter_is_five_to_fifty_words(): void
+    {
+        $student = $this->verifiedStudent();
+        $project = $this->posting();
+
+        $apply = fn (string $letter) => $this->actingAs($student)
+            ->from(route('student.board.show', ['current_team' => $student->currentTeam, 'project' => $project]))
+            ->post(route('student.board.apply', ['current_team' => $student->currentTeam, 'project' => $project]), ['cover_letter' => $letter]);
+
+        $apply('Experienced inventory systems developer')
+            ->assertSessionHasErrors(['cover_letter' => 'Give the client something to read — at least 5 words.']);
+
+        $apply("   \n\t  ")->assertSessionHasErrors('cover_letter');
+
+        $apply(trim(str_repeat('build ', 51)))
+            ->assertSessionHasErrors(['cover_letter' => 'Keep it to 50 words or fewer. This one has 51.']);
+
+        $this->assertSame(0, Application::count());
+
+        /* Exactly fifty, spread over lines, is accepted. */
+        $apply(trim(str_repeat("I can build this.\n", 12)).' Thank you')->assertSessionHasNoErrors();
+
+        $this->assertSame(1, Application::count());
+    }
+
+    public function test_five_words_are_enough(): void
+    {
+        $student = $this->verifiedStudent();
+        $project = $this->posting();
+
+        $this->actingAs($student)
+            ->post(route('student.board.apply', ['current_team' => $student->currentTeam, 'project' => $project]), ['cover_letter' => 'I built two inventory systems'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, Application::count());
+    }
+
     public function test_a_closed_posting_can_not_be_applied_to(): void
     {
         $student = $this->verifiedStudent();

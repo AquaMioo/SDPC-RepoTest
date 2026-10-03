@@ -45,11 +45,15 @@ class SubmitTaskRequest extends FormRequest
     }
 
     /**
-     * Require some proof: a note, a link or a file.
+     * Require proof: a file in the Objective and Scope phases, and at least a
+     * note, a link or a file in Turnover.
      *
-     * A file already attached from an earlier submission still counts, unless
-     * the student is removing it in this same request — sent-back work is
-     * usually resubmitted with the same screenshot and a better note.
+     * The work phases (Objective and Scope; Design and Build on agreements
+     * from before them) need a file, an image or a PDF of the work. Turnover
+     * keeps its note-or-link-or-file rule. A file already attached from an
+     * earlier submission still counts, unless the student is removing it in
+     * this same request — sent-back work is usually resubmitted with the same
+     * screenshot and a better note.
      *
      * @return array<int, callable(Validator): void>
      */
@@ -62,6 +66,15 @@ class SubmitTaskRequest extends FormRequest
                 $keepsExistingFile = $task instanceof AgreementTask
                     && $task->proof_path !== null
                     && ! $this->boolean('remove_file');
+
+                $isWorkPhase = $task instanceof AgreementTask
+                    && ! $task->milestone->isTurnover();
+
+                if ($isWorkPhase && ! $this->hasFile('proof_file') && ! $keepsExistingFile) {
+                    $validator->errors()->add('proof_file', __('Attach a file (an image or a PDF) as proof before submitting.'));
+
+                    return;
+                }
 
                 if (blank($this->input('proof_note'))
                     && blank($this->input('proof_url'))

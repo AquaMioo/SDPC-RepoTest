@@ -294,6 +294,10 @@ class RecruitOutreachTest extends TestCase
         ]);
     }
 
+    /**
+     * The invitation opens the thread, but nobody writes in it until the
+     * student accepts: then both can.
+     */
     public function test_the_invited_student_can_reply_in_that_thread(): void
     {
         [$client, $student] = $this->pair();
@@ -314,6 +318,16 @@ class RecruitOutreachTest extends TestCase
             'project_id' => $project->id,
             'user_id' => $student->id,
         ]);
+
+        $this->actingAs($client)
+            ->from(route('messages.index', ['current_team' => $client->currentTeam]))
+            ->post(route('messages.send', [
+                'current_team' => $client->currentTeam,
+                'conversation' => $conversation,
+            ]), ['body' => 'Hello?'])
+            ->assertSessionHasErrors(['body' => 'Chat opens once the student accepts your invitation.']);
+
+        Application::query()->where('project_id', $project->id)->update(['status' => ApplicationStatus::Accepted]);
 
         $this->actingAs($client)
             ->from(route('messages.index', ['current_team' => $client->currentTeam]))

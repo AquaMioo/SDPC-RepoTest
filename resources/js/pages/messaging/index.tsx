@@ -3,6 +3,7 @@ import { useEcho } from '@laravel/echo-react';
 import {
     CalendarPlusIcon,
     ImageIcon,
+    LockSimpleIcon,
     ImagesIcon,
     PaperPlaneRightIcon,
     SmileyIcon,
@@ -92,6 +93,11 @@ type Props = {
         }[];
         /** A call somebody is in right now, and who. */
         call: { id: number; people: string[] } | null;
+        /**
+         * Why nobody can write here yet — both sides have to accept each
+         * other first — or null once the thread is open.
+         */
+        chatLock: string | null;
         messages: ChatMessage[];
         reactionChoices: string[];
         /** Null until there is a signed agreement to report on. */
@@ -1038,7 +1044,7 @@ export default function Messages({
                                         has no Agora credentials to call with. */}
                                     {/* Joins the running call rather than
                                         opening a second one beside it. */}
-                                    {videoEnabled && (
+                                    {videoEnabled && !active.chatLock && (
                                         <Btn
                                             variant="secondary"
                                             onClick={startCall}
@@ -1054,7 +1060,7 @@ export default function Messages({
                                         </Btn>
                                     )}
 
-                                    {videoEnabled && (
+                                    {videoEnabled && !active.chatLock && (
                                         <Btn
                                             variant="ghost"
                                             onClick={() =>
@@ -1256,6 +1262,7 @@ export default function Messages({
                                             reactionChoices={
                                                 active.reactionChoices
                                             }
+                                            canRespond={!active.chatLock}
                                             now={now}
                                             isEditing={editing === message.id}
                                             draft={draft}
@@ -1286,193 +1293,226 @@ export default function Messages({
                                     <div ref={endRef} />
                                 </div>
 
-                                <form
-                                    onSubmit={submit}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'flex-end',
-                                        gap: 8,
-                                        padding: 14,
-                                        borderTop:
-                                            '1px solid var(--color-divider)',
-                                    }}
-                                >
-                                    {/*
-                                     * One bordered box holds the picture and
-                                     * the text, as Messenger draws it. Its
-                                     * border, focus ring and the tiles'
-                                     * hover live on .composer-box in
-                                     * nocturne.css.
-                                     */}
-                                    <div className="composer-box">
+                                {/*
+                                 * Read-only until both sides have accepted each
+                                 * other: the server refuses messages, reactions
+                                 * and calls until then too.
+                                 */}
+                                {active.chatLock ? (
+                                    <div
+                                        role="status"
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            padding: 14,
+                                            borderTop:
+                                                '1px solid var(--color-divider)',
+                                            fontSize: 13,
+                                            color: MUTED(70),
+                                        }}
+                                    >
+                                        <LockSimpleIcon
+                                            style={{ flex: 'none' }}
+                                        />
+                                        {active.chatLock}
+                                    </div>
+                                ) : (
+                                    <form
+                                        onSubmit={submit}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-end',
+                                            gap: 8,
+                                            padding: 14,
+                                            borderTop:
+                                                '1px solid var(--color-divider)',
+                                        }}
+                                    >
                                         {/*
-                                         * What this message will answer, above
-                                         * the box the way Messenger shows it,
-                                         * with a way out that also clears the
-                                         * id going to the server.
+                                         * One bordered box holds the picture and
+                                         * the text, as Messenger draws it. Its
+                                         * border, focus ring and the tiles'
+                                         * hover live on .composer-box in
+                                         * nocturne.css.
                                          */}
-                                        {replyingTo !== null && (
-                                            <div
-                                                className="msg-quote"
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 8,
-                                                    paddingTop: 6,
-                                                    fontSize: 11.5,
-                                                    color: MUTED(65),
-                                                }}
-                                            >
-                                                <span
+                                        <div className="composer-box">
+                                            {/*
+                                             * What this message will answer, above
+                                             * the box the way Messenger shows it,
+                                             * with a way out that also clears the
+                                             * id going to the server.
+                                             */}
+                                            {replyingTo !== null && (
+                                                <div
+                                                    className="msg-quote"
                                                     style={{
-                                                        flex: 1,
-                                                        minWidth: 0,
-                                                        overflow: 'hidden',
-                                                        textOverflow:
-                                                            'ellipsis',
-                                                        whiteSpace: 'nowrap',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 8,
+                                                        paddingTop: 6,
+                                                        fontSize: 11.5,
+                                                        color: MUTED(65),
                                                     }}
                                                 >
-                                                    Replying to{' '}
                                                     <span
                                                         style={{
-                                                            fontWeight: 600,
+                                                            flex: 1,
+                                                            minWidth: 0,
+                                                            overflow: 'hidden',
+                                                            textOverflow:
+                                                                'ellipsis',
+                                                            whiteSpace:
+                                                                'nowrap',
                                                         }}
                                                     >
-                                                        {replyingTo.isMine
-                                                            ? 'yourself'
-                                                            : replyingTo.author}
+                                                        Replying to{' '}
+                                                        <span
+                                                            style={{
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            {replyingTo.isMine
+                                                                ? 'yourself'
+                                                                : replyingTo.author}
+                                                        </span>
+                                                        {replyingTo.body
+                                                            ? ` · ${replyingTo.body}`
+                                                            : ''}
                                                     </span>
-                                                    {replyingTo.body
-                                                        ? ` · ${replyingTo.body}`
-                                                        : ''}
-                                                </span>
 
-                                                <button
-                                                    type="button"
-                                                    className="msg-action"
-                                                    title="Cancel reply"
-                                                    aria-label="Cancel reply"
-                                                    onClick={cancelReply}
-                                                >
-                                                    <XIcon />
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {form.data.image !== null &&
-                                            imagePreview !== null && (
-                                                <div className="composer-attachments">
                                                     <button
                                                         type="button"
-                                                        data-attachment-add=""
-                                                        title="Choose a different picture"
-                                                        aria-label="Choose a different picture"
-                                                        onClick={() =>
-                                                            imageRef.current?.click()
-                                                        }
+                                                        className="msg-action"
+                                                        title="Cancel reply"
+                                                        aria-label="Cancel reply"
+                                                        onClick={cancelReply}
                                                     >
-                                                        <ImagesIcon />
+                                                        <XIcon />
                                                     </button>
-
-                                                    <div
-                                                        className="composer-thumb"
-                                                        title={
-                                                            form.data.image.name
-                                                        }
-                                                    >
-                                                        <img
-                                                            src={imagePreview}
-                                                            alt={
-                                                                form.data.image
-                                                                    .name
-                                                            }
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            data-attachment-remove=""
-                                                            title="Remove picture"
-                                                            aria-label={`Remove ${form.data.image.name}`}
-                                                            onClick={clearImage}
-                                                        >
-                                                            <XIcon weight="bold" />
-                                                        </button>
-                                                    </div>
                                                 </div>
                                             )}
 
-                                        <textarea
-                                            rows={1}
-                                            maxLength={4000}
-                                            placeholder="Write a message"
-                                            aria-label="Message"
-                                            value={form.data.body}
+                                            {form.data.image !== null &&
+                                                imagePreview !== null && (
+                                                    <div className="composer-attachments">
+                                                        <button
+                                                            type="button"
+                                                            data-attachment-add=""
+                                                            title="Choose a different picture"
+                                                            aria-label="Choose a different picture"
+                                                            onClick={() =>
+                                                                imageRef.current?.click()
+                                                            }
+                                                        >
+                                                            <ImagesIcon />
+                                                        </button>
+
+                                                        <div
+                                                            className="composer-thumb"
+                                                            title={
+                                                                form.data.image
+                                                                    .name
+                                                            }
+                                                        >
+                                                            <img
+                                                                src={
+                                                                    imagePreview
+                                                                }
+                                                                alt={
+                                                                    form.data
+                                                                        .image
+                                                                        .name
+                                                                }
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                data-attachment-remove=""
+                                                                title="Remove picture"
+                                                                aria-label={`Remove ${form.data.image.name}`}
+                                                                onClick={
+                                                                    clearImage
+                                                                }
+                                                            >
+                                                                <XIcon weight="bold" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                            <textarea
+                                                rows={1}
+                                                maxLength={4000}
+                                                placeholder="Write a message"
+                                                aria-label="Message"
+                                                value={form.data.body}
+                                                onChange={(e) =>
+                                                    form.setData(
+                                                        'body',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                onKeyDown={(e) => {
+                                                    if (
+                                                        e.key === 'Enter' &&
+                                                        !e.shiftKey
+                                                    ) {
+                                                        submit(e);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        {/* Emoji are characters in the body, so
+                                        this needs nothing from the server. */}
+                                        <Btn
+                                            variant="ghost"
+                                            type="button"
+                                            title="Emoji"
+                                            onClick={() =>
+                                                setEmojiOpen((open) => !open)
+                                            }
+                                        >
+                                            <SmileyIcon />
+                                        </Btn>
+
+                                        <Btn
+                                            variant="ghost"
+                                            type="button"
+                                            title="Attach a picture"
+                                            onClick={() =>
+                                                imageRef.current?.click()
+                                            }
+                                        >
+                                            <ImageIcon />
+                                        </Btn>
+                                        <input
+                                            ref={imageRef}
+                                            type="file"
+                                            accept="image/*"
+                                            hidden
                                             onChange={(e) =>
                                                 form.setData(
-                                                    'body',
-                                                    e.target.value,
+                                                    'image',
+                                                    e.target.files?.[0] ?? null,
                                                 )
                                             }
-                                            onKeyDown={(e) => {
-                                                if (
-                                                    e.key === 'Enter' &&
-                                                    !e.shiftKey
-                                                ) {
-                                                    submit(e);
-                                                }
-                                            }}
                                         />
-                                    </div>
-                                    {/* Emoji are characters in the body, so
-                                        this needs nothing from the server. */}
-                                    <Btn
-                                        variant="ghost"
-                                        type="button"
-                                        title="Emoji"
-                                        onClick={() =>
-                                            setEmojiOpen((open) => !open)
-                                        }
-                                    >
-                                        <SmileyIcon />
-                                    </Btn>
 
-                                    <Btn
-                                        variant="ghost"
-                                        type="button"
-                                        title="Attach a picture"
-                                        onClick={() =>
-                                            imageRef.current?.click()
-                                        }
-                                    >
-                                        <ImageIcon />
-                                    </Btn>
-                                    <input
-                                        ref={imageRef}
-                                        type="file"
-                                        accept="image/*"
-                                        hidden
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'image',
-                                                e.target.files?.[0] ?? null,
-                                            )
-                                        }
-                                    />
-
-                                    <Btn
-                                        variant="primary"
-                                        type="submit"
-                                        className="composer-send"
-                                        disabled={
-                                            form.processing ||
-                                            (form.data.body.trim() === '' &&
-                                                form.data.image === null)
-                                        }
-                                    >
-                                        <PaperPlaneRightIcon />
-                                        Send
-                                    </Btn>
-                                </form>
+                                        <Btn
+                                            variant="primary"
+                                            type="submit"
+                                            className="composer-send"
+                                            disabled={
+                                                form.processing ||
+                                                (form.data.body.trim() === '' &&
+                                                    form.data.image === null)
+                                            }
+                                        >
+                                            <PaperPlaneRightIcon />
+                                            Send
+                                        </Btn>
+                                    </form>
+                                )}
 
                                 {(form.errors.image || form.errors.body) && (
                                     <InputError
