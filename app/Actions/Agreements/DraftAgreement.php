@@ -64,22 +64,29 @@ class DraftAgreement
     /**
      * Build the next human-quotable reference, e.g. SDPC-2026-014.
      *
-     * Counts within the year so the sequence stays short and reads like a
-     * document number rather than a database id. Distinct, because every
-     * version of a contract shares its reference and a revision must not
-     * consume a number of its own.
+     * Numbered within the year so the sequence stays short and reads like a
+     * document number rather than a database id. Every version of a contract
+     * shares its reference, so a revision never takes a number of its own.
+     *
+     * The next number is one past the HIGHEST used this year, never the count
+     * of references: deleting an account deletes its agreements outright, and
+     * a count then lands on a number still in use. With only SDPC-2026-002
+     * left after 001 went, counting gave 002 again and every acceptance failed
+     * on the unique (reference, version) index (2026-10-03).
      */
     protected function nextReference(): string
     {
         $prefix = (string) config('agreements.reference_prefix');
         $year = now()->year;
+        $stem = "{$prefix}-{$year}-";
 
-        $sequence = Agreement::withTrashed()
-            ->where('reference', 'like', "{$prefix}-{$year}-%")
-            ->distinct()
-            ->count('reference') + 1;
+        $highest = Agreement::withTrashed()
+            ->where('reference', 'like', "{$stem}%")
+            ->pluck('reference')
+            ->map(fn (string $reference): int => (int) substr($reference, strlen($stem)))
+            ->max() ?? 0;
 
-        return sprintf('%s-%d-%03d', $prefix, $year, $sequence);
+        return sprintf('%s%03d', $stem, $highest + 1);
     }
 
     /**
