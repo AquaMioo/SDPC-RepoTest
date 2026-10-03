@@ -317,6 +317,22 @@ html[data-mod='admin'] {
         scrollbar-gutter: stable;
     }
 
+    /*
+     * A long unbroken string (a pasted link, "MAMAAAAAAA…") wraps inside its
+     * card instead of running past the border, on every screen: the property
+     * is inherited. `anywhere` rather than `break-word` because only it lowers
+     * the min-content width, so a flex or grid column cannot be pushed wider
+     * than its card by one long word. Tables keep their column sizing and
+     * only break a word that cannot fit its cell. `nowrap` text is untouched.
+     */
+    body {
+        overflow-wrap: anywhere;
+    }
+
+    table {
+        overflow-wrap: break-word;
+    }
+
     /* The design pairs every scroll region with a slim, tinted scrollbar. */
     *::-webkit-scrollbar {
         @apply size-2;
