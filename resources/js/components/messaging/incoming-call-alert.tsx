@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
 import { useCurrentTeam } from '@/hooks/use-current-team';
-import { callWindowUrl, openCallWindow } from '@/lib/call-window';
+import { callWindowUrl, onCallJoined, openCallWindow } from '@/lib/call-window';
 import { startRingtone } from '@/lib/ringtone';
 import { show as showThread } from '@/routes/messages';
 
@@ -84,6 +84,13 @@ function Ringer({ userId }: { userId: number }) {
         'call.ended',
         [userId],
     );
+
+    /*
+     * Joining from anywhere else — the thread's Join or Join call, or another
+     * tab — is answering: the ring stops and the card goes, so it cannot be
+     * pressed again on the call already running.
+     */
+    useEffect(() => onCallJoined(() => setCall(null)), []);
 
     useEffect(() => {
         if (call === null) {
