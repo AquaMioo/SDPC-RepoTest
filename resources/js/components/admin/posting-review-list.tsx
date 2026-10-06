@@ -1,9 +1,22 @@
 import { router } from '@inertiajs/react';
+import { useState } from 'react';
 
+import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
+import { Textarea } from '@/components/sdpc/input';
 import { PageNumbers, usePagination } from '@/components/sdpc/page-numbers';
 import { Tag } from '@/components/sdpc/tag';
-import { update } from '@/routes/admin/postings';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { destroy, update } from '@/routes/admin/postings';
 import type { AdminPosting } from '@/types/admin';
 
 const MUTED = (pct: number) =>
@@ -37,6 +50,33 @@ export default function PostingReviewList({
 }) {
     const decide = (slug: string, status: 'open' | 'closed') =>
         router.patch(update.url(slug), { status }, { preserveScroll: true });
+
+    /* Remove asks why first: the reason is what the client is told. */
+    const [toRemove, setToRemove] = useState<AdminPosting | null>(null);
+    const [reason, setReason] = useState('');
+    const [reasonError, setReasonError] = useState<string | undefined>();
+    const [removing, setRemoving] = useState(false);
+
+    const openRemove = (posting: AdminPosting) => {
+        setToRemove(posting);
+        setReason('');
+        setReasonError(undefined);
+    };
+
+    const confirmRemove = () => {
+        if (toRemove === null) {
+            return;
+        }
+
+        router.delete(destroy.url(toRemove.slug), {
+            data: { reason },
+            preserveScroll: true,
+            onStart: () => setRemoving(true),
+            onSuccess: () => setToRemove(null),
+            onError: (errors) => setReasonError(errors.reason),
+            onFinish: () => setRemoving(false),
+        });
+    };
 
     const waiting = postings.filter(
         (posting) => posting.awaitingDecision,
@@ -150,16 +190,13 @@ export default function PostingReviewList({
                                         : 'Reopen'}
                                 </Btn>
                             )}
-                            {posting.status !== 'closed' && (
-                                <Btn
-                                    variant="ghost"
-                                    onClick={() =>
-                                        decide(posting.slug, 'closed')
-                                    }
-                                >
-                                    Close
-                                </Btn>
-                            )}
+                            <Btn
+                                variant="ghost"
+                                data-test="remove-posting"
+                                onClick={() => openRemove(posting)}
+                            >
+                                Remove
+                            </Btn>
                         </div>
                     )}
                 </div>
@@ -171,6 +208,59 @@ export default function PostingReviewList({
                 onChange={setPage}
                 label="Postings"
             />
+
+            <Dialog
+                open={toRemove !== null}
+                onOpenChange={(open) => {
+                    if (!open && !removing) {
+                        setToRemove(null);
+                    }
+                }}
+            >
+                <DialogContent data-test="remove-posting-dialog">
+                    <DialogHeader>
+                        <DialogTitle>Remove posting</DialogTitle>
+                        <DialogDescription>
+                            “{toRemove?.title}” will be deleted and taken off
+                            the board. The client is notified with your reason.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="field">
+                        <label htmlFor="remove-reason">
+                            Why is this posting being removed?
+                        </label>
+                        <Textarea
+                            id="remove-reason"
+                            value={reason}
+                            maxLength={2000}
+                            autoFocus
+                            onChange={(event) => setReason(event.target.value)}
+                            aria-invalid={Boolean(reasonError)}
+                        />
+                        <InputError
+                            message={reasonError}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <DialogFooter className="gap-3">
+                        <DialogClose asChild>
+                            <Button variant="secondary" disabled={removing}>
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button
+                            variant="destructive"
+                            data-test="confirm-remove-posting"
+                            disabled={removing || reason.trim() === ''}
+                            onClick={confirmRemove}
+                        >
+                            Remove
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </section>
     );
 }

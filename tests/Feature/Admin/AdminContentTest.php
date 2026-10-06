@@ -17,11 +17,12 @@ class AdminContentTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
+        /* Content Management is its own tab (owner, 2026-10-07). */
+        $response = $this->actingAs($admin)->get(route('admin.content.index'));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('admin/dashboard')
+            ->component('admin/content')
             // All three keys are present as null rather than absent, so the
             // editor renders empty fields instead of undefined ones.
             ->where('content.announcements', null)
@@ -39,7 +40,7 @@ class AdminContentTest extends TestCase
             'body' => 'Escrow is live.',
         ]);
 
-        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
+        $response = $this->actingAs($admin)->get(route('admin.content.index'));
 
         $response->assertInertia(fn (Assert $page) => $page
             ->where('content.announcements', 'Escrow is live.')

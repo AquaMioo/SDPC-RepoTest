@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Actions\Notifications\PresentNotification;
 use App\Enums\ApplicationStatus;
 use App\Enums\CredentialStatus;
 use App\Enums\ProjectStatus;
@@ -46,15 +47,27 @@ class AdminPostingReviewTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_the_dashboard_also_carries_the_content_blocks(): void
+    public function test_content_management_is_its_own_tab_again(): void
     {
-        // Content management folded into the same screen, so a page that
-        // renders the queue without the copy would be half a merge.
-        $this->actingAs(User::factory()->admin()->create())
+        // Owner, 2026-10-07: the copy moved off the dashboard to its own tab.
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('content')
+                ->missing('content')
                 ->has('postings'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.content.index'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('admin/content')
+                ->has('content'));
+
+        $this->actingAs(User::factory()->client()->approved()->create())
+            ->get(route('admin.content.index'))
+            ->assertForbidden();
     }
 
     public function test_a_draft_is_not_in_the_queue(): void
@@ -111,6 +124,69 @@ class AdminPostingReviewTest extends TestCase
             $project->team->members,
             ProjectStatusChanged::class,
         );
+    }
+
+    /**
+     * Remove replaced Close (owner, 2026-10-07): the posting is deleted and
+     * the client is told why, in their notifications.
+     */
+    public function test_removing_deletes_the_posting_and_tells_the_client_why(): void
+    {
+        $client = User::factory()->client()->approved()->create();
+        $project = Project::factory()->create([
+            'team_id' => $client->current_team_id,
+            'title' => 'Inventory System',
+            'status' => ProjectStatus::PendingReview,
+        ]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->from(route('admin.dashboard'))
+            ->delete(route('admin.postings.destroy', ['posting' => $project]), [
+                'reason' => 'The brief asks for unpaid work outside the platform rules.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.dashboard'));
+
+        $this->assertSoftDeleted($project);
+
+        $row = $client->fresh()->notifications()->sole();
+        $this->assertSame('project.removed', $row->data['type']);
+        $this->assertSame('Inventory System', $row->data['project_title']);
+        $this->assertSame('The brief asks for unpaid work outside the platform rules.', $row->data['reason']);
+
+        $line = app(PresentNotification::class)->handle($row, $client->currentTeam);
+        $this->assertSame('Inventory System was removed by an administrator', $line['title']);
+        $this->assertSame('Reason: The brief asks for unpaid work outside the platform rules.', $line['body']);
+    }
+
+    public function test_removing_needs_a_reason_and_only_reaches_postings_still_under_review(): void
+    {
+        Notification::fake();
+        $admin = User::factory()->admin()->create();
+        $waiting = Project::factory()->create(['status' => ProjectStatus::PendingReview]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.dashboard'))
+            ->delete(route('admin.postings.destroy', ['posting' => $waiting]), ['reason' => ''])
+            ->assertSessionHasErrors(['reason' => 'Tell the client why the posting is being removed.']);
+
+        $this->assertNotSoftDeleted($waiting);
+
+        /* A build under way ends through Complete project, never here. */
+        $running = Project::factory()->inProgress()->create();
+
+        $this->actingAs($admin)
+            ->from(route('admin.dashboard'))
+            ->delete(route('admin.postings.destroy', ['posting' => $running]), ['reason' => 'Spam.'])
+            ->assertSessionHasErrors('reason');
+
+        $this->assertNotSoftDeleted($running);
+
+        $this->actingAs(User::factory()->client()->approved()->create())
+            ->delete(route('admin.postings.destroy', ['posting' => $waiting]), ['reason' => 'Mine now.'])
+            ->assertForbidden();
+
+        Notification::assertNothingSent();
     }
 
     public function test_closing_takes_a_posting_back_off_the_board(): void

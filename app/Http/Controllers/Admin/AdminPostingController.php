@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Notifications\Client\PostingRemoved;
 use App\Notifications\Client\ProjectStatusChanged;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,5 +73,41 @@ class AdminPostingController extends Controller
                 ? 'Posting approved and is now on the student board.'
                 : 'Posting closed and taken off the student board.',
         );
+    }
+
+    /**
+     * Remove a posting, with the reason the client is told.
+     *
+     * The queue's Remove replaced its Close (owner, 2026-10-07). Like the
+     * client's own Delete it is a soft delete, so the row survives for the
+     * record; the posting leaves every screen and frees the business's
+     * one-posting slot. Only postings still the queue's to decide may go: a
+     * build under way ends through Complete project (isModeratable).
+     */
+    public function destroy(Request $request, Project $posting): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:2000'],
+        ], [
+            'reason.required' => __('Tell the client why the posting is being removed.'),
+        ]);
+
+        if (! $posting->status->isModeratable()) {
+            throw ValidationException::withMessages([
+                'reason' => __('This posting is :status, so it can no longer be removed from the review queue.', [
+                    'status' => strtolower($posting->status->label()),
+                ]),
+            ]);
+        }
+
+        /* Sent before the delete, while the team is still reachable through it. */
+        Notification::send(
+            $posting->team->members,
+            new PostingRemoved($posting->title, $validated['reason']),
+        );
+
+        $posting->delete();
+
+        return back()->with('success', 'Posting removed and the client told why.');
     }
 }

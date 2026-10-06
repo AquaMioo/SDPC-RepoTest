@@ -19,7 +19,6 @@ import type { ReactNode } from 'react';
 import { Btn } from '@/components/sdpc/btn';
 import PublicLayout from '@/layouts/public-layout';
 import { legal, login, register } from '@/routes';
-import { login as adminLogin } from '@/routes/admin';
 import type { Auth } from '@/types';
 
 const SHELL: React.CSSProperties = {
@@ -475,19 +474,10 @@ export default function Welcome({
                         gap: 20,
                     }}
                 >
+                    {/* No way into the admin console from here: it is reached
+                        only by typing /admin/login. */}
                     <div style={{ marginRight: 'auto', fontSize: 13.5 }}>
                         Follow us · STI College San Jose Del Monte
-                        <Btn
-                            asChild
-                            variant="ghost"
-                            style={{
-                                marginLeft: 14,
-                                color: 'var(--color-accent-200)',
-                                fontSize: 12,
-                            }}
-                        >
-                            <Link href={adminLogin.url()}>Admin console</Link>
-                        </Btn>
                     </div>
 
                     <div

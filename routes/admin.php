@@ -62,8 +62,12 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
          */
         Route::patch('postings/{posting}', [AdminPostingController::class, 'update'])
             ->name('postings.update');
+        /* Remove: deletes the posting and tells the client why. */
+        Route::delete('postings/{posting}', [AdminPostingController::class, 'destroy'])
+            ->name('postings.destroy');
 
-        /* Same as postings: edited on the dashboard overview, saved here. */
+        /* Content Management: its own tab again (owner, 2026-10-07). */
+        Route::get('content', [AdminContentController::class, 'index'])->name('content.index');
         Route::put('content', [AdminContentController::class, 'update'])->name('content.update');
 
         Route::get('issues', [AdminIssueController::class, 'index'])->name('issues');

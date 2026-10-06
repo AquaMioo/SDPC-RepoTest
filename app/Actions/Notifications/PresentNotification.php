@@ -204,6 +204,12 @@ class PresentNotification
                     'project' => $slug,
                 ]),
             ],
+            /* The posting is gone, so the row leads to the projects list. */
+            'project.removed' => [
+                __(':project was removed by an administrator', ['project' => $project ?? __('Your posting')]),
+                __('Reason: :reason', ['reason' => $this->text($data, 'reason') ?? __('none given')]),
+                route('projects.index', ['current_team' => $team->slug]),
+            ],
             'message.received' => [
                 __(':sender messaged you', [
                     'sender' => $this->text($data, 'sender_name') ?? __('Somebody'),

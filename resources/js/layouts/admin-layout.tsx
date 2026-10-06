@@ -12,7 +12,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useMod } from '@/hooks/use-mod';
-import { dashboard, issues, monitoring } from '@/routes/admin';
+import { dashboard, issues } from '@/routes/admin';
+import { index as contentIndex } from '@/routes/admin/content';
 import { index as adminUsers } from '@/routes/admin/users';
 
 type NavItem = {
@@ -57,12 +58,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
          * verification provider and a business is verified on registration, so
          * neither queue had anything left for an administrator to decide.
          *
-         * Postings and Content are gone from the nav too, but not from the
-         * app: both fold into the Overview screen, which is what the scope
-         * calls the Dashboard Overview.
+         * Postings fold into the Overview screen, which is what the scope
+         * calls the Dashboard Overview. Content Management has its own tab
+         * again (owner, 2026-10-07).
+         *
+         * Monitoring is off the nav (owner, 2026-10-07). Its screen stays,
+         * because appeals are decided there: the activity bell's appeal rows
+         * still open it.
          */
+        { label: 'Content Management', href: contentIndex.url() },
         { label: 'Issues', href: issues.url() },
-        { label: 'Monitoring', href: monitoring.url() },
     ];
 
     return (

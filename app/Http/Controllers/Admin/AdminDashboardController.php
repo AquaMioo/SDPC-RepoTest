@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\SiteContent;
 use App\Support\AdminPostingQueue;
 use App\Support\AdminStatistics;
 use Inertia\Inertia;
@@ -15,10 +14,8 @@ use Inertia\Response;
  * Postings review and content management used to be screens of their own. The
  * scope names neither: the developers module is Login, Dashboard Overview,
  * User Account Management, Content Management and Report and Issues
- * Management. So the posting queue folded into content management, and content
- * management folded into here. Both keep their own write endpoints
- * (AdminPostingController::update, AdminContentController::update) — only the
- * screens were merged.
+ * Management. So the posting queue folded into here. Content Management has
+ * its own tab again (AdminContentController::index, owner 2026-10-07).
  */
 class AdminDashboardController extends Controller
 {
@@ -35,7 +32,6 @@ class AdminDashboardController extends Controller
         return Inertia::render('admin/dashboard', [
             'stats' => $this->statistics->all(),
             'postings' => $this->postings->all(),
-            'content' => SiteContent::allKeyed(),
         ]);
     }
 }
