@@ -1,5 +1,10 @@
 import { router } from '@inertiajs/react';
-import { PaperclipIcon } from '@phosphor-icons/react';
+import {
+    CheckIcon,
+    FilePdfIcon,
+    LinkSimpleIcon,
+    PaperclipIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -110,9 +115,10 @@ function Footer({
 /**
  * Add a task to a phase, or rename one that has not been submitted.
  *
- * A Design or Build task needs a deadline, on or before the final deadline. A
- * deadline is set freely once; after that it moves only with the client's
- * approval, so the edit dialog shows it but will not change it.
+ * Only a Turnover task may carry a deadline, on or before the final deadline;
+ * Objective & Scope has none (owner, 2026-10-07). A deadline is set freely
+ * once; after that it moves only with the client's approval, so the edit
+ * dialog shows it but will not change it.
  */
 export function TaskFormDialog({
     open,
@@ -140,7 +146,7 @@ export function TaskFormDialog({
 
     /* Locked once set: moving it is an ask to the client, not an edit. */
     const deadlineLocked = task !== null && task.dueOn !== null;
-    const deadlineRequired = !phase.isTurnover;
+    const carriesDeadline = phase.isTurnover;
 
     const save = () => {
         setBusy(true);
@@ -150,7 +156,9 @@ export function TaskFormDialog({
             {
                 title,
                 description,
-                ...(deadlineLocked ? {} : { due_on: dueOn || null }),
+                ...(deadlineLocked || !carriesDeadline
+                    ? {}
+                    : { due_on: dueOn || null }),
             },
             {
                 ...IN_PLACE,
@@ -205,34 +213,38 @@ export function TaskFormDialog({
                         className="mt-1 text-[11px]"
                     />
                 </div>
-                <div className="field">
-                    <label htmlFor="task-due">
-                        {deadlineRequired ? 'Deadline' : 'Deadline (optional)'}
-                    </label>
-                    <Input
-                        id="task-due"
-                        type="date"
-                        value={dueOn}
-                        min={timelineWindow().min}
-                        max={earlierOf(finalDeadline, timelineWindow().max)}
-                        disabled={deadlineLocked}
-                        onChange={(event) => setDueOn(event.target.value)}
-                        aria-invalid={Boolean(errors.due_on)}
-                    />
-                    <span
-                        style={{ fontSize: 11, color: MUTED(55), marginTop: 4 }}
-                    >
-                        {deadlineLocked
-                            ? 'A set deadline moves only with the client’s approval. Use “Ask for a new date” on the task.'
-                            : finalDeadline
-                              ? `On or before the final deadline, ${shortDate(finalDeadline)}.`
-                              : 'When this task is due.'}
-                    </span>
-                    <InputError
-                        message={errors.due_on}
-                        className="mt-1 text-[11px]"
-                    />
-                </div>
+                {carriesDeadline && (
+                    <div className="field">
+                        <label htmlFor="task-due">Deadline (optional)</label>
+                        <Input
+                            id="task-due"
+                            type="date"
+                            value={dueOn}
+                            min={timelineWindow().min}
+                            max={earlierOf(finalDeadline, timelineWindow().max)}
+                            disabled={deadlineLocked}
+                            onChange={(event) => setDueOn(event.target.value)}
+                            aria-invalid={Boolean(errors.due_on)}
+                        />
+                        <span
+                            style={{
+                                fontSize: 11,
+                                color: MUTED(55),
+                                marginTop: 4,
+                            }}
+                        >
+                            {deadlineLocked
+                                ? 'A set deadline moves only with the client’s approval. Use “Ask for a new date” on the task.'
+                                : finalDeadline
+                                  ? `On or before the final deadline, ${shortDate(finalDeadline)}.`
+                                  : 'When this task is due.'}
+                        </span>
+                        <InputError
+                            message={errors.due_on}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+                )}
             </div>
             <Footer
                 busy={busy}
@@ -262,7 +274,7 @@ export function SubmitTaskDialog({
     onOpenChange: (open: boolean) => void;
     url: string;
     task: Task;
-    /** Objective and Scope tasks need a file as proof; Turnover's do not. */
+    /** Objective & Scope tasks need a file as proof; Turnover's do not. */
     fileRequired: boolean;
 }) {
     const [note, setNote] = useState(task.proofNote ?? '');
@@ -419,29 +431,37 @@ export function SubmitTaskDialog({
 }
 
 /**
- * The client sending a submitted task back, with the reason.
+ * The client's Verify: the student's submission, the client's comment, and
+ * the two answers (owner, 2026-10-07).
+ *
+ * The only way to Reject. Rejecting sends the task back to the student as not
+ * done and needs the comment, so they know what to fix; verifying keeps an
+ * optional one. Either way the student reads it through Review Verification /
+ * Review Rejection.
  */
-export function ReturnTaskDialog({
+export function ReviewTaskDialog({
     open,
     onOpenChange,
-    url,
+    verifyUrl,
+    rejectUrl,
     task,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    url: string;
+    verifyUrl: string;
+    rejectUrl: string;
     task: Task;
 }) {
-    const [note, setNote] = useState('');
+    const [comment, setComment] = useState('');
     const [errors, setErrors] = useState<Errors>({});
     const [busy, setBusy] = useState(false);
 
-    const send = () => {
+    const answer = (url: string) => {
         setBusy(true);
 
         router.post(
             url,
-            { review_note: note },
+            { review_note: comment },
             {
                 ...IN_PLACE,
                 onSuccess: () => onOpenChange(false),
@@ -455,31 +475,182 @@ export function ReturnTaskDialog({
         <Shell
             open={open}
             onOpenChange={onOpenChange}
-            title={`Send “${task.title}” back`}
-            description="The task goes back to the student as not done, with your note."
+            title={`Review “${task.title}”`}
+            description="What the student sent. Verify it, or reject it to send it back."
         >
-            <div className="field">
-                <label htmlFor="review-note">What needs to change</label>
-                <Textarea
-                    id="review-note"
-                    value={note}
-                    maxLength={2000}
-                    autoFocus
-                    onChange={(event) => setNote(event.target.value)}
-                    aria-invalid={Boolean(errors.review_note)}
-                />
-                <InputError
-                    message={errors.review_note ?? errors.task}
-                    className="mt-1 text-[11px]"
-                />
+            <div
+                data-test="review-task-dialog"
+                style={{ display: 'grid', gap: 12, minWidth: 0 }}
+            >
+                {task.description && (
+                    <ReviewBlock label="Description">
+                        {task.description}
+                    </ReviewBlock>
+                )}
+
+                <ReviewBlock label="What was sent">
+                    {task.proofNote ?? (
+                        <span style={{ color: MUTED(55) }}>No note.</span>
+                    )}
+                </ReviewBlock>
+
+                {(task.proofUrl || task.proofHref) && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            fontSize: 12,
+                        }}
+                    >
+                        {task.proofHref && (
+                            <ProofFile
+                                href={task.proofHref}
+                                name={task.proofName}
+                            />
+                        )}
+                        {task.proofUrl && (
+                            <a
+                                href={task.proofUrl}
+                                target="_blank"
+                                rel="noopener noreferrer nofollow"
+                                data-inline-link=""
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                }}
+                            >
+                                <LinkSimpleIcon />
+                                Open link
+                            </a>
+                        )}
+                    </div>
+                )}
+
+                {task.submittedAt && (
+                    <span style={{ fontSize: 11, color: MUTED(55) }}>
+                        Submitted {task.submittedAt}
+                    </span>
+                )}
+
+                <div className="field">
+                    <label htmlFor="review-comment">
+                        Comment (required to reject)
+                    </label>
+                    <Textarea
+                        id="review-comment"
+                        value={comment}
+                        maxLength={2000}
+                        onChange={(event) => setComment(event.target.value)}
+                        aria-invalid={Boolean(errors.review_note)}
+                    />
+                    <InputError
+                        message={errors.review_note ?? errors.task}
+                        className="mt-1 text-[11px]"
+                    />
+                </div>
             </div>
-            <Footer
-                busy={busy}
-                label="Send back"
-                onSubmit={send}
-                onCancel={() => onOpenChange(false)}
-            />
+            {/* A direct child of DialogContent, so gap-3 only — see .ai/rules/components.md. */}
+            <DialogFooter className="gap-3">
+                <Btn
+                    variant="primary"
+                    disabled={busy}
+                    onClick={() => answer(verifyUrl)}
+                >
+                    {busy && <Spinner />}
+                    <CheckIcon />
+                    Verify
+                </Btn>
+                <Btn
+                    variant="ghost"
+                    disabled={busy}
+                    style={{ color: 'var(--destructive)' }}
+                    onClick={() => answer(rejectUrl)}
+                >
+                    Reject
+                </Btn>
+                <Btn
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => onOpenChange(false)}
+                >
+                    Cancel
+                </Btn>
+            </DialogFooter>
         </Shell>
+    );
+}
+
+/**
+ * The student's Review Verification / Review Rejection: what the client said
+ * when they verified or rejected the work.
+ */
+export function ReviewOutcomeDialog({
+    open,
+    onOpenChange,
+    task,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    task: Task;
+}) {
+    const verified = task.status === 'verified';
+
+    return (
+        <Shell
+            open={open}
+            onOpenChange={onOpenChange}
+            title={verified ? 'Review Verification' : 'Review Rejection'}
+            description={
+                verified
+                    ? `The client verified “${task.title}”.`
+                    : `The client rejected “${task.title}” and sent it back. Fix it and submit it again.`
+            }
+        >
+            <div data-test="review-outcome-dialog">
+                <ReviewBlock label="Client’s comment">
+                    {task.reviewNote ?? (
+                        <span style={{ color: MUTED(55) }}>
+                            The client left no comment.
+                        </span>
+                    )}
+                </ReviewBlock>
+            </div>
+            <DialogFooter className="gap-3">
+                <Btn variant="ghost" onClick={() => onOpenChange(false)}>
+                    Close
+                </Btn>
+            </DialogFooter>
+        </Shell>
+    );
+}
+
+/** A labelled block of text in the review dialogs. */
+function ReviewBlock({
+    label,
+    children,
+}: {
+    label: string;
+    children: ReactNode;
+}) {
+    return (
+        <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+            <span style={{ fontSize: 11, color: MUTED(55) }}>{label}</span>
+            <div
+                style={{
+                    fontSize: 12.5,
+                    lineHeight: 1.55,
+                    whiteSpace: 'pre-wrap',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-md)',
+                    background: MUTED(5),
+                }}
+            >
+                {children}
+            </div>
+        </div>
     );
 }
 
@@ -849,5 +1020,116 @@ export function CompleteProjectDialog({
                 onCancel={() => onOpenChange(false)}
             />
         </Shell>
+    );
+}
+
+/** A proof file the browser can draw as a picture. */
+const PREVIEWABLE_IMAGE = /\.(jpe?g|png|webp)$/i;
+const PDF_FILE = /\.pdf$/i;
+
+/**
+ * The file a student attached as proof, shown as what it is: the picture
+ * itself for an image, a PDF document icon for a PDF, and a plain link for
+ * anything else. Each opens the file in a new tab.
+ *
+ * Plain anchors and a plain img: the proof route streams the file (inline,
+ * behind the project's own check), it is not an Inertia page.
+ */
+export function ProofFile({
+    href,
+    name,
+}: {
+    href: string;
+    name: string | null;
+}) {
+    const label = name ?? 'Attachment';
+
+    if (PREVIEWABLE_IMAGE.test(label)) {
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${label}`}
+                aria-label={`Open ${label}`}
+                style={{ display: 'block', flex: 'none', lineHeight: 0 }}
+            >
+                <img
+                    src={href}
+                    alt={label}
+                    loading="lazy"
+                    style={{
+                        display: 'block',
+                        width: 180,
+                        maxWidth: '100%',
+                        height: 120,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: `1px solid ${MUTED(14)}`,
+                        background: MUTED(6),
+                    }}
+                />
+            </a>
+        );
+    }
+
+    if (PDF_FILE.test(label)) {
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${label}`}
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    maxWidth: '100%',
+                    padding: '8px 12px 8px 8px',
+                    borderRadius: 8,
+                    border: `1px solid ${MUTED(14)}`,
+                    background: MUTED(4),
+                    textDecoration: 'none',
+                    color: 'var(--color-text)',
+                }}
+            >
+                <FilePdfIcon
+                    size={30}
+                    weight="duotone"
+                    color="#c0392b"
+                    style={{ flex: 'none' }}
+                />
+                <span style={{ minWidth: 0 }}>
+                    <span
+                        style={{
+                            display: 'block',
+                            fontSize: 12,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: 220,
+                        }}
+                    >
+                        {label}
+                    </span>
+                    <span style={{ fontSize: 10.5, color: MUTED(55) }}>
+                        PDF document
+                    </span>
+                </span>
+            </a>
+        );
+    }
+
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-inline-link=""
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+            <PaperclipIcon />
+            {label}
+        </a>
     );
 }

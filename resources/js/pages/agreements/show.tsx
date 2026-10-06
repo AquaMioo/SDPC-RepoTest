@@ -124,10 +124,12 @@ export default function AgreementShow({ agreement }: Props) {
     const dateWindow = timelineWindow();
     const turnoverIndex = form.data.milestones.length - 1;
     const isMoa = agreement.template === 'sdpc_moa';
-    const services = isMoa
-        ? (agreement.moa?.sections.find((section) => section.key === 'services')
-              ?.entries ?? [])
-        : [];
+
+    /*
+     * Under the SDPC memorandum the Timeline is Turnover's dates only (owner,
+     * 2026-10-07): Objective & Scope carries no dates or deadlines.
+     */
+    const isOnTimeline = (index: number) => !isMoa || index === turnoverIndex;
 
     /* Per-phase date errors are keyed milestones.N.starts_on / ends_on. */
     const phaseErrors = form.errors as Record<string, string | undefined>;
@@ -225,7 +227,9 @@ export default function AgreementShow({ agreement }: Props) {
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: '1fr 1.3fr 1.3fr 1.3fr 1fr',
+                        gridTemplateColumns: isMoa
+                            ? '1fr 1.3fr 1.3fr 1fr'
+                            : '1fr 1.3fr 1.3fr 1.3fr 1fr',
                         gap: 14,
                         alignItems: 'stretch',
                         marginBottom: 26,
@@ -238,130 +242,80 @@ export default function AgreementShow({ agreement }: Props) {
                         accent
                     />
 
-                    <Panel style={{ padding: 18, gap: 8 }}>
-                        <CardHeading
-                            icon={<ListChecksIcon />}
-                            label={isMoa ? 'Services (Section VII)' : 'Scope'}
-                        />
+                    {/* The Section VII services card is gone under the SDPC
+                        memorandum (owner, 2026-10-07): the services live on
+                        the memorandum itself. Older wording keeps its Scope. */}
+                    {!isMoa && (
+                        <Panel style={{ padding: 18, gap: 8 }}>
+                            <CardHeading
+                                icon={<ListChecksIcon />}
+                                label="Scope"
+                            />
 
-                        {isMoa ? (
-                            /*
-                             * The memorandum's Section VII: each service is an
-                             * objective and its scope, added by either party on
-                             * the memorandum itself. They are not phases: the
-                             * phases are Objective, Scope and Turnover.
-                             */
-                            <>
-                                {services.length === 0 ? (
+                            {isEditing ? (
+                                <>
+                                    <Textarea
+                                        aria-label="Scope"
+                                        value={form.data.scope_summary}
+                                        maxLength={5000}
+                                        placeholder="What is being built, in a sentence or two."
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'scope_summary',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={form.errors.scope_summary}
+                                        className="text-[11px]"
+                                    />
+                                    <Textarea
+                                        aria-label="Deliverables, one per line"
+                                        value={form.data.deliverables}
+                                        placeholder="One deliverable per line"
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'deliverables',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </>
+                            ) : (
+                                <>
                                     <p
                                         style={{
                                             margin: 0,
                                             fontSize: 11.5,
                                             lineHeight: 1.55,
-                                            color: 'var(--destructive)',
+                                            color: MUTED(58),
                                         }}
                                     >
-                                        No service yet. Section VII needs at
-                                        least one before either of you can sign.
+                                        {agreement.scopeSummary ??
+                                            'The client has not written the scope yet.'}
                                     </p>
-                                ) : (
                                     <div
                                         style={{
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            gap: 7,
+                                            gap: 5,
                                             fontSize: 11.5,
-                                            lineHeight: 1.5,
+                                            color: MUTED(70),
                                         }}
                                     >
-                                        {services.map((service) => (
-                                            <div key={service.id}>
-                                                <div>{service.title}</div>
-                                                <div
-                                                    style={{ color: MUTED(58) }}
-                                                >
-                                                    {service.body}
-                                                </div>
-                                            </div>
-                                        ))}
+                                        {agreement.deliverables.map(
+                                            (deliverable) => (
+                                                <span key={deliverable}>
+                                                    · {deliverable}
+                                                </span>
+                                            ),
+                                        )}
                                     </div>
-                                )}
-                                <Link
-                                    href={agreementContract.url({
-                                        current_team: team.slug,
-                                        agreement: agreement.id,
-                                    })}
-                                    data-inline-link=""
-                                    style={{ fontSize: 11.5 }}
-                                >
-                                    {viewer.canAddRequirements
-                                        ? 'Add or edit in the memorandum'
-                                        : 'Read the memorandum'}
-                                </Link>
-                            </>
-                        ) : isEditing ? (
-                            <>
-                                <Textarea
-                                    aria-label="Scope"
-                                    value={form.data.scope_summary}
-                                    maxLength={5000}
-                                    placeholder="What is being built, in a sentence or two."
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'scope_summary',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                                <InputError
-                                    message={form.errors.scope_summary}
-                                    className="text-[11px]"
-                                />
-                                <Textarea
-                                    aria-label="Deliverables, one per line"
-                                    value={form.data.deliverables}
-                                    placeholder="One deliverable per line"
-                                    onChange={(event) =>
-                                        form.setData(
-                                            'deliverables',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </>
-                        ) : (
-                            <>
-                                <p
-                                    style={{
-                                        margin: 0,
-                                        fontSize: 11.5,
-                                        lineHeight: 1.55,
-                                        color: MUTED(58),
-                                    }}
-                                >
-                                    {agreement.scopeSummary ??
-                                        'The client has not written the scope yet.'}
-                                </p>
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: 5,
-                                        fontSize: 11.5,
-                                        color: MUTED(70),
-                                    }}
-                                >
-                                    {agreement.deliverables.map(
-                                        (deliverable) => (
-                                            <span key={deliverable}>
-                                                · {deliverable}
-                                            </span>
-                                        ),
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </Panel>
+                                </>
+                            )}
+                        </Panel>
+                    )}
 
                     <Panel style={{ padding: 18, gap: 8 }}>
                         {/*
@@ -372,9 +326,9 @@ export default function AgreementShow({ agreement }: Props) {
                          * `amount: 0` for every row), so pricing comes back by
                          * restoring this card rather than by a migration.
                          *
-                         * Read-only, editing or not: the phases are Objective,
+                         * Read-only, editing or not: the phases are Objective &
                          * Scope and Turnover (always last). The Section VII
-                         * services fill the first two once the work starts.
+                         * services fill the first once the work starts.
                          */}
                         <CardHeading icon={<FlagIcon />} label="Milestones" />
 
@@ -420,87 +374,101 @@ export default function AgreementShow({ agreement }: Props) {
                         >
                             {isEditing
                                 ? form.data.milestones.map(
-                                      (milestone, index) => (
-                                          <PhaseRow
-                                              key={index}
-                                              index={index}
-                                              heading={`Phase ${index + 1} · ${milestone.title}`}
-                                          >
-                                              <div
-                                                  style={{
-                                                      display: 'flex',
-                                                      gap: 6,
-                                                      marginTop: 4,
-                                                  }}
-                                              >
-                                                  <Input
-                                                      aria-label={`Phase ${index + 1} start`}
-                                                      type="date"
-                                                      min={dateWindow.min}
-                                                      max={dateWindow.max}
-                                                      value={
-                                                          milestone.starts_on
-                                                      }
-                                                      onChange={(event) =>
-                                                          setMilestone(
-                                                              index,
-                                                              'starts_on',
-                                                              event.target
-                                                                  .value,
-                                                          )
-                                                      }
-                                                  />
-                                                  <Input
-                                                      aria-label={`Phase ${index + 1} end`}
-                                                      type="date"
-                                                      min={
-                                                          /* Turnover runs at least a month. */
-                                                          index ===
-                                                              turnoverIndex &&
-                                                          milestone.starts_on
-                                                              ? earliestTurnoverEnd(
-                                                                    milestone.starts_on,
-                                                                )
-                                                              : milestone.starts_on ||
-                                                                dateWindow.min
-                                                      }
-                                                      max={dateWindow.max}
-                                                      value={milestone.ends_on}
-                                                      onChange={(event) =>
-                                                          setMilestone(
-                                                              index,
-                                                              'ends_on',
-                                                              event.target
-                                                                  .value,
-                                                          )
-                                                      }
-                                                  />
-                                              </div>
-                                              <InputError
-                                                  message={
-                                                      phaseErrors[
-                                                          `milestones.${index}.starts_on`
-                                                      ] ??
-                                                      phaseErrors[
-                                                          `milestones.${index}.ends_on`
-                                                      ]
+                                      (milestone, index) =>
+                                          isOnTimeline(index) && (
+                                              <PhaseRow
+                                                  key={index}
+                                                  index={index}
+                                                  heading={
+                                                      isMoa
+                                                          ? milestone.title
+                                                          : `Phase ${index + 1} · ${milestone.title}`
                                                   }
-                                                  className="text-[11px]"
-                                              />
-                                          </PhaseRow>
-                                      ),
+                                              >
+                                                  <div
+                                                      style={{
+                                                          display: 'flex',
+                                                          gap: 6,
+                                                          marginTop: 4,
+                                                      }}
+                                                  >
+                                                      <Input
+                                                          aria-label={`Phase ${index + 1} start`}
+                                                          type="date"
+                                                          min={dateWindow.min}
+                                                          max={dateWindow.max}
+                                                          value={
+                                                              milestone.starts_on
+                                                          }
+                                                          onChange={(event) =>
+                                                              setMilestone(
+                                                                  index,
+                                                                  'starts_on',
+                                                                  event.target
+                                                                      .value,
+                                                              )
+                                                          }
+                                                      />
+                                                      <Input
+                                                          aria-label={`Phase ${index + 1} end`}
+                                                          type="date"
+                                                          min={
+                                                              /* Turnover runs at least a month. */
+                                                              index ===
+                                                                  turnoverIndex &&
+                                                              milestone.starts_on
+                                                                  ? earliestTurnoverEnd(
+                                                                        milestone.starts_on,
+                                                                    )
+                                                                  : milestone.starts_on ||
+                                                                    dateWindow.min
+                                                          }
+                                                          max={dateWindow.max}
+                                                          value={
+                                                              milestone.ends_on
+                                                          }
+                                                          onChange={(event) =>
+                                                              setMilestone(
+                                                                  index,
+                                                                  'ends_on',
+                                                                  event.target
+                                                                      .value,
+                                                              )
+                                                          }
+                                                      />
+                                                  </div>
+                                                  <InputError
+                                                      message={
+                                                          phaseErrors[
+                                                              `milestones.${index}.starts_on`
+                                                          ] ??
+                                                          phaseErrors[
+                                                              `milestones.${index}.ends_on`
+                                                          ]
+                                                      }
+                                                      className="text-[11px]"
+                                                  />
+                                              </PhaseRow>
+                                          ),
                                   )
                                 : agreement.milestones.map(
-                                      (milestone, index) => (
-                                          <PhaseRow
-                                              key={milestone.id}
-                                              index={index}
-                                              heading={`Phase ${index + 1} · ${dateRange(milestone.startsOn, milestone.endsOn)}`}
-                                          >
-                                              {milestone.description ??
-                                                  milestone.title}
-                                          </PhaseRow>
-                                      ),
+                                      (milestone, index) =>
+                                          isOnTimeline(index) && (
+                                              <PhaseRow
+                                                  key={milestone.id}
+                                                  index={index}
+                                                  heading={
+                                                      isMoa
+                                                          ? `${milestone.title} · ${dateRange(milestone.startsOn, milestone.endsOn)}`
+                                                          : `Phase ${index + 1} · ${dateRange(milestone.startsOn, milestone.endsOn)}`
+                                                  }
+                                              >
+                                                  {isMoa
+                                                      ? 'Its end is the final deadline.'
+                                                      : (milestone.description ??
+                                                        milestone.title)}
+                                              </PhaseRow>
+                                          ),
                                   )}
                         </div>
 
@@ -527,9 +495,9 @@ export default function AgreementShow({ agreement }: Props) {
                             /*
                              * The SDPC memorandum: the wording is fixed, the
                              * additions (and the Section VII services, which
-                             * fill the Objective and Scope phases) are made on the memorandum
-                             * itself by either party. What this form sets is
-                             * the timeline.
+                             * fill the Objective & Scope phase) are made on the
+                             * memorandum itself by either party. What this form
+                             * sets is the timeline: Turnover's dates.
                              */
                             <p
                                 style={{
@@ -539,14 +507,15 @@ export default function AgreementShow({ agreement }: Props) {
                                 }}
                             >
                                 This project uses the SDPC Memorandum of
-                                Agreement. Here you set the dates of each phase:
-                                every date falls between today and one year from
-                                today, and Turnover runs at least one month. The
-                                Objective and Scope phases may overlap. When the
-                                work starts, each Section VII service you and
-                                the student add on the memorandum puts its
-                                objective in the Objective phase and its scope
-                                in the Scope phase.
+                                Agreement. Here you set the Turnover dates: both
+                                fall between today and one year from today, and
+                                Turnover runs at least one month. Its end is the
+                                final deadline. When the work starts, each
+                                Section VII service you and the student add on
+                                the memorandum becomes one item in Objective &
+                                Scope: the objective as its title, the scope as
+                                its description. Objective & Scope has no
+                                deadlines.
                             </p>
                         ) : agreement.template === 'memorandum' ? (
                             /*

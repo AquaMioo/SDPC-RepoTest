@@ -8,6 +8,7 @@ use App\Actions\Agreements\SupersedeAgreement;
 use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
 use App\Enums\ApplicationStatus;
+use App\Enums\DeadlineRequestStatus;
 use App\Enums\MemorandumSection;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskStatus;
@@ -15,6 +16,7 @@ use App\Models\Agreement;
 use App\Models\AgreementRequirement;
 use App\Models\AgreementTask;
 use App\Models\Application;
+use App\Models\DeadlineChangeRequest;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,10 +32,10 @@ use Tests\TestCase;
  * account's name), CA2 the Student Representative (the student account's
  * name), the Description of Services the project title. Either party adds to
  * the optional sections and to Section VII, which is required. Section VII
- * never adds a phase: the phases are Objective, Scope and Turnover, and when
- * the work starts each objective becomes a task in Objective and each scope a
- * task in Scope. Only the author changes an addition, and everything locks at
- * the first signature.
+ * never adds a phase: the phases are Objective & Scope and Turnover, and when
+ * the work starts each service becomes one Objective & Scope task, the
+ * objective its title and the scope its description. Only the author changes
+ * an addition, and everything locks at the first signature.
  *
  * Routes are pinned with an explicit current_team; see .ai/rules/feature.md.
  */
@@ -46,8 +48,8 @@ class SdpcMemorandumTest extends TestCase
         [$owner, $student, $agreement] = $this->agreement();
 
         $this->assertSame(AgreementTemplate::SdpcMemorandum, $agreement->template);
-        /* Design and Build are gone; the phases are Objective, Scope and Turnover. */
-        $this->assertSame(['Objective', 'Scope', 'Turnover'], $agreement->milestones->pluck('title')->all());
+        /* The phases are Objective & Scope and Turnover (owner, 2026-10-07). */
+        $this->assertSame(['Objective & Scope', 'Turnover'], $agreement->milestones->pluck('title')->all());
 
         foreach ([$owner, $student] as $reader) {
             $this->actingAs($reader)
@@ -271,7 +273,7 @@ class SdpcMemorandumTest extends TestCase
 
     /**
      * Section VII never adds a phase: its services are kept with the other
-     * additions, and the phases stay Objective, Scope and Turnover.
+     * additions, and the phases stay Objective & Scope and Turnover.
      */
     public function test_a_service_is_kept_in_section_vii_and_never_adds_a_phase(): void
     {
@@ -280,7 +282,7 @@ class SdpcMemorandumTest extends TestCase
         $this->addService($owner, $agreement, 'Inventory module', 'Stock, suppliers and reorder alerts.');
         $this->addService($student, $agreement, 'Reports module', 'Monthly sales and stock reports.');
 
-        $this->assertSame(['Objective', 'Scope', 'Turnover'], $agreement->refresh()->milestones->pluck('title')->all());
+        $this->assertSame(['Objective & Scope', 'Turnover'], $agreement->refresh()->milestones->pluck('title')->all());
 
         $services = $agreement->services()->get();
         $this->assertSame(['Inventory module', 'Reports module'], $services->pluck('title')->all());
@@ -301,7 +303,7 @@ class SdpcMemorandumTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(['Reports module'], $agreement->services()->pluck('title')->all());
-        $this->assertSame(3, $agreement->milestones()->count());
+        $this->assertSame(2, $agreement->milestones()->count());
     }
 
     public function test_only_the_author_changes_a_service(): void
@@ -419,14 +421,14 @@ class SdpcMemorandumTest extends TestCase
             ->assertSessionHasErrors(['signed_name' => 'Every service in Section VII needs its objective and its scope before this agreement can be signed.']);
     }
 
-    public function test_every_phase_needs_dates_and_turnover_a_month_before_signing(): void
+    public function test_only_turnover_needs_dates_and_a_month_before_signing(): void
     {
         [$owner, , $agreement] = $this->agreement();
         $this->addService($owner, $agreement, 'Inventory module', 'Stock and suppliers.');
 
         $this->actingAs($owner)
             ->post($this->url('agreements.signatures.store', $owner, $agreement), $this->signature($owner->name))
-            ->assertSessionHasErrors(['signed_name' => 'Every milestone needs an end date before this agreement can be signed.']);
+            ->assertSessionHasErrors(['signed_name' => 'Set the Turnover dates in the Timeline before this agreement can be signed.']);
 
         $this->datePhases($agreement);
         $agreement->refresh()->turnoverPhase()->update([
@@ -544,7 +546,7 @@ class SdpcMemorandumTest extends TestCase
 
         $successor = app(SupersedeAgreement::class)->handle($agreement->fresh(), $student, 'Please add a reports module.');
 
-        $this->assertSame(['Objective', 'Scope', 'Turnover'], $successor->milestones->pluck('title')->all());
+        $this->assertSame(['Objective & Scope', 'Turnover'], $successor->milestones->pluck('title')->all());
 
         $service = $successor->services()->firstOrFail();
         $this->assertSame('Inventory module', $service->title);
@@ -557,11 +559,11 @@ class SdpcMemorandumTest extends TestCase
     }
 
     /**
-     * When the work starts, every objective lands in the Objective phase and
-     * every scope in the Scope phase: two separate tasks, never one, and
-     * never a phase of their own.
+     * When the work starts, every service becomes one task in Objective &
+     * Scope: the objective its title, the scope its description, with no
+     * deadline and no phase of its own (owner, 2026-10-07).
      */
-    public function test_project_management_gets_each_objective_and_each_scope_separately(): void
+    public function test_project_management_gets_each_service_as_one_task(): void
     {
         [, $student, $agreement] = $this->signedAgreement();
 
@@ -569,18 +571,19 @@ class SdpcMemorandumTest extends TestCase
             ->get(route('project-management', ['current_team' => $student->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('agreement.phases', 3)
-                ->where('agreement.phases.0.title', 'Objective')
-                ->where('agreement.phases.1.title', 'Scope')
-                ->where('agreement.phases.2.title', 'Turnover')
-                ->where('agreement.phases.2.isTurnover', true)
+                ->has('agreement.phases', 2)
+                ->where('agreement.phases.0.title', 'Objective & Scope')
+                ->where('agreement.phases.0.startsOn', null)
+                ->where('agreement.phases.0.endsOn', null)
+                ->where('agreement.phases.1.title', 'Turnover')
+                ->where('agreement.phases.1.isTurnover', true)
                 ->has('agreement.phases.0.tasks', 2)
                 ->where('agreement.phases.0.tasks.0.title', 'Inventory module')
+                ->where('agreement.phases.0.tasks.0.description', 'Stock and suppliers.')
+                ->where('agreement.phases.0.tasks.0.dueOn', null)
                 ->where('agreement.phases.0.tasks.1.title', 'Reports module')
-                ->has('agreement.phases.1.tasks', 2)
-                ->where('agreement.phases.1.tasks.0.title', 'Stock and suppliers.')
-                ->where('agreement.phases.1.tasks.1.title', 'Monthly reports.')
-                ->has('agreement.phases.2.tasks', 0)
+                ->where('agreement.phases.0.tasks.1.description', 'Monthly reports.')
+                ->has('agreement.phases.1.tasks', 0)
                 ->where('agreement.phases.0.tasks.0.status', 'open'));
     }
 
@@ -602,13 +605,13 @@ class SdpcMemorandumTest extends TestCase
         $this->actingAs($student)
             ->post($this->url('agreements.signatures.store', $student, $agreement), $this->signature($student->name))
             ->assertSessionHasNoErrors();
-        $this->assertSame(2, AgreementTask::query()->count());
+        $this->assertSame(1, AgreementTask::query()->count());
 
         /* Signing again is refused, so nothing is seeded twice. */
         $this->actingAs($student)
             ->post($this->url('agreements.signatures.store', $student, $agreement), $this->signature($student->name))
             ->assertForbidden();
-        $this->assertSame(2, AgreementTask::query()->count());
+        $this->assertSame(1, AgreementTask::query()->count());
 
         /* The earlier wording has no Section VII: neither services nor seeded tasks. */
         [$owner, $student, $earlier] = $this->agreement();
@@ -620,6 +623,8 @@ class SdpcMemorandumTest extends TestCase
 
         $earlier->requirements()->create(['section' => MemorandumSection::Services, 'title' => 'Stray', 'body' => 'Stray']);
         $this->datePhases($earlier);
+        /* The earlier wording still needs every phase dated. */
+        $earlier->milestones()->first()->update(['ends_on' => now()->addWeeks(2)->toDateString()]);
         $this->signBoth($owner, $student, $earlier);
 
         $this->assertSame(AgreementStatus::Active, $earlier->fresh()->status);
@@ -627,8 +632,9 @@ class SdpcMemorandumTest extends TestCase
     }
 
     /**
-     * A long scope arrives whole, and the student can still give its task a
-     * first deadline without the title being refused.
+     * A long scope arrives whole as the task's description, and the student
+     * can still edit the task; a deadline sent for it is dropped, because
+     * Objective & Scope carries none.
      */
     public function test_a_long_scope_arrives_whole_and_its_task_can_be_edited(): void
     {
@@ -640,17 +646,20 @@ class SdpcMemorandumTest extends TestCase
         $this->datePhases($agreement);
         $this->signBoth($owner, $student, $agreement);
 
-        $task = $agreement->fresh()->milestones[1]->tasks()->firstOrFail();
-        $this->assertSame($scope, $task->title);
+        $task = $agreement->fresh()->milestones[0]->tasks()->firstOrFail();
+        $this->assertSame('To design and develop a system that addresses the difficulty of client acquisition of tertiary students', $task->title);
+        $this->assertSame($scope, $task->description);
 
         $this->actingAs($student)
             ->patch(route('agreements.tasks.update', ['current_team' => $student->currentTeam, 'agreement' => $agreement, 'task' => $task]), [
                 'title' => $scope,
+                'description' => $scope,
                 'due_on' => now()->addWeek()->toDateString(),
             ])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame(now()->addWeek()->toDateString(), $task->fresh()->due_on->toDateString());
+        $this->assertSame($scope, $task->fresh()->title);
+        $this->assertNull($task->fresh()->due_on);
     }
 
     /**
@@ -660,31 +669,31 @@ class SdpcMemorandumTest extends TestCase
     public function test_turnover_is_left_out_of_the_progress_figure(): void
     {
         [$owner, , $agreement] = $this->signedAgreement();
-        [$objective, , $turnover] = $agreement->milestones;
+        [$work, $turnover] = $agreement->milestones;
 
-        /* The four seeded tasks (two objectives, two scopes): one verified. */
-        $objective->tasks()->first()->update(['status' => TaskStatus::Verified]);
+        /* The two seeded tasks (one per service): one verified. */
+        $work->tasks()->first()->update(['status' => TaskStatus::Verified]);
         /* Turnover: one verified, two open. None of them may move the figure. */
         AgreementTask::factory()->create(['agreement_milestone_id' => $turnover->id, 'status' => TaskStatus::Verified]);
         AgreementTask::factory()->count(2)->create(['agreement_milestone_id' => $turnover->id, 'status' => TaskStatus::Open]);
 
         $agreement = $agreement->fresh();
 
-        $this->assertSame(25, $agreement->progress());
-        $this->assertSame(4, $agreement->taskCount());
+        $this->assertSame(50, $agreement->progress());
+        $this->assertSame(2, $agreement->taskCount());
         $this->assertSame(1, $agreement->verifiedTaskCount());
 
         $summary = app(SummariseProgress::class)->handle($agreement);
-        $this->assertSame(25, $summary['progress']);
-        $this->assertSame(4, $summary['taskCount']);
-        $this->assertTrue($summary['phases'][2]['isTurnover']);
+        $this->assertSame(50, $summary['progress']);
+        $this->assertSame(2, $summary['taskCount']);
+        $this->assertTrue($summary['phases'][1]['isTurnover']);
         $this->assertFalse($summary['phases'][0]['isTurnover']);
 
         $this->actingAs($owner)
             ->get(route('project-management', ['current_team' => $owner->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('agreement.summary.progress', 25)
-                ->where('agreement.summary.taskCount', 4)
+                ->where('agreement.summary.progress', 50)
+                ->where('agreement.summary.taskCount', 2)
                 ->where('agreement.summary.verifiedCount', 1));
     }
 
@@ -746,6 +755,101 @@ class SdpcMemorandumTest extends TestCase
             $this->assertSame(0, $untouched->services()->count());
         }
 
+    }
+
+    /**
+     * Objective and Scope became one phase (owner, 2026-10-07). An open
+     * agreement just loses the Scope phase; on a running build each service's
+     * two tasks become one (objective the title, scope the description)
+     * without losing anything handed over. A completed build is left alone.
+     */
+    public function test_the_migration_merges_objective_and_scope_into_one_phase(): void
+    {
+        [$owner, $student, $draft] = $this->agreement();
+        [, , $active] = $this->agreement();
+        [, , $completed] = $this->agreement();
+
+        foreach ([$draft, $active, $completed] as $agreement) {
+            $agreement->milestones()->delete();
+            DB::table('agreement_milestones')->insert([
+                $this->phaseRow($agreement, 1, 'Objective', null, null, '2026-11-02', '2026-11-20'),
+                $this->phaseRow($agreement, 2, 'Scope', null, null, '2026-11-10', '2026-12-01'),
+                $this->phaseRow($agreement, 3, 'Turnover', null, null, '2026-12-02', '2027-01-05'),
+            ]);
+
+            foreach ([['Inventory', 'Stock and suppliers.'], ['Reports', 'Monthly reports.'], ['Billing', 'Invoices.']] as [$objective, $scope]) {
+                $agreement->requirements()->create(['section' => MemorandumSection::Services, 'title' => $objective, 'body' => $scope, 'user_id' => $owner->id]);
+            }
+        }
+
+        $active->update(['status' => AgreementStatus::Active]);
+        $completed->update(['status' => AgreementStatus::Completed]);
+        [$objectivePhase, $scopePhase] = $active->fresh()->milestones;
+
+        $task = fn ($phase, string $title, array $state = []) => AgreementTask::factory()->create([
+            'agreement_milestone_id' => $phase->id,
+            'title' => $title,
+            'status' => TaskStatus::Open,
+            'due_on' => '2026-11-15',
+            ...$state,
+        ]);
+        $verified = ['status' => TaskStatus::Verified, 'proof_path' => 'task-proofs/x.png', 'proof_name' => 'x.png', 'verified_at' => now()];
+
+        /* Inventory: neither half started. Reports: only the scope was verified. Billing: both were. */
+        $inventory = $task($objectivePhase, 'Inventory');
+        $inventoryScope = $task($scopePhase, 'Stock and suppliers.');
+        $reports = $task($objectivePhase, 'Reports');
+        $reportsScope = $task($scopePhase, 'Monthly reports.', ['proof_note' => 'Reports done.', ...$verified]);
+        $billing = $task($objectivePhase, 'Billing', $verified);
+        $billingScope = $task($scopePhase, 'Invoices.', $verified);
+        $extra = $task($scopePhase, 'Student-added item');
+
+        $ask = DeadlineChangeRequest::factory()->create([
+            'agreement_id' => $active->id,
+            'agreement_task_id' => $inventory->id,
+            'proposed_on' => '2026-11-18',
+            'status' => DeadlineRequestStatus::Pending,
+        ]);
+
+        $migration = require database_path('migrations/2026_10_07_001122_merge_objective_and_scope_into_one_phase.php');
+        $migration->up();
+
+        foreach ([$draft, $active] as $agreement) {
+            $phases = $agreement->fresh()->milestones;
+            $this->assertSame(['Objective & Scope', 'Turnover'], $phases->pluck('title')->all());
+            $this->assertSame([1, 2], $phases->pluck('position')->all());
+            $this->assertNull($phases[0]->starts_on);
+            $this->assertNull($phases[0]->ends_on);
+            $this->assertSame('2027-01-05', $phases[1]->ends_on->toDateString());
+        }
+
+        $merged = $active->fresh()->milestones->first();
+        $this->assertSame($objectivePhase->id, $merged->id);
+        $this->assertSame(
+            ['Inventory', 'Reports', 'Billing', 'Invoices.', 'Student-added item'],
+            $merged->tasks()->orderBy('position')->pluck('title')->all(),
+        );
+
+        /* Each objective task carries its scope as the description, and no deadline. */
+        $this->assertSame('Stock and suppliers.', $inventory->fresh()->description);
+        $this->assertSame('Monthly reports.', $reports->fresh()->description);
+        $this->assertNull($inventory->fresh()->due_on);
+        $this->assertModelMissing($inventoryScope);
+
+        /* The scope's verified work moved onto its objective task. */
+        $this->assertSame(TaskStatus::Verified, $reports->fresh()->status);
+        $this->assertSame('Reports done.', $reports->fresh()->proof_note);
+        $this->assertModelMissing($reportsScope);
+
+        /* Both halves handed over: the scope stays as an item of its own. */
+        $this->assertSame($merged->id, $billingScope->fresh()->agreement_milestone_id);
+        $this->assertSame(TaskStatus::Verified, $billing->fresh()->status);
+        $this->assertSame($merged->id, $extra->fresh()->agreement_milestone_id);
+
+        $this->assertSame(DeadlineRequestStatus::Withdrawn, $ask->fresh()->status);
+
+        /* A completed build is the record of what was delivered. */
+        $this->assertSame(['Objective', 'Scope', 'Turnover'], $completed->fresh()->milestones->pluck('title')->all());
     }
 
     /**
@@ -820,14 +924,12 @@ class SdpcMemorandumTest extends TestCase
     }
 
     /**
-     * Objective and Scope overlap; Turnover follows them for a month.
+     * The timeline is Turnover's dates only: Objective & Scope has none.
      */
     private function datePhases(Agreement $agreement): void
     {
-        [$objective, $scope, $turnover] = $agreement->refresh()->milestones;
+        [, $turnover] = $agreement->refresh()->milestones;
 
-        $objective->update(['starts_on' => now()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
-        $scope->update(['starts_on' => now()->addWeek()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
         $turnover->update(['starts_on' => now()->addWeeks(3)->toDateString(), 'ends_on' => now()->addWeeks(3)->addMonth()->toDateString()]);
     }
 

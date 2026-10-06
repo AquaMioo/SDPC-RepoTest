@@ -195,20 +195,28 @@ class AgreementController extends Controller
      * Write the timeline the client set: each phase's dates.
      *
      * The phases themselves are not this form's to change: they are fixed
-     * (Objective, Scope, Turnover), and Section VII's services fill the first
-     * two as tasks once the work starts (SeedServiceTasks). So only
+     * (Objective & Scope, Turnover), and Section VII's services fill the first
+     * as tasks once the work starts (SeedServiceTasks). So only
      * rows already on this agreement are touched, and only their dates and the
      * dormant amount column; an id from another agreement matches nothing.
+     *
+     * Under the SDPC memorandum the timeline is Turnover's dates only
+     * (owner, 2026-10-07): every other phase is kept undated.
      *
      * @param  array<int, array<string, mixed>>  $milestones
      */
     protected function scheduleMilestones(Agreement $agreement, array $milestones): void
     {
+        $onlyTurnoverIsDated = $agreement->template === AgreementTemplate::SdpcMemorandum;
+        $turnoverId = $agreement->turnoverPhase()?->id;
+
         foreach ($milestones as $milestone) {
+            $isDated = ! $onlyTurnoverIsDated || (int) $milestone['id'] === $turnoverId;
+
             $agreement->milestones()->whereKey((int) $milestone['id'])->update([
                 'amount' => (int) $milestone['amount'],
-                'starts_on' => $milestone['starts_on'] ?? null,
-                'ends_on' => $milestone['ends_on'] ?? null,
+                'starts_on' => $isDated ? ($milestone['starts_on'] ?? null) : null,
+                'ends_on' => $isDated ? ($milestone['ends_on'] ?? null) : null,
             ]);
         }
     }

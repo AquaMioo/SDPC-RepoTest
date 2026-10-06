@@ -261,11 +261,10 @@ class AgreementSigningTest extends TestCase
             'user_id' => $owner->id,
         ]);
 
-        /* Objective and Scope may overlap; Turnover follows them and runs at least a month. */
-        [$objective, $scope, $turnover] = $agreement->milestones;
+        /* Objective & Scope has no dates; the timeline is Turnover, at least a month. */
+        [$work, $turnover] = $agreement->milestones;
 
-        $objective->update(['amount' => 8000, 'starts_on' => now()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
-        $scope->update(['starts_on' => now()->addWeek()->toDateString(), 'ends_on' => now()->addWeeks(2)->toDateString()]);
+        $work->update(['amount' => 8000]);
         $turnover->update([
             'amount' => 8000,
             'starts_on' => now()->addWeeks(3)->toDateString(),

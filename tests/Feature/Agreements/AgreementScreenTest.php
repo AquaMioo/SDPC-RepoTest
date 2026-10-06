@@ -96,8 +96,8 @@ class AgreementScreenTest extends TestCase
     {
         [$owner, $student, $agreement] = $this->agreement();
 
-        /* The phases are Objective, Scope and Turnover. */
-        [$objective, $scope, $turnover] = $agreement->milestones;
+        /* The phases are Objective & Scope and Turnover. */
+        [$work, $turnover] = $agreement->milestones;
 
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
@@ -113,21 +113,15 @@ class AgreementScreenTest extends TestCase
                 'ends_on' => now()->addMonths(3)->toDateString(),
                 'milestones' => [
                     [
-                        'id' => $objective->id,
+                        'id' => $work->id,
                         'amount' => 8000,
+                        /* Sent, but Objective & Scope keeps no dates. */
                         'starts_on' => now()->toDateString(),
                         'ends_on' => now()->addWeeks(3)->toDateString(),
                     ],
                     [
-                        'id' => $scope->id,
-                        'amount' => 14000,
-                        /* Objective and Scope may overlap. */
-                        'starts_on' => now()->addWeeks(2)->toDateString(),
-                        'ends_on' => now()->addWeeks(8)->toDateString(),
-                    ],
-                    [
                         'id' => $turnover->id,
-                        'amount' => 0,
+                        'amount' => 14000,
                         'starts_on' => now()->addWeeks(8)->addDay()->toDateString(),
                         'ends_on' => now()->addWeeks(8)->addDay()->addMonth()->toDateString(),
                     ],
@@ -139,8 +133,12 @@ class AgreementScreenTest extends TestCase
         $agreement->refresh();
 
         $this->assertSame(22000, $agreement->total_amount);
-        $this->assertCount(3, $agreement->milestones);
-        $this->assertSame(['Objective', 'Scope', 'Turnover'], $agreement->milestones->pluck('title')->all());
+        $this->assertCount(2, $agreement->milestones);
+        $this->assertSame(['Objective & Scope', 'Turnover'], $agreement->milestones->pluck('title')->all());
+        /* The timeline is Turnover's dates only (owner, 2026-10-07). */
+        $this->assertNull($agreement->milestones[0]->starts_on);
+        $this->assertNull($agreement->milestones[0]->ends_on);
+        $this->assertNotNull($agreement->milestones[1]->ends_on);
 
         // The student reads the figures the client just wrote, not a copy.
         $this->actingAs($student)
@@ -156,9 +154,9 @@ class AgreementScreenTest extends TestCase
     }
 
     /**
-     * The phases are Objective, Scope and Turnover. The client's timeline
-     * form sets their dates; it cannot put them in another order or rename
-     * them.
+     * The phases are Objective & Scope and Turnover. The client's timeline
+     * form sets Turnover's dates; it cannot put them in another order or
+     * rename them.
      */
     public function test_the_timeline_form_cannot_reorder_or_rename_the_phases(): void
     {
@@ -173,9 +171,8 @@ class AgreementScreenTest extends TestCase
             ]), [
                 ...$this->terms(),
                 'milestones' => [
-                    $this->milestone($original[2]->id, 'Renamed turnover'),
-                    $this->milestone($original[1]->id, 'Renamed scope'),
-                    $this->milestone($original[0]->id, 'Renamed objective'),
+                    $this->milestone($original[1]->id, 'Renamed turnover'),
+                    $this->milestone($original[0]->id, 'Renamed work'),
                 ],
             ])
             ->assertRedirect()
@@ -183,11 +180,11 @@ class AgreementScreenTest extends TestCase
 
         $after = $agreement->refresh()->milestones;
 
-        $this->assertSame([1, 2, 3], $after->pluck('position')->all());
+        $this->assertSame([1, 2], $after->pluck('position')->all());
         $this->assertSame($original->pluck('id')->all(), $after->pluck('id')->all());
-        $this->assertSame(['Objective', 'Scope', 'Turnover'], $after->pluck('title')->all());
-        /* The dates did land. */
-        $this->assertSame(now()->addWeeks(5)->toDateString(), $after[2]->ends_on->toDateString());
+        $this->assertSame(['Objective & Scope', 'Turnover'], $after->pluck('title')->all());
+        /* Turnover's dates did land. */
+        $this->assertSame(now()->addWeeks(5)->toDateString(), $after[1]->ends_on->toDateString());
     }
 
     /**
@@ -197,7 +194,7 @@ class AgreementScreenTest extends TestCase
     {
         [$owner, , $agreement] = $this->agreement();
 
-        [$objective, $scope, $turnover] = $agreement->milestones;
+        [$work, $turnover] = $agreement->milestones;
 
         $this->actingAs($owner)
             ->patch(route('agreements.update', [
@@ -210,7 +207,7 @@ class AgreementScreenTest extends TestCase
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $this->assertSame([$objective->id, $scope->id, $turnover->id], $agreement->refresh()->milestones->pluck('id')->all());
+        $this->assertSame([$work->id, $turnover->id], $agreement->refresh()->milestones->pluck('id')->all());
     }
 
     public function test_turnover_has_to_run_at_least_a_month(): void

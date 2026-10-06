@@ -5,10 +5,8 @@ import {
     CalendarBlankIcon,
     CheckIcon,
     ClockCounterClockwiseIcon,
-    FilePdfIcon,
     FlagCheckeredIcon,
     LinkSimpleIcon,
-    PaperclipIcon,
     PencilSimpleIcon,
     PlusIcon,
     TrashIcon,
@@ -21,7 +19,9 @@ import {
     DeadlineRequestDialog,
     DeclineDeadlineDialog,
     IN_PLACE,
-    ReturnTaskDialog,
+    ProofFile,
+    ReviewOutcomeDialog,
+    ReviewTaskDialog,
     SubmitTaskDialog,
     TaskFormDialog,
 } from '@/components/project-management/task-dialogs';
@@ -60,7 +60,8 @@ type Dialog =
     | { kind: 'add' }
     | { kind: 'edit'; task: Task }
     | { kind: 'submit'; task: Task }
-    | { kind: 'return'; task: Task }
+    | { kind: 'review'; task: Task }
+    | { kind: 'outcome'; task: Task }
     | { kind: 'ask'; task: Task }
     | { kind: 'decline'; task: Task; request: DeadlineRequest }
     | { kind: 'ask-final' }
@@ -80,10 +81,12 @@ const reportFailure = (errors: Record<string, string>) => {
 /**
  * One phase's checklist on Project Management.
  *
- * The student side (canManage) adds tasks with a deadline, edits and reorders
- * the ones not handed over, and ticks a box to submit one for review with
- * proof. Ticking does not complete anything: the row reads "Pending client
- * review" until the client (canVerify) verifies it or sends it back.
+ * The student side (canManage) adds tasks, edits and reorders the ones not
+ * handed over, and ticks a box to submit one for review with proof. Ticking
+ * does not complete anything: the row reads "Pending client review" until the
+ * client (canVerify) opens Verify and verifies or rejects it there; the
+ * student reads the client's comment through Review Verification / Review
+ * Rejection. Only Turnover tasks carry deadlines.
  *
  * A deadline, once set, moves only when the student side asks and the client
  * approves. The Turnover phase carries the final deadline and, for the client,
@@ -141,13 +144,6 @@ export function PhaseChecklist({
             ...IN_PLACE,
             onError: reportFailure,
         });
-
-    const verify = (task: Task) =>
-        router.post(
-            verifyTask.url(taskArgs(task)),
-            {},
-            { ...IN_PLACE, onError: reportFailure },
-        );
 
     const approve = (request: DeadlineRequest) =>
         router.post(
@@ -243,9 +239,11 @@ export function PhaseChecklist({
                     {phase.verifiedCount} of {phase.taskCount} verified
                     {phase.isTurnover ? ' · not counted in progress' : ''}
                 </span>
-                <span style={{ fontSize: 11.5, color: MUTED(55) }}>
-                    {shortDate(phase.startsOn)} – {shortDate(phase.endsOn)}
-                </span>
+                {(phase.startsOn || phase.endsOn) && (
+                    <span style={{ fontSize: 11.5, color: MUTED(55) }}>
+                        {shortDate(phase.startsOn)} – {shortDate(phase.endsOn)}
+                    </span>
+                )}
             </div>
 
             {phase.isTurnover && finalDeadline && (
@@ -291,8 +289,11 @@ export function PhaseChecklist({
                         onDelete={() => remove(task)}
                         onMoveUp={() => move(index, -1)}
                         onMoveDown={() => move(index, 1)}
-                        onVerify={() => verify(task)}
-                        onReturn={() => setDialog({ kind: 'return', task })}
+                        carriesDeadline={phase.isTurnover}
+                        onVerify={() => setDialog({ kind: 'review', task })}
+                        onReviewOutcome={() =>
+                            setDialog({ kind: 'outcome', task })
+                        }
                         onAsk={() => setDialog({ kind: 'ask', task })}
                         onApprove={approve}
                         onDecline={(request) =>
@@ -366,11 +367,19 @@ export function PhaseChecklist({
                     fileRequired={!phase.isTurnover}
                 />
             )}
-            {dialog?.kind === 'return' && (
-                <ReturnTaskDialog
+            {dialog?.kind === 'review' && (
+                <ReviewTaskDialog
                     open
                     onOpenChange={(open) => !open && setDialog(null)}
-                    url={sendBackTask.url(taskArgs(dialog.task))}
+                    verifyUrl={verifyTask.url(taskArgs(dialog.task))}
+                    rejectUrl={sendBackTask.url(taskArgs(dialog.task))}
+                    task={dialog.task}
+                />
+            )}
+            {dialog?.kind === 'outcome' && (
+                <ReviewOutcomeDialog
+                    open
+                    onOpenChange={(open) => !open && setDialog(null)}
                     task={dialog.task}
                 />
             )}
@@ -584,13 +593,14 @@ function TaskRow({
     canVerify,
     isFirst,
     isLast,
+    carriesDeadline,
     onToggle,
     onEdit,
     onDelete,
     onMoveUp,
     onMoveDown,
     onVerify,
-    onReturn,
+    onReviewOutcome,
     onAsk,
     onApprove,
     onDecline,
@@ -601,13 +611,17 @@ function TaskRow({
     canVerify: boolean;
     isFirst: boolean;
     isLast: boolean;
+    /** Only Turnover tasks carry deadlines; Objective & Scope has none. */
+    carriesDeadline: boolean;
     onToggle: () => void;
     onEdit: () => void;
     onDelete: () => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
+    /** Opens the review dialog: the only way to Verify or Reject. */
     onVerify: () => void;
-    onReturn: () => void;
+    /** The student's Review Verification / Review Rejection. */
+    onReviewOutcome: () => void;
     onAsk: () => void;
     onApprove: (request: DeadlineRequest) => void;
     onDecline: (request: DeadlineRequest) => void;
@@ -689,7 +703,9 @@ function TaskRow({
                     )}
                 </div>
 
-                <DueDate task={task} />
+                {(carriesDeadline || task.dueOn !== null) && (
+                    <DueDate task={task} />
+                )}
 
                 <StatusLine
                     task={task}
@@ -698,16 +714,22 @@ function TaskRow({
                 />
 
                 {canVerify && task.status === 'submitted' && (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        <Btn variant="primary" onClick={onVerify}>
-                            <CheckIcon />
-                            Verify
-                        </Btn>
-                        <Btn variant="ghost" onClick={onReturn}>
-                            Send back
-                        </Btn>
-                    </div>
+                    <Btn variant="primary" onClick={onVerify}>
+                        <CheckIcon />
+                        Verify
+                    </Btn>
                 )}
+
+                {/* The client's answer, for the student side to read. */}
+                {canManage &&
+                    (task.status === 'verified' ||
+                        (task.status === 'open' && task.reviewNote)) && (
+                        <Btn variant="ghost" onClick={onReviewOutcome}>
+                            {task.status === 'verified'
+                                ? 'Review Verification'
+                                : 'Review Rejection'}
+                        </Btn>
+                    )}
 
                 {(canAsk || (canManage && task.status === 'open')) && (
                     <div style={{ display: 'flex', gap: 2 }}>
@@ -782,18 +804,6 @@ function TaskRow({
                 </div>
             )}
 
-            {task.status === 'open' && task.reviewNote && (
-                <div
-                    style={{
-                        fontSize: 11.5,
-                        paddingLeft: 30,
-                        color: MUTED(75),
-                    }}
-                >
-                    <strong>Sent back:</strong> {task.reviewNote}
-                </div>
-            )}
-
             {task.status !== 'open' && hasProof && (
                 <div
                     style={{
@@ -839,111 +849,6 @@ function TaskRow({
                 </div>
             )}
         </div>
-    );
-}
-
-/** A proof file the browser can draw as a picture. */
-const PREVIEWABLE_IMAGE = /\.(jpe?g|png|webp)$/i;
-const PDF_FILE = /\.pdf$/i;
-
-/**
- * The file a student attached as proof, shown as what it is: the picture
- * itself for an image, a PDF document icon for a PDF, and a plain link for
- * anything else. Each opens the file in a new tab.
- *
- * Plain anchors and a plain img: the proof route streams the file (inline,
- * behind the project's own check), it is not an Inertia page.
- */
-function ProofFile({ href, name }: { href: string; name: string | null }) {
-    const label = name ?? 'Attachment';
-
-    if (PREVIEWABLE_IMAGE.test(label)) {
-        return (
-            <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Open ${label}`}
-                aria-label={`Open ${label}`}
-                style={{ display: 'block', flex: 'none', lineHeight: 0 }}
-            >
-                <img
-                    src={href}
-                    alt={label}
-                    loading="lazy"
-                    style={{
-                        display: 'block',
-                        width: 180,
-                        maxWidth: '100%',
-                        height: 120,
-                        objectFit: 'cover',
-                        borderRadius: 8,
-                        border: `1px solid ${MUTED(14)}`,
-                        background: MUTED(6),
-                    }}
-                />
-            </a>
-        );
-    }
-
-    if (PDF_FILE.test(label)) {
-        return (
-            <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Open ${label}`}
-                style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    maxWidth: '100%',
-                    padding: '8px 12px 8px 8px',
-                    borderRadius: 8,
-                    border: `1px solid ${MUTED(14)}`,
-                    background: MUTED(4),
-                    textDecoration: 'none',
-                    color: 'var(--color-text)',
-                }}
-            >
-                <FilePdfIcon
-                    size={30}
-                    weight="duotone"
-                    color="#c0392b"
-                    style={{ flex: 'none' }}
-                />
-                <span style={{ minWidth: 0 }}>
-                    <span
-                        style={{
-                            display: 'block',
-                            fontSize: 12,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            maxWidth: 220,
-                        }}
-                    >
-                        {label}
-                    </span>
-                    <span style={{ fontSize: 10.5, color: MUTED(55) }}>
-                        PDF document
-                    </span>
-                </span>
-            </a>
-        );
-    }
-
-    return (
-        <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-inline-link=""
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-        >
-            <PaperclipIcon />
-            {label}
-        </a>
     );
 }
 

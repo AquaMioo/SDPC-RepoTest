@@ -40,8 +40,9 @@ type Target = {
  * "Add requirement" and its edit twin, for one section of the memorandum.
  *
  * Section VII asks for a service: an Objective (its title) and a Scope (what
- * it covers); when the work starts the objective goes to Project Management's
- * Objective phase and the scope to its Scope phase, separately. Every other
+ * it covers); when the work starts the service becomes one item in Project
+ * Management's Objective & Scope, the objective its title and the scope its
+ * description. Every other
  * section takes one line, appended after the school's own wording. Either
  * way it goes in under the writer's name, and only they may change it.
  */
@@ -123,7 +124,7 @@ export function MemorandumEntryDialog({
                     </DialogTitle>
                     <DialogDescription>
                         {isService
-                            ? 'Name the objective and describe its scope. When the work starts, the objective is added to the Objective phase and the scope to the Scope phase in Project Management, as separate items.'
+                            ? 'Name the objective and describe its scope. When the work starts, the service becomes one item in Project Management’s Objective & Scope: the objective as its title, the scope as its description.'
                             : 'It is added after the section’s own wording, which nobody can change. Only you can edit or remove it, and only until somebody signs.'}
                     </DialogDescription>
                 </DialogHeader>

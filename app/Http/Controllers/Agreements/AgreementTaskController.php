@@ -247,7 +247,8 @@ class AgreementTaskController extends Controller
     /**
      * Verify a submitted task: the client confirms it is done.
      *
-     * The only move that makes progress.
+     * The only move that makes progress. The client may leave a comment,
+     * which the student reads through Review Verification.
      */
     public function verify(
         Request $request,
@@ -257,6 +258,10 @@ class AgreementTaskController extends Controller
     ): RedirectResponse {
         Gate::authorize('verifyTasks', $agreement);
 
+        $validated = $request->validate([
+            'review_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
         $this->ensureBelongs($task, $agreement);
         $this->ensureStatus($task, TaskStatus::Submitted, __('Only a task the student has submitted can be verified.'));
 
@@ -264,7 +269,7 @@ class AgreementTaskController extends Controller
             'status' => TaskStatus::Verified,
             'verified_at' => now(),
             'verified_by' => $request->user()->id,
-            'review_note' => null,
+            'review_note' => $validated['review_note'] ?? null,
         ]);
 
         $this->syncPhaseStatus->handle($task->milestone, $request->user());

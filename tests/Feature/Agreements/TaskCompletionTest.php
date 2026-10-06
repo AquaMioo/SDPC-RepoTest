@@ -158,6 +158,32 @@ class TaskCompletionTest extends TestCase
         $this->assertNotNull($task->verified_at);
     }
 
+    /**
+     * The client may comment when verifying, and the student reads it through
+     * Review Verification (owner, 2026-10-07).
+     */
+    public function test_the_client_may_comment_when_verifying_and_the_student_reads_it(): void
+    {
+        ['client' => $client, 'student' => $student, 'agreement' => $agreement] = $this->collaboration();
+        $task = $this->task($agreement, TaskStatus::Submitted);
+        $verify = route('agreements.tasks.verify', $this->asParty($client, $agreement, ['task' => $task]));
+
+        $this->actingAs($client)->post($verify, ['review_note' => str_repeat('x', 2001)])->assertSessionHasErrors('review_note');
+        $this->assertSame(TaskStatus::Submitted, $task->refresh()->status);
+
+        $this->actingAs($client)->post($verify, ['review_note' => 'Clean work, thank you.'])->assertSessionHasNoErrors();
+
+        $task->refresh();
+        $this->assertSame(TaskStatus::Verified, $task->status);
+        $this->assertSame('Clean work, thank you.', $task->review_note);
+
+        $this->actingAs($student)
+            ->get(route('project-management', ['current_team' => $student->currentTeam]))
+            ->assertInertia(fn ($page) => $page
+                ->where('agreement.phases.0.tasks.0.status', 'verified')
+                ->where('agreement.phases.0.tasks.0.reviewNote', 'Clean work, thank you.'));
+    }
+
     public function test_a_task_nobody_submitted_cannot_be_verified(): void
     {
         ['client' => $client, 'agreement' => $agreement] = $this->collaboration();

@@ -306,18 +306,19 @@ return [
     | Default Milestones
     |--------------------------------------------------------------------------
     |
-    | The phases a new agreement starts with: Objective, Scope and Turnover
-    | (always the last). They replace Design and Build. Section VII never adds
-    | a phase: when the agreement starts, each service's Objective becomes a
-    | task in the Objective phase and its Scope a task in the Scope phase
-    | (App\Actions\Agreements\SeedServiceTasks). Objective and Scope may
-    | overlap; Turnover runs at least a month. The amount is zero and the
+    | The phases a new agreement starts with: Objective & Scope, then Turnover
+    | (always the last). Section VII never adds a phase: when the agreement
+    | starts, each service becomes one task in Objective & Scope, its
+    | Objective the title and its Scope the description
+    | (App\Actions\Agreements\SeedServiceTasks). Objective & Scope carries no
+    | dates or deadlines; the timeline is Turnover's dates only, and Turnover
+    | runs at least a month (owner, 2026-10-07). The amount is zero and the
     | dates blank until the client sets them, so nothing here asserts a price
     | or a deadline nobody agreed.
     |
     */
 
-    'default_milestones' => ['Objective', 'Scope', 'Turnover'],
+    'default_milestones' => ['Objective & Scope', 'Turnover'],
 
     /*
     |--------------------------------------------------------------------------

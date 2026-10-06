@@ -318,7 +318,7 @@ function Prompt({
                     {addition.isRequired
                         ? isEmpty
                             ? 'Required: neither side can sign until Section VII describes at least one service.'
-                            : 'Required. When the work starts, each objective goes to the Objective phase and each scope to the Scope phase in Project Management.'
+                            : 'Required. When the work starts, each service becomes one item in Project Management’s Objective & Scope: the objective as its title, the scope as its description.'
                         : 'Optional. Left out of the printed copy when nothing is added.'}
                 </span>
             </div>

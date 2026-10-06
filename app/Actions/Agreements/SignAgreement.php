@@ -130,20 +130,24 @@ class SignAgreement
             if ($services->contains(fn (AgreementRequirement $service): bool => blank($service->title) || blank($service->body))) {
                 return __('Every service in Section VII needs its objective and its scope before this agreement can be signed.');
             }
-        }
 
-        if ($milestones->contains(fn (AgreementMilestone $milestone): bool => $milestone->ends_on === null)) {
-            return __('Every milestone needs an end date before this agreement can be signed.');
-        }
-
-        if ($agreement->template === AgreementTemplate::SdpcMemorandum) {
-            if ($turnover !== null && $turnover->starts_on === null) {
-                return __('Turnover needs a start date before this agreement can be signed.');
+            /*
+             * The timeline is Turnover's dates only: Objective & Scope carries
+             * no deadline (owner, 2026-10-07).
+             */
+            if ($turnover !== null && ($turnover->starts_on === null || $turnover->ends_on === null)) {
+                return __('Set the Turnover dates in the Timeline before this agreement can be signed.');
             }
 
             if ($turnover !== null && ! TimelineWindow::isLongEnoughForTurnover($turnover->starts_on, $turnover->ends_on)) {
                 return TimelineWindow::turnoverTooShortMessage($turnover->starts_on);
             }
+
+            return null;
+        }
+
+        if ($milestones->contains(fn (AgreementMilestone $milestone): bool => $milestone->ends_on === null)) {
+            return __('Every milestone needs an end date before this agreement can be signed.');
         }
 
         return null;
@@ -174,8 +178,8 @@ class SignAgreement
      * Put the agreement into force and start the project.
      *
      * The Section VII services go into Project Management here, once: each
-     * objective a task in the Objective phase, each scope one in the Scope
-     * phase (SeedServiceTasks).
+     * service one task in Objective & Scope, the objective its title and the
+     * scope its description (SeedServiceTasks).
      */
     protected function activate(Agreement $agreement): void
     {

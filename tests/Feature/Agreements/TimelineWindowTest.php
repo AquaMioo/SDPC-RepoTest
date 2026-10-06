@@ -86,7 +86,8 @@ class TimelineWindowTest extends TestCase
     public function test_a_task_deadline_stays_inside_the_window(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
-        $design = $agreement->milestones->first();
+        /* Only a Turnover task carries a deadline. */
+        $design = $agreement->milestones->last();
         $url = route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design]));
 
         $this->actingAs($student)->post($url, ['title' => 'Yesterday', 'due_on' => '2026-02-09'])

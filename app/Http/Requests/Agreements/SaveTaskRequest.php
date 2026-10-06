@@ -29,9 +29,9 @@ class SaveTaskRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * A new task in a Design or Build phase must carry a deadline; one in the
-     * Turnover phase may, since Turnover's own end is the deadline. Either
-     * way it falls on or before the final deadline, and inside the timeline
+     * Only a task in the Turnover phase may carry a deadline, and need not,
+     * since Turnover's own end is the deadline. It falls on or before the
+     * final deadline, and inside the timeline
      * window (today to a year from today). Editing never moves a
      * deadline that is already set — that needs the client (see
      * AgreementTaskController::update and DeadlineChangeRequestController).
@@ -62,13 +62,24 @@ class SaveTaskRequest extends FormRequest
             $dueRules[] = 'before_or_equal:'.$finalDeadline->toDateString();
         }
 
+        /*
+         * Only a Turnover task may carry a deadline, and need not. Objective &
+         * Scope has none (owner, 2026-10-07), so a date sent for one is
+         * dropped rather than stored.
+         */
+        $phase = $milestone instanceof AgreementMilestone
+            ? $milestone
+            : ($task instanceof AgreementTask ? $task->milestone : null);
+
         return [
-            /* As long as a Section VII scope, which arrives as a Scope task (SeedServiceTasks). */
+            /* As long as a Section VII scope, which arrives as a task description (SeedServiceTasks). */
             'title' => ['required', 'string', 'max:2000'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'due_on' => $milestone instanceof AgreementMilestone
-                ? [$milestone->isTurnover() ? 'nullable' : 'required', ...$dueRules]
-                : ['sometimes', 'nullable', ...$dueRules],
+            'due_on' => match (true) {
+                $phase !== null && ! $phase->isTurnover() => ['exclude'],
+                $milestone instanceof AgreementMilestone => ['nullable', ...$dueRules],
+                default => ['sometimes', 'nullable', ...$dueRules],
+            },
         ];
     }
 

@@ -40,27 +40,28 @@ class DeadlineApprovalTest extends TestCase
         $this->travelTo('2026-01-26 09:00:00');
     }
 
-    public function test_a_design_or_build_task_needs_a_deadline_but_a_turnover_one_does_not(): void
+    public function test_only_a_turnover_task_carries_a_deadline_and_need_not(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
         [$design, , $turnover] = $agreement->milestones;
 
+        /* Outside Turnover a date is dropped, not stored (owner, 2026-10-07). */
         $this->actingAs($student)
-            ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design])), ['title' => 'Wireframes'])
-            ->assertSessionHasErrors(['due_on' => 'Give the task a deadline.']);
+            ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $design])), ['title' => 'Wireframes', 'due_on' => '2026-02-15'])
+            ->assertSessionHasNoErrors();
 
         $this->actingAs($student)
             ->post(route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $turnover])), ['title' => 'Hand over'])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame(0, $design->tasks()->count());
+        $this->assertNull($design->tasks()->first()->due_on);
         $this->assertNull($turnover->tasks()->first()->due_on);
     }
 
     public function test_a_task_deadline_falls_on_or_before_the_final_deadline(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
-        $url = route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $agreement->milestones[1]]));
+        $url = route('agreements.tasks.store', $this->asParty($student, $agreement, ['milestone' => $agreement->milestones[2]]));
 
         $this->actingAs($student)->post($url, ['title' => 'Too late', 'due_on' => '2026-04-13'])
             ->assertSessionHasErrors(['due_on' => 'A task has to be due on or before the final deadline, 12 Apr 2026.']);
@@ -68,14 +69,16 @@ class DeadlineApprovalTest extends TestCase
         $this->actingAs($student)->post($url, ['title' => 'Just in time', 'due_on' => '2026-04-12'])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('2026-04-12', $agreement->milestones[1]->tasks()->first()->due_on->toDateString());
+        $this->assertSame('2026-04-12', $agreement->milestones[2]->tasks()->first()->due_on->toDateString());
     }
 
     public function test_editing_sets_a_first_deadline_but_never_moves_one(): void
     {
         ['student' => $student, 'agreement' => $agreement] = $this->collaboration();
-        $legacy = $this->task($agreement, dueOn: null);
-        $dated = $this->task($agreement, dueOn: '2026-02-15');
+        /* Turnover tasks: the only ones that carry a deadline. */
+        $turnoverId = $agreement->milestones->last()->id;
+        $legacy = AgreementTask::factory()->create(['agreement_milestone_id' => $turnoverId, 'due_on' => null]);
+        $dated = AgreementTask::factory()->create(['agreement_milestone_id' => $turnoverId, 'due_on' => '2026-02-15']);
 
         $this->actingAs($student)
             ->patch(route('agreements.tasks.update', $this->asParty($student, $agreement, ['task' => $legacy])), ['title' => $legacy->title, 'due_on' => '2026-02-18'])

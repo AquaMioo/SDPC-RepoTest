@@ -370,9 +370,9 @@ function Workspace({
                 }}
             >
                 {/*
-                 * One card per phase: Objective, Scope and Turnover. The
-                 * Section VII services fill the first two as tasks (each
-                 * objective in Objective, each scope in Scope). Turnover is
+                 * One card per phase: Objective & Scope and Turnover. Each
+                 * Section VII service is one Objective & Scope task (the
+                 * objective its title, the scope its description). Turnover is
                  * listed but never counted in the percentage.
                  */}
                 {agreement.phases.map((phase) => (
@@ -393,10 +393,13 @@ function Workspace({
                                 {STATE_TAG[phase.state].label}
                             </Tag>
                         </div>
-                        <span style={{ fontSize: 11.5, color: MUTED(58) }}>
-                            {shortDate(phase.startsOn)} –{' '}
-                            {shortDate(phase.endsOn)}
-                        </span>
+                        {/* Objective & Scope has no dates. */}
+                        {(phase.startsOn || phase.endsOn) && (
+                            <span style={{ fontSize: 11.5, color: MUTED(58) }}>
+                                {shortDate(phase.startsOn)} –{' '}
+                                {shortDate(phase.endsOn)}
+                            </span>
+                        )}
                         {phase.isTurnover ? (
                             <span style={{ fontSize: 11, color: MUTED(55) }}>
                                 {phase.verifiedCount} of {phase.taskCount} tasks
@@ -437,8 +440,9 @@ function Workspace({
                 ))}
             </div>
 
+            {/* The Gantt chart is Turnover only (owner, 2026-10-07). */}
             <PhaseTimeline
-                phases={agreement.phases}
+                phases={agreement.phases.filter((phase) => phase.isTurnover)}
                 canEdit={canManage}
                 onReschedule={reschedule}
                 onEditDates={onEditDates}

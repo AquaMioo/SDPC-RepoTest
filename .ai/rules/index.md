@@ -30,6 +30,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/pages/agreements/** | .ai/rules/pages-agreements.md |
 | resources/js/pages/** | .ai/rules/pages.md |
 | app/Policies/ProjectPolicy.php, app/Policies/AgreementPolicy.php | .ai/rules/policies.md |
+| resources/js/components/project-management/** | .ai/rules/project-management.md |
 | app/Services/Recommendation/** | .ai/rules/recommendation.md |
 | app/Http/Requests/Agreements/** | .ai/rules/requests-agreements.md |
 | app/Http/Requests/Client/UpdateClientProfileRequest.php | .ai/rules/requests-client.md |
