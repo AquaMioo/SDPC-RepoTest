@@ -4,9 +4,6 @@ import {
     BuildingsIcon,
     ChartLineUpIcon,
     ChatsCircleIcon,
-    FacebookLogoIcon,
-    GithubLogoIcon,
-    LinkedinLogoIcon,
     SealCheckIcon,
     SmileyIcon,
     SparkleIcon,
@@ -14,6 +11,7 @@ import {
     UserIcon,
     UsersThreeIcon,
 } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Btn } from '@/components/sdpc/btn';
@@ -110,7 +108,7 @@ export default function Welcome({
 
                     {/* Colour lives on a[data-nav] in nocturne.css, as in the
                         signed-in header, where :hover can reach it. */}
-                    {['About Us', "What's New", 'For Business'].map((label) => (
+                    {['About Us'].map((label) => (
                         <a
                             key={label}
                             href="#"
@@ -158,19 +156,6 @@ export default function Welcome({
                     }}
                 >
                     <div>
-                        <div
-                            className="tag tag-accent"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 7,
-                                marginBottom: 22,
-                            }}
-                        >
-                            <SparkleIcon />
-                            AI client matching · San Jose Del Monte
-                        </div>
-
                         <h1
                             style={{
                                 fontSize: 58,
@@ -288,22 +273,8 @@ export default function Welcome({
                                 overflow: 'hidden',
                             }}
                         >
-                            {/*
-                             * The four students who built SDPC, photographed
-                             * outside their own school. Described rather than
-                             * left decorative because the picture is the claim
-                             * the page is making — that this was built by
-                             * students in San Jose Del Monte, not stock.
-                             */}
-                            <img
-                                src="/images/hero.webp"
-                                alt="The four students who built SDPC, outside their school"
-                                style={{
-                                    width: '100%',
-                                    height: 380,
-                                    objectFit: 'cover',
-                                }}
-                            />
+                            {/* A slideshow of teams at work (owner, 2026-10-08). */}
+                            <HeroCarousel />
 
                             {/*
                              * The match, shown rather than described: a
@@ -477,20 +448,7 @@ export default function Welcome({
                     {/* No way into the admin console from here: it is reached
                         only by typing /admin/login. */}
                     <div style={{ marginRight: 'auto', fontSize: 13.5 }}>
-                        Follow us · STI College San Jose Del Monte
-                    </div>
-
-                    <div
-                        style={{
-                            display: 'flex',
-                            gap: 14,
-                            fontSize: 18,
-                            color: 'var(--color-accent-200)',
-                        }}
-                    >
-                        <FacebookLogoIcon />
-                        <LinkedinLogoIcon />
-                        <GithubLogoIcon />
+                        STI College San Jose Del Monte
                     </div>
 
                     <div
@@ -621,6 +579,132 @@ function Testimonial({ quote, name, role }: TestimonialItem) {
                         </div>
                     )}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+/** The hero slideshow's photos, in /public/images/landing. */
+const HERO_SLIDES = [
+    {
+        src: '/images/landing/team-1.jpg',
+        alt: 'A team working on laptops around a round table',
+    },
+    {
+        src: '/images/landing/team-2.jpg',
+        alt: 'Three people sketching and designing together at a desk',
+    },
+    {
+        src: '/images/landing/team-3.jpg',
+        alt: 'Four people reviewing work together on one laptop',
+    },
+    {
+        src: '/images/landing/team-4.jpg',
+        alt: 'A team discussing ideas around a meeting table',
+    },
+    {
+        src: '/images/landing/team-5.jpg',
+        alt: 'A developer on a video call at a desk',
+    },
+    {
+        src: '/images/landing/team-6.jpg',
+        alt: 'A team planning a project around a table, seen from above',
+    },
+];
+
+/** How long each photo stays before the next fades in. */
+const SLIDE_MS = 5000;
+
+/**
+ * The hero picture as a slideshow: the photos cross-fade every few seconds,
+ * and the dots jump to one. It holds still while pointed at or focused, and
+ * for anybody who asked their system for reduced motion.
+ */
+function HeroCarousel() {
+    const [current, setCurrent] = useState(0);
+    const [paused, setPaused] = useState(false);
+
+    useEffect(() => {
+        if (
+            paused ||
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+            return;
+        }
+
+        const timer = window.setInterval(
+            () => setCurrent((index) => (index + 1) % HERO_SLIDES.length),
+            SLIDE_MS,
+        );
+
+        return () => window.clearInterval(timer);
+    }, [paused]);
+
+    return (
+        <div
+            data-test="hero-carousel"
+            aria-roledescription="carousel"
+            aria-label="Teams at work"
+            onMouseEnter={() => setPaused(true)}
+            onMouseLeave={() => setPaused(false)}
+            onFocus={() => setPaused(true)}
+            onBlur={() => setPaused(false)}
+            style={{ position: 'relative', height: 380 }}
+        >
+            {HERO_SLIDES.map((slide, index) => (
+                <img
+                    key={slide.src}
+                    src={slide.src}
+                    alt={slide.alt}
+                    aria-hidden={index !== current}
+                    fetchPriority={index === 0 ? 'high' : 'low'}
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        opacity: index === current ? 1 : 0,
+                        transition: 'opacity 0.8s ease',
+                    }}
+                />
+            ))}
+
+            {/* Top right: the match cards sit along the bottom. */}
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 14,
+                    display: 'flex',
+                    gap: 6,
+                    padding: '6px 8px',
+                    borderRadius: 999,
+                    background: 'rgba(0, 0, 0, 0.32)',
+                }}
+            >
+                {HERO_SLIDES.map((slide, index) => (
+                    <button
+                        key={slide.src}
+                        type="button"
+                        aria-label={`Show photo ${index + 1} of ${HERO_SLIDES.length}`}
+                        aria-current={index === current}
+                        onClick={() => setCurrent(index)}
+                        style={{
+                            width: index === current ? 18 : 7,
+                            height: 7,
+                            padding: 0,
+                            border: 0,
+                            borderRadius: 999,
+                            cursor: 'pointer',
+                            background:
+                                index === current
+                                    ? '#ffffff'
+                                    : 'rgba(255, 255, 255, 0.55)',
+                            transition: 'width 0.3s ease',
+                        }}
+                    />
+                ))}
             </div>
         </div>
     );
