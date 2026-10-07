@@ -31,6 +31,7 @@ import type {
     Task,
 } from '@/components/project-management/types';
 import { Btn } from '@/components/sdpc/btn';
+import { PageNumbers, usePagination } from '@/components/sdpc/page-numbers';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { earliestTurnoverEnd, shortDate } from '@/lib/calendar-days';
@@ -68,6 +69,9 @@ type Dialog =
     | { kind: 'decline-final'; request: DeadlineRequest }
     | { kind: 'complete' }
     | null;
+
+/** Objective & Scope tasks per page (owner, 2026-10-08). */
+const TASKS_PER_PAGE = 4;
 
 /** Tell the person why a move was refused, without a validation field to hang it on. */
 const reportFailure = (errors: Record<string, string>) => {
@@ -120,6 +124,19 @@ export function PhaseChecklist({
     } | null;
 }) {
     const [dialog, setDialog] = useState<Dialog>(null);
+
+    /*
+     * Objective & Scope pages four tasks at a time so a long checklist does
+     * not pile up (owner, 2026-10-08); Turnover shows its tasks on one page.
+     */
+    const perPage = phase.isTurnover
+        ? Math.max(phase.tasks.length, 1)
+        : TASKS_PER_PAGE;
+    const { page, pageCount, setPage, pageItems } = usePagination(
+        phase.tasks,
+        perPage,
+    );
+    const firstIndex = (page - 1) * perPage;
 
     const taskArgs = (task: Task) => ({
         current_team: teamSlug,
@@ -276,33 +293,47 @@ export function PhaseChecklist({
             )}
 
             <div style={{ display: 'grid', gap: 6 }}>
-                {phase.tasks.map((task, index) => (
-                    <TaskRow
-                        key={task.id}
-                        task={task}
-                        canManage={canManage}
-                        canVerify={canVerify}
-                        isFirst={index === 0}
-                        isLast={index === phase.tasks.length - 1}
-                        onToggle={() => toggle(task)}
-                        onEdit={() => setDialog({ kind: 'edit', task })}
-                        onDelete={() => remove(task)}
-                        onMoveUp={() => move(index, -1)}
-                        onMoveDown={() => move(index, 1)}
-                        carriesDeadline={phase.isTurnover}
-                        onVerify={() => setDialog({ kind: 'review', task })}
-                        onReviewOutcome={() =>
-                            setDialog({ kind: 'outcome', task })
-                        }
-                        onAsk={() => setDialog({ kind: 'ask', task })}
-                        onApprove={approve}
-                        onDecline={(request) =>
-                            setDialog({ kind: 'decline', task, request })
-                        }
-                        onTakeBack={takeBack}
-                    />
-                ))}
+                {pageItems.map((task, offset) => {
+                    /* Its place in the whole checklist, for reordering. */
+                    const index = firstIndex + offset;
+
+                    return (
+                        <TaskRow
+                            key={task.id}
+                            task={task}
+                            canManage={canManage}
+                            canVerify={canVerify}
+                            isFirst={index === 0}
+                            isLast={index === phase.tasks.length - 1}
+                            onToggle={() => toggle(task)}
+                            onEdit={() => setDialog({ kind: 'edit', task })}
+                            onDelete={() => remove(task)}
+                            onMoveUp={() => move(index, -1)}
+                            onMoveDown={() => move(index, 1)}
+                            carriesDeadline={phase.isTurnover}
+                            /* The client opens the file through Verify. */
+                            showsProofFile={!(canVerify && !phase.isTurnover)}
+                            onVerify={() => setDialog({ kind: 'review', task })}
+                            onReviewOutcome={() =>
+                                setDialog({ kind: 'outcome', task })
+                            }
+                            onAsk={() => setDialog({ kind: 'ask', task })}
+                            onApprove={approve}
+                            onDecline={(request) =>
+                                setDialog({ kind: 'decline', task, request })
+                            }
+                            onTakeBack={takeBack}
+                        />
+                    );
+                })}
             </div>
+
+            <PageNumbers
+                page={page}
+                pageCount={pageCount}
+                onChange={setPage}
+                label={phase.title}
+            />
 
             {(canManage || completion !== null) && (
                 <div
@@ -594,6 +625,7 @@ function TaskRow({
     isFirst,
     isLast,
     carriesDeadline,
+    showsProofFile,
     onToggle,
     onEdit,
     onDelete,
@@ -613,6 +645,8 @@ function TaskRow({
     isLast: boolean;
     /** Only Turnover tasks carry deadlines; Objective & Scope has none. */
     carriesDeadline: boolean;
+    /** False for the client in Objective & Scope: the file is seen through Verify. */
+    showsProofFile: boolean;
     onToggle: () => void;
     onEdit: () => void;
     onDelete: () => void;
@@ -837,7 +871,7 @@ function TaskRow({
                             Open link
                         </a>
                     )}
-                    {task.proofHref && (
+                    {showsProofFile && task.proofHref && (
                         <ProofFile
                             href={task.proofHref}
                             name={task.proofName}
