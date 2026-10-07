@@ -3,7 +3,6 @@ import { Head, Link } from '@inertiajs/react';
 import PostingReviewList from '@/components/admin/posting-review-list';
 import { Btn } from '@/components/sdpc/btn';
 import { overview } from '@/routes/admin';
-import { index as adminUsers } from '@/routes/admin/users';
 import type { AdminPosting, AdminStats } from '@/types/admin';
 
 const MUTED = (pct: number) =>
@@ -87,27 +86,8 @@ export default function AdminDashboard({ stats, postings }: Props) {
                 />
             </div>
 
-            {stats.pendingReview > 0 && (
-                <div
-                    className="card elev-sm"
-                    style={{
-                        padding: 20,
-                        gap: 12,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                    }}
-                >
-                    <div style={{ marginRight: 'auto', fontSize: 13.5 }}>
-                        {stats.pendingReview} account
-                        {stats.pendingReview === 1 ? '' : 's'} waiting on
-                        review.
-                    </div>
-                    <Btn asChild variant="primary">
-                        <Link href={adminUsers.url()}>Review accounts</Link>
-                    </Btn>
-                </div>
-            )}
-
+            {/* No "review accounts" card: accounts are no longer reviewed
+                or approved (owner, 2026-10-08). */}
             <div style={RULE} />
 
             <PostingReviewList postings={postings} />
