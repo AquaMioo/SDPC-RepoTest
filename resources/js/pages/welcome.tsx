@@ -39,6 +39,18 @@ const STAT_BAND: React.CSSProperties = {
         'inset 0 1px 0 var(--color-divider), inset 0 -1px 0 var(--color-divider)',
 };
 
+/** The Terms of Service and Privacy Policy links: highlighted, pure black text. */
+const LEGAL_LINK: React.CSSProperties = {
+    color: '#000000',
+    background: '#ffffff',
+    fontWeight: 600,
+    padding: '4px 10px',
+    borderRadius: 999,
+    textDecoration: 'underline',
+    textUnderlineOffset: 3,
+    boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.12)',
+};
+
 const FOOTER_BAND: React.CSSProperties = {
     background: 'var(--color-bg)',
     boxShadow: 'inset 0 1px 0 var(--color-divider)',
@@ -456,26 +468,26 @@ export default function Welcome({
                             display: 'flex',
                             gap: 10,
                             fontSize: 12,
-                            color: 'var(--color-accent-200)',
-                            opacity: 0.75,
                         }}
                     >
+                        {/* Highlighted, pure black text only (owner, 2026-10-09). */}
                         <a
                             href={legal.url('terms-of-service')}
                             target="_blank"
                             rel="noopener noreferrer"
-                            data-inline-link=""
+                            data-test="legal-link"
+                            style={LEGAL_LINK}
                         >
                             Terms of Service
                         </a>
-                        <span aria-hidden="true">·</span>
                         <a
                             href={legal.url('privacy-policy')}
                             target="_blank"
                             rel="noopener noreferrer"
-                            data-inline-link=""
+                            data-test="legal-link"
+                            style={LEGAL_LINK}
                         >
-                            Privacy
+                            Privacy Policy
                         </a>
                     </div>
                 </div>
