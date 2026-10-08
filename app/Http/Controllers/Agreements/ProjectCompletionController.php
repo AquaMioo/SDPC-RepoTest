@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Agreements;
 
 use App\Actions\Agreements\CompleteProject;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Agreements\CompleteProjectRequest;
 use App\Models\Agreement;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Gate;
 
 /**
  * The client's Complete button, at the foot of the Turnover phase.
@@ -22,11 +22,14 @@ class ProjectCompletionController extends Controller
     /**
      * Complete the agreement's project.
      */
-    public function store(Team $currentTeam, Agreement $agreement, CompleteProject $completeProject): RedirectResponse
+    public function store(CompleteProjectRequest $request, Team $currentTeam, Agreement $agreement, CompleteProject $completeProject): RedirectResponse
     {
-        Gate::authorize('complete', $agreement);
-
-        $completeProject->handle($agreement);
+        $completeProject->handle(
+            $agreement,
+            $request->integer('rating'),
+            $request->validated('feedback'),
+            $request->user(),
+        );
 
         return to_route('project-management', [
             'current_team' => $currentTeam,

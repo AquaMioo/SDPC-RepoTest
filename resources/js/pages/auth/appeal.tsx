@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
-import { Input } from '@/components/sdpc/input';
+import { Input, Textarea } from '@/components/sdpc/input';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
 import { code as sendCode, submit as submitAppeal } from '@/routes/appeal';
@@ -165,7 +165,7 @@ export default function Appeal({
 
                         <div className="field">
                             <label htmlFor="appeal-body">Your appeal</label>
-                            <textarea
+                            <Textarea
                                 id="appeal-body"
                                 name="body"
                                 rows={5}

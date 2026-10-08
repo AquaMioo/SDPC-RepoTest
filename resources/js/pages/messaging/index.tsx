@@ -21,6 +21,7 @@ import type { ChatMessage } from '@/components/messaging/message-row';
 import { Btn } from '@/components/sdpc/btn';
 import { Input } from '@/components/sdpc/input';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
+import { DeactivatedTag } from '@/components/sdpc/ratings';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import {
     CALL_WINDOW_CLOSED,
@@ -98,6 +99,8 @@ type Props = {
          * other first — or null once the thread is open.
          */
         chatLock: string | null;
+        /** The other side's account was deactivated by an administrator. */
+        counterpartDeactivated: boolean;
         messages: ChatMessage[];
         reactionChoices: string[];
         /** Null until there is a signed agreement to report on. */
@@ -1030,6 +1033,9 @@ export default function Messages({
                                         <div style={{ fontSize: 14 }}>
                                             {active.title}
                                         </div>
+                                        {active.counterpartDeactivated && (
+                                            <DeactivatedTag />
+                                        )}
                                         <div
                                             style={{
                                                 fontSize: 11.5,

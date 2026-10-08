@@ -10,6 +10,7 @@ use App\Models\Application;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Notifications\Client\StudentAccepted;
+use App\Support\HiringRule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -51,6 +52,11 @@ class RespondToApplication
                  */
                 'status' => $application->student->name.' has already been taken on for another project, so they cannot be hired for this one yet. You can keep them shortlisted — they become available again once that build is finished.',
             ]);
+        }
+
+        /* A new client cannot hire a student who has finished a project. */
+        if ($status === ApplicationStatus::Accepted && ! HiringRule::allows($application->student, $application->project->team)) {
+            throw ValidationException::withMessages(['status' => HiringRule::refusal()]);
         }
 
         return DB::transaction(function () use ($application, $status, $responder) {

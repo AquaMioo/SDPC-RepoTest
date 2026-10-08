@@ -15,6 +15,7 @@ use App\Services\Matching\ScopeProfile;
 use App\Services\Matching\SkillInference;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\ScoresFreeText;
+use App\Support\HiringRule;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
@@ -129,7 +130,7 @@ class RecruitController extends Controller
         [$students, $scores] = $isScopeSearch
             ? $this->rankedByScope($filters, $scope, $recommendations, $request)
             : [
-                $this->query($filters)->paginate(self::PER_PAGE)->withQueryString(),
+                $this->query($filters, $request->user()->currentTeam)->paginate(self::PER_PAGE)->withQueryString(),
                 $project !== null ? $recommendations->scoresFor($project) : collect(),
             ];
 
@@ -187,9 +188,10 @@ class RecruitController extends Controller
      *
      * @return Builder<StudentProfile>
      */
-    protected function query(StudentFilters $filters, bool $applySearch = true): Builder
+    protected function query(StudentFilters $filters, Team $client, bool $applySearch = true): Builder
     {
-        return StudentProfile::query()
+        /* A new client sees only new students (HiringRule). */
+        return HiringRule::hireableBy(StudentProfile::query(), $client)
             /*
              * Nobody already on a build — their own or their team's. They
              * cannot be taken on, so listing them is a dead end for the client
@@ -305,7 +307,7 @@ class RecruitController extends Controller
         ScoresFreeText $recommendations,
         Request $request,
     ): array {
-        $candidates = $this->query($filters, applySearch: false)
+        $candidates = $this->query($filters, $request->user()->currentTeam, applySearch: false)
             /*
              * Anyone holding at least one skill the scope calls for. Without
              * this every student on the platform is a candidate, and the ones
@@ -419,7 +421,10 @@ class RecruitController extends Controller
             'course' => $profile->course?->abbreviation ?? $profile->course?->name,
             'yearLevel' => $profile->year_level,
             'rating' => (float) $profile->rating_average,
+            'ratingCount' => $profile->ratings_count,
             'completedProjects' => $profile->completed_projects_count,
+            /* Shown under the name to everybody (owner, 2026-10-09). */
+            'isDeactivated' => $profile->user->isDeactivated(),
             /*
              * Presentation only, and deliberately so: what a student may
              * actually do still answers to isVerifiedForOperating().

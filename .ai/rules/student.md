@@ -43,3 +43,6 @@ The portfolio link was removed from the form, the validation and both profile vi
 
 ## The board hides postings that already have an accepted student
 ProjectBoardController's listing query adds whereDoesntHave('applications', status Accepted). A posting with someone taken on is being built — applying to it can only end in a refusal, so it leaves the board rather than showing a dead Apply button. The business directory (student/clients) is not linked from any navigation and was deliberately left as it is.
+
+## HiringRule: an experienced student and a new client are never matched
+Owner, 2026-10-09. App\Support\HiringRule: a student is experienced at completed_projects_count >= 1, a client once its team has a Completed project. A new client sees and hires only new students; an experienced student sees and applies only to experienced clients. Enforced on the server at every door: RecruitController::query (hireableBy), Client\StudentProfileController (404 unless already linked by an application), InviteStudentRequest, RespondToApplication (accept), ProjectBoardController::visibleTo (openTo — covers board, posting page and apply), RespondToInvitation (accept), ProjectController::recommendedStudents. Any new way to pair a student with a client must ask HiringRule::allows().

@@ -15,6 +15,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Recommendation\RecommendationService;
 use App\Services\Recommendation\ScoresProjectsForText;
+use App\Support\HiringRule;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -422,7 +423,11 @@ class ProjectBoardController extends Controller
          * thing deciding whether it is on the board — there is no longer such
          * a thing as an invite-only or school-restricted posting.
          */
-        return Project::query()->publiclyVisible();
+        /*
+         * A student who has finished a project only sees, and so can only
+         * apply to, clients who have finished one too (HiringRule).
+         */
+        return HiringRule::openTo(Project::query()->publiclyVisible(), $student);
     }
 
     /**

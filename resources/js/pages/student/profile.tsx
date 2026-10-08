@@ -13,6 +13,8 @@ import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
 import { Input, Select, Textarea } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
+import { FeedbackList, RatingLine } from '@/components/sdpc/ratings';
+import type { Review } from '@/components/sdpc/ratings';
 import { Tag } from '@/components/sdpc/tag';
 import {
     AccountDialog,
@@ -54,6 +56,9 @@ type Props = {
         name: string;
         email: string;
         avatarUrl: string | null;
+        rating: number;
+        ratingCount: number;
+        reviews: Review[];
         displayLocation: string | null;
         schoolName: string | null;
         courseAbbreviation: string | null;
@@ -242,6 +247,11 @@ export default function StudentProfilePage({
                             )}
                         </div>
 
+                        <RatingLine
+                            rating={profile.rating}
+                            count={profile.ratingCount}
+                        />
+
                         {profile.displayLocation && (
                             <div
                                 style={{
@@ -392,6 +402,11 @@ export default function StudentProfilePage({
                                     </Row>
                                 ))
                             )}
+                        </Card>
+
+                        {/* Under Education, level with Links (owner, 2026-10-09). */}
+                        <Card title="Feedback" editable={false}>
+                            <FeedbackList reviews={profile.reviews} />
                         </Card>
                     </div>
 

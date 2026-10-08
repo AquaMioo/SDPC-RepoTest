@@ -58,6 +58,8 @@ class ClientDirectoryController extends Controller
                     'city' => $profile?->city,
                     'province' => $profile?->province,
                     'openPostings' => (int) $team->getAttribute('open_postings_count'),
+                    /* The account behind the business, shown under its name (owner, 2026-10-09). */
+                    'isDeactivated' => (bool) $team->owner()?->isDeactivated(),
                 ];
             });
 
@@ -100,6 +102,7 @@ class ClientDirectoryController extends Controller
                  * a report nobody can act on.
                  */
                 'ownerUserId' => $business->owner()?->id,
+                'isDeactivated' => (bool) $business->owner()?->isDeactivated(),
             ],
             'reportCategories' => IssueCategory::options(),
             'postings' => Project::query()

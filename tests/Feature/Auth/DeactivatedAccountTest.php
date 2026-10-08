@@ -6,6 +6,7 @@ use App\Enums\UserStatus;
 use App\Models\Appeal;
 use App\Models\Conversation;
 use App\Models\Issue;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -245,5 +246,39 @@ class DeactivatedAccountTest extends TestCase
         $this->actingAs($student->fresh())
             ->get(route('student.board.index', ['current_team' => $student->currentTeam]))
             ->assertOk();
+    }
+
+    /**
+     * Other people see that the account was deactivated, under its name
+     * (owner, 2026-10-09).
+     */
+    public function test_others_see_a_deactivated_account_marked_under_its_name(): void
+    {
+        $client = User::factory()->client()->approved()->verifiedBusiness()->create();
+        $student = User::factory()->student()->approved()->create();
+        StudentProfile::factory()->for($student)->create();
+        $student->forceFill(['status' => UserStatus::Deactivated])->save();
+
+        $this->actingAs($client)
+            ->get(route('recruit.index', ['current_team' => $client->currentTeam]))
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps('ranking', fn (Assert $reload) => $reload
+                ->where('students.data.0.id', $student->id)
+                ->where('students.data.0.isDeactivated', true)));
+
+        $this->actingAs($client)
+            ->get(route('students.show', ['current_team' => $client->currentTeam, 'user' => $student]))
+            ->assertInertia(fn (Assert $page) => $page->where('student.isDeactivated', true));
+
+        /* And the other way round: a business whose account is deactivated. */
+        $client->forceFill(['status' => UserStatus::Deactivated])->save();
+        $viewer = User::factory()->student()->approved()->create();
+
+        $this->actingAs($viewer)
+            ->get(route('student.clients.index', ['current_team' => $viewer->currentTeam]))
+            ->assertInertia(fn (Assert $page) => $page->where('businesses.data.0.isDeactivated', true));
+
+        $this->actingAs($viewer)
+            ->get(route('student.clients.show', ['current_team' => $viewer->currentTeam, 'business' => $client->currentTeam]))
+            ->assertInertia(fn (Assert $page) => $page->where('business.isDeactivated', true));
     }
 }

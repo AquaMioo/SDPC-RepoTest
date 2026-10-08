@@ -38,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $response_time_hours
  * @property int|null $hourly_rate
  * @property string $rating_average
+ * @property int $ratings_count
  * @property int $completed_projects_count
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -54,7 +55,7 @@ use Illuminate\Support\Carbon;
     'course_id', 'year_level', 'education_started_on', 'education_note',
     'github_url', 'portfolio_url', 'is_available', 'weekly_hours',
     'availability_note', 'response_time_hours', 'hourly_rate',
-    'rating_average', 'completed_projects_count',
+    'rating_average', 'ratings_count', 'completed_projects_count',
 ])]
 class StudentProfile extends Model
 {

@@ -2,6 +2,7 @@ import { Form } from '@inertiajs/react';
 
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
+import { Textarea } from '@/components/sdpc/input';
 import { Tag } from '@/components/sdpc/tag';
 import { Spinner } from '@/components/ui/spinner';
 import { store as fileAppeal } from '@/routes/profile/appeal';
@@ -115,18 +116,19 @@ export default function AccountAppealCard({
                 </div>
             )}
 
-            {/* One appeal per account: once filed, the form closes for good. */}
-            {appeal ? (
+            {/*
+             * One appeal at a time: the form closes while it waits, and opens
+             * again once an administrator decides it (owner, 2026-10-09).
+             */}
+            {appeal?.pending ? (
                 <>
                     <span
                         style={{ fontSize: 12, color: MUTED(60) }}
                         data-test="appeal-already-filed"
                     >
-                        An appeal has already been filed for this account, and
-                        each account can file one.
-                        {appeal.pending
-                            ? ' An administrator will read it and reply by email.'
-                            : ''}
+                        Your appeal is waiting for an administrator, who will
+                        read it and reply by email. You can appeal again once it
+                        is decided.
                     </span>
                     <Btn
                         variant="primary"
@@ -149,9 +151,11 @@ export default function AccountAppealCard({
                         <>
                             <div className="field">
                                 <label htmlFor="appeal-body">
-                                    Review appeal
+                                    {appeal
+                                        ? 'Send a new appeal'
+                                        : 'Review appeal'}
                                 </label>
-                                <textarea
+                                <Textarea
                                     id="appeal-body"
                                     name="body"
                                     rows={4}

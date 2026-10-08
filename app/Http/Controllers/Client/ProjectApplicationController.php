@@ -137,6 +137,8 @@ class ProjectApplicationController extends Controller
                 'yearLevel' => $profile?->year_level,
                 'rating' => $profile?->rating_average,
                 'completedProjects' => $profile?->completed_projects_count,
+                /* Shown under the name to everybody (owner, 2026-10-09). */
+                'isDeactivated' => $application->student->isDeactivated(),
                 'isAvailable' => $profile?->is_available ?? false,
                 'skills' => $profile?->skills->pluck('name') ?? collect(),
             ],

@@ -35,6 +35,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property UserRole $role
  * @property UserStatus $status
+ * @property Carbon|null $restricted_at
  * @property Carbon|null $last_seen_at
  * @property string|null $active_session_token
  * @property Carbon|null $email_verified_at
@@ -106,6 +107,7 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'role' => UserRole::class,
             'status' => UserStatus::class,
+            'restricted_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'last_seen_at' => 'datetime',
         ];
@@ -151,6 +153,21 @@ class User extends Authenticatable implements PasskeyUser
     public function isDeactivated(): bool
     {
         return $this->status->confinesToSettings();
+    }
+
+    /**
+     * Stamp restricted_at every time the account is deactivated (or put
+     * under monitoring), from whichever screen does it. Appeals filed before
+     * the stamp answered an earlier decision and never resurface (owner,
+     * 2026-10-09).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if ($user->isDirty('status') && ($user->status->restrictsActions() || $user->status->confinesToSettings())) {
+                $user->restricted_at = now();
+            }
+        });
     }
 
     /**
@@ -318,6 +335,33 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the appeal answering the decision standing now, if one was filed.
+     *
+     * The latest appeal, unless it predates the latest deactivation: then it
+     * answered an earlier decision, is resolved, and must not resurface.
+     */
+    public function currentAppeal(): ?Appeal
+    {
+        $appeal = $this->latestAppeal;
+
+        if ($appeal === null || ($this->restricted_at !== null && $appeal->created_at?->lt($this->restricted_at))) {
+            return null;
+        }
+
+        return $appeal;
+    }
+
+    /**
+     * Get the ratings clients gave this student on completed builds.
+     *
+     * @return HasMany<ProjectRating, $this>
+     */
+    public function ratingsReceived(): HasMany
+    {
+        return $this->hasMany(ProjectRating::class, 'student_id');
+    }
+
+    /**
      * Determine if an appeal from this account is waiting on an administrator.
      *
      * One open appeal at a time: filing again while the first is unread lets
@@ -326,17 +370,6 @@ class User extends Authenticatable implements PasskeyUser
     public function hasPendingAppeal(): bool
     {
         return $this->appeals()->pending()->exists();
-    }
-
-    /**
-     * Determine if this account has ever filed an appeal.
-     *
-     * Each account may appeal once (FileAppeal), so this is what closes the
-     * form, whether the appeal is still waiting or already decided.
-     */
-    public function hasFiledAppeal(): bool
-    {
-        return $this->appeals()->exists();
     }
 
     /**

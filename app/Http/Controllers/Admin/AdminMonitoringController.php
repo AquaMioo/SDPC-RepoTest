@@ -53,9 +53,10 @@ class AdminMonitoringController extends Controller
              * Anyone waiting on a decision first, oldest appeal at the top, so
              * the screen reads as work to do rather than a list of names.
              */
+            /* Only the appeal answering the current decision; resolved older ones never resurface. */
             ->sortBy(fn (User $user): array => [
-                $user->latestAppeal?->status === AppealStatus::Pending ? 0 : 1,
-                $user->latestAppeal?->created_at?->timestamp ?? PHP_INT_MAX,
+                $user->currentAppeal()?->status === AppealStatus::Pending ? 0 : 1,
+                $user->currentAppeal()?->created_at?->timestamp ?? PHP_INT_MAX,
             ])
             ->values()
             ->map(fn (User $user): array => [
@@ -68,7 +69,7 @@ class AdminMonitoringController extends Controller
                 'statusLabel' => $user->status->label(),
                 'since' => $user->updated_at?->diffForHumans(),
                 'openReports' => (int) ($openReports[$user->id] ?? 0),
-                'appeal' => $this->appealRow($user->latestAppeal),
+                'appeal' => $this->appealRow($user->currentAppeal()),
             ])
             ->all();
 

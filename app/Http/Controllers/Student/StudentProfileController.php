@@ -58,6 +58,10 @@ class StudentProfileController extends Controller
                  */
                 'email' => $request->user()->email,
                 'avatarUrl' => $request->user()->avatarUrl(),
+                /* Clients' ratings on completed builds (owner, 2026-10-09). */
+                'rating' => (float) $profile->rating_average,
+                'ratingCount' => $profile->ratings_count,
+                'reviews' => $request->user()->ratingsReceived()->latest('id')->get()->map->toReview()->values()->all(),
                 /* The line under the name: where they are, what they study. */
                 'displayLocation' => $profile->displayLocation(),
                 'schoolName' => $profile->school?->name,

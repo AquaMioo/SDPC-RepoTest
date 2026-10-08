@@ -187,7 +187,8 @@ class MatchingScreensTest extends TestCase
         $profile = StudentProfile::factory()->for($user)->create([
             'is_available' => true,
             'rating_average' => 4.0,
-            'completed_projects_count' => 2,
+            /* New, so a new client's Recruit lists them (HiringRule). */
+            'completed_projects_count' => 0,
         ]);
 
         $profile->skills()->sync(Skill::whereIn('slug', $skillSlugs)->pluck('id'));

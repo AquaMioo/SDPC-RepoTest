@@ -6,6 +6,7 @@ use App\Enums\TeamPermission;
 use App\Enums\UserRole;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\HiringRule;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -70,6 +71,14 @@ class InviteStudentRequest extends FormRequest
                     'user_id',
                     __(':name has already accepted an invitation from another client, so they cannot be invited right now. They become available again once that project is finished.', ['name' => $student->name]),
                 );
+
+                return;
+            }
+
+            $project = $this->route('project');
+
+            if ($student !== null && $project instanceof Project && ! HiringRule::allows($student, $project->team)) {
+                $validator->errors()->add('user_id', HiringRule::refusal());
             }
         });
     }

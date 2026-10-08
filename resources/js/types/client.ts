@@ -31,7 +31,9 @@ export type StudentCard = {
     course: string | null;
     yearLevel: number | null;
     rating: number;
+    ratingCount: number;
     completedProjects: number;
+    isDeactivated: boolean;
     isAvailable: boolean;
     /** Presentation only — what they may do answers to the credential. */
     isVerified: boolean;

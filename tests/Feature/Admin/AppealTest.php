@@ -105,21 +105,61 @@ class AppealTest extends TestCase
         $this->assertSame(1, Appeal::count());
     }
 
-    public function test_an_account_files_one_appeal_even_once_it_is_decided(): void
+    public function test_once_an_appeal_is_decided_the_account_may_appeal_again(): void
     {
-        $user = User::factory()->create(['status' => UserStatus::Monitored]);
+        $user = User::factory()->create(['status' => UserStatus::Deactivated]);
 
         Appeal::factory()->decided()->create(['user_id' => $user->id]);
 
-        /* One appeal per account (testers, 2026-10-01), decided or not. */
+        /* One appeal at a time; a decided one no longer holds the form (owner, 2026-10-09). */
         $this->actingAs($user)
             ->from(route('profile.edit'))
             ->post(route('profile.appeal.store'), [
                 'body' => 'New evidence has come to light since the first appeal was closed.',
             ])
-            ->assertInertiaFlash('toast.message', 'You have already filed an appeal. Each account can file one.');
+            ->assertInertiaFlash('toast.message', 'Appeal submitted. An administrator will review it.');
 
-        $this->assertSame(1, Appeal::count());
+        $this->assertSame(2, Appeal::count());
+
+        /* The new one is waiting, so a third is refused until it is decided. */
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->post(route('profile.appeal.store'), [
+                'body' => 'And once more, before the second appeal has been read by anyone.',
+            ])
+            ->assertInertiaFlash('toast.message', 'Your appeal is still waiting for an administrator. You can appeal again once it is decided.');
+
+        $this->assertSame(2, Appeal::count());
+    }
+
+    public function test_an_appeal_from_an_earlier_deactivation_never_resurfaces(): void
+    {
+        $user = User::factory()->create(['status' => UserStatus::Approved]);
+
+        /* Deactivated once, appealed, and the appeal was resolved... */
+        $this->travelTo(now()->subWeek());
+        $user->forceFill(['status' => UserStatus::Deactivated])->save();
+        $old = Appeal::factory()->create(['user_id' => $user->id, 'status' => AppealStatus::Pending]);
+        $this->travelBack();
+
+        /* ...then deactivated again: the old appeal answers nothing now. */
+        $user->forceFill(['status' => UserStatus::Approved])->save();
+        $user->forceFill(['status' => UserStatus::Deactivated])->save();
+
+        $this->actingAs($user->fresh())
+            ->get(route('profile.edit'))
+            ->assertInertia(fn ($page) => $page->where('appeal', null)->etc());
+
+        /* Even left pending, it does not block a fresh appeal. */
+        $this->actingAs($user->fresh())
+            ->from(route('profile.edit'))
+            ->post(route('profile.appeal.store'), [
+                'body' => 'This is about the deactivation today, not the one last week.',
+            ])
+            ->assertInertiaFlash('toast.message', 'Appeal submitted. An administrator will review it.');
+
+        $this->assertSame(2, Appeal::count());
+        $this->assertTrue($user->fresh()->currentAppeal()->isNot($old));
     }
 
     public function test_the_settings_card_says_an_appeal_was_already_filed(): void

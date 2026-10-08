@@ -18,16 +18,23 @@ use App\Models\User;
 class FileAppeal
 {
     /**
-     * File an appeal, unless this account has already filed one.
+     * File an appeal, unless one is already waiting on an administrator.
      *
-     * Returns null when an appeal already exists, decided or not: each
-     * account gets one appeal (testers, 2026-10-01). It used to be one open
-     * appeal at a time, which let an account file again the moment the first
-     * was decided.
+     * Returns null while the account's current appeal is pending. Once it is
+     * resolved (granted or denied) the account may appeal again (owner,
+     * 2026-10-09; replaces the one-appeal-ever rule of 2026-10-01). Only
+     * appeals filed since the latest deactivation count (User::currentAppeal),
+     * so a resolved appeal from an earlier decision never resurfaces.
      */
     public function handle(User $user, string $body): ?Appeal
     {
-        if ($user->hasFiledAppeal()) {
+        /* Asked fresh, never through a relation cached on the model. */
+        $waiting = $user->appeals()
+            ->where('status', AppealStatus::Pending)
+            ->when($user->restricted_at, fn ($query, $since) => $query->where('created_at', '>=', $since))
+            ->exists();
+
+        if ($waiting) {
             return null;
         }
 

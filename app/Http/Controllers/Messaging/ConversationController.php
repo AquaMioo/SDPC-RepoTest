@@ -227,6 +227,8 @@ class ConversationController extends Controller
             'active' => $active === null ? null : [
                 'id' => $active->id,
                 'title' => $this->counterpartName($active, $user),
+                /* Shown under the name (owner, 2026-10-09). */
+                'counterpartDeactivated' => $this->counterpartIsDeactivated($active, $user),
                 'project' => $active->project->title,
                 /* Booked calls nobody has joined yet, soonest first. */
                 'meetings' => $active->meetings()->upcoming()->get()
@@ -664,6 +666,18 @@ class ConversationController extends Controller
         }
 
         return $state;
+    }
+
+    /**
+     * Determine if the account on the other side of the thread is deactivated.
+     */
+    protected function counterpartIsDeactivated(Conversation $conversation, User $user): bool
+    {
+        $counterpart = $conversation->sideFor($user) === UserRole::Student
+            ? $conversation->project->team->owner()
+            : $conversation->student;
+
+        return (bool) $counterpart?->isDeactivated();
     }
 
     /**

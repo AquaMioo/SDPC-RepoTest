@@ -31,9 +31,25 @@ class StudentProfileFactory extends Factory
             'portfolio_url' => fake()->url(),
             'is_available' => true,
             'hourly_rate' => fake()->numberBetween(150, 600),
-            'rating_average' => fake()->randomFloat(2, 3.5, 5),
-            'completed_projects_count' => fake()->numberBetween(0, 12),
+            /*
+             * Real figures since 2026-10-09: written by CompleteProject, so a
+             * new profile has none. A random count made most factory students
+             * "experienced" and tripped HiringRule — use experienced().
+             */
+            'rating_average' => 0,
+            'ratings_count' => 0,
+            'completed_projects_count' => 0,
         ];
+    }
+
+    /**
+     * Indicate that the student has finished a project (HiringRule).
+     */
+    public function experienced(int $completed = 1): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'completed_projects_count' => $completed,
+        ]);
     }
 
     /**

@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Btn } from '@/components/sdpc/btn';
 import { Input } from '@/components/sdpc/input';
 import { Panel } from '@/components/sdpc/panel';
+import { DeactivatedTag } from '@/components/sdpc/ratings';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { index as boardIndex } from '@/routes/student/board';
@@ -27,6 +28,7 @@ type Business = {
     city: string | null;
     province: string | null;
     openPostings: number;
+    isDeactivated: boolean;
 };
 
 type Props = {
@@ -191,6 +193,9 @@ export default function StudentClients({ businesses, filters }: Props) {
                                         >
                                             {business.businessName}
                                         </Link>
+                                        {business.isDeactivated && (
+                                            <DeactivatedTag />
+                                        )}
                                         <div
                                             style={{
                                                 fontSize: 11.5,

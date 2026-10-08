@@ -64,7 +64,8 @@ class ProfileController extends Controller
      */
     protected function appealState(User $user): ?array
     {
-        $appeal = $user->latestAppeal;
+        /* Only the appeal answering the decision standing now; older ones never resurface. */
+        $appeal = $user->currentAppeal();
 
         if ($appeal === null) {
             return null;

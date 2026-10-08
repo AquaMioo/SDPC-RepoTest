@@ -10,6 +10,7 @@ import {
 import ReportAccountDialog from '@/components/report-account-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
+import { DeactivatedTag } from '@/components/sdpc/ratings';
 import { Tag } from '@/components/sdpc/tag';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { show as boardShow } from '@/routes/student/board';
@@ -31,6 +32,7 @@ type Props = {
         facebookUrl: string | null;
         verifiedAt: string | null;
         ownerUserId: number | null;
+        isDeactivated: boolean;
     };
     reportCategories: { value: string; label: string }[];
     postings: {
@@ -101,6 +103,7 @@ export default function StudentClient({
 
                     <div style={{ paddingBottom: 6, marginRight: 'auto' }}>
                         <h3 style={{ margin: 0 }}>{business.businessName}</h3>
+                        {business.isDeactivated && <DeactivatedTag />}
                         <div style={{ fontSize: 13, color: MUTED(68) }}>
                             {[
                                 'Client',

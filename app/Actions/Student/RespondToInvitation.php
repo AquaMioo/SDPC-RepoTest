@@ -8,6 +8,7 @@ use App\Enums\ApplicationStatus;
 use App\Models\Application;
 use App\Models\Conversation;
 use App\Notifications\Client\InvitationAccepted;
+use App\Support\HiringRule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -48,6 +49,11 @@ class RespondToInvitation
             throw ValidationException::withMessages([
                 'application' => "You are already working on a project, your own or your team's, and a student works on one project at a time, so this invitation cannot be accepted until the client completes it.",
             ]);
+        }
+
+        /* A student who has finished a project only works with clients who have too. */
+        if (! HiringRule::allows($application->student, $application->project->team)) {
+            throw ValidationException::withMessages(['application' => HiringRule::refusal()]);
         }
 
         return DB::transaction(function () use ($application): Application {

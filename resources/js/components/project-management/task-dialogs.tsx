@@ -4,6 +4,7 @@ import {
     FilePdfIcon,
     LinkSimpleIcon,
     PaperclipIcon,
+    StarIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -955,7 +956,9 @@ export function DeclineDeadlineDialog({
  * The client's Complete: accept the turnover and end the collaboration.
  *
  * Allowed with tasks still unverified, but never silently — the dialog says
- * how many, because completing is final.
+ * how many, because completing is final. Completing is rating (owner,
+ * 2026-10-09): 1-5 stars are required and feedback optional, and Submit asks
+ * once more because both are permanent once sent.
  */
 export function CompleteProjectDialog({
     open,
@@ -970,6 +973,10 @@ export function CompleteProjectDialog({
     projectTitle: string;
     unverifiedCount: number;
 }) {
+    const [rating, setRating] = useState(0);
+    const [feedback, setFeedback] = useState('');
+    /* The second popup: ratings are permanent, so it asks once more. */
+    const [confirming, setConfirming] = useState(false);
     const [errors, setErrors] = useState<Errors>({});
     const [busy, setBusy] = useState(false);
 
@@ -978,48 +985,154 @@ export function CompleteProjectDialog({
 
         router.post(
             url,
-            {},
+            { rating, feedback },
             {
                 preserveScroll: true,
-                onSuccess: () => onOpenChange(false),
-                onError: setErrors,
+                onSuccess: () => {
+                    setConfirming(false);
+                    onOpenChange(false);
+                },
+                onError: (failed) => {
+                    setErrors(failed);
+                    setConfirming(false);
+                },
                 onFinish: () => setBusy(false),
             },
         );
     };
 
     return (
-        <Shell
-            open={open}
-            onOpenChange={onOpenChange}
-            title={`Complete “${projectTitle}”?`}
-            description="This ends the collaboration. The project is marked complete and moves to your completed projects, and everyone on it is free to take on new work. It cannot be undone."
-        >
-            {unverifiedCount > 0 && (
-                <div
-                    role="alert"
-                    style={{
-                        fontSize: 12.5,
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-md)',
-                        background:
-                            'color-mix(in srgb, var(--destructive) 10%, transparent)',
-                    }}
-                >
-                    {unverifiedCount === 1
-                        ? '1 task is not verified yet.'
-                        : `${unverifiedCount} tasks are not verified yet.`}{' '}
-                    Completing now accepts the project as it stands.
+        <>
+            <Shell
+                open={open && !confirming}
+                onOpenChange={onOpenChange}
+                title={`Complete “${projectTitle}”?`}
+                description="This ends the collaboration. The project is marked complete and moves to your completed projects, and everyone on it is free to take on new work. It cannot be undone. Rate the work to finish."
+            >
+                {unverifiedCount > 0 && (
+                    <div
+                        role="alert"
+                        style={{
+                            fontSize: 12.5,
+                            padding: '8px 10px',
+                            borderRadius: 'var(--radius-md)',
+                            background:
+                                'color-mix(in srgb, var(--destructive) 10%, transparent)',
+                        }}
+                    >
+                        {unverifiedCount === 1
+                            ? '1 task is not verified yet.'
+                            : `${unverifiedCount} tasks are not verified yet.`}{' '}
+                        Completing now accepts the project as it stands.
+                    </div>
+                )}
+
+                <div style={{ display: 'grid', gap: 12 }}>
+                    <div className="field">
+                        <label id="rating-label">Rating (required)</label>
+                        <div
+                            role="radiogroup"
+                            aria-labelledby="rating-label"
+                            data-test="rating-stars"
+                            style={{ display: 'flex', gap: 4 }}
+                        >
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                    key={star}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={rating === star}
+                                    aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                                    onClick={() => setRating(star)}
+                                    style={{
+                                        border: 0,
+                                        background: 'none',
+                                        padding: 2,
+                                        cursor: 'pointer',
+                                        color:
+                                            star <= rating
+                                                ? '#e0a526'
+                                                : MUTED(35),
+                                    }}
+                                >
+                                    <StarIcon
+                                        size={26}
+                                        weight={
+                                            star <= rating ? 'fill' : 'regular'
+                                        }
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                        <InputError
+                            message={errors.rating}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="rating-feedback">
+                            Feedback (optional)
+                        </label>
+                        <Textarea
+                            id="rating-feedback"
+                            value={feedback}
+                            maxLength={2000}
+                            placeholder="How was it working with the student side?"
+                            onChange={(event) =>
+                                setFeedback(event.target.value)
+                            }
+                        />
+                        <InputError
+                            message={errors.feedback}
+                            className="mt-1 text-[11px]"
+                        />
+                    </div>
                 </div>
-            )}
-            <InputError message={errors.project} className="mt-1 text-[11px]" />
-            <Footer
-                busy={busy}
-                label="Complete project"
-                onSubmit={complete}
-                onCancel={() => onOpenChange(false)}
-            />
-        </Shell>
+
+                <InputError
+                    message={errors.project}
+                    className="mt-1 text-[11px]"
+                />
+                <DialogFooter className="gap-3">
+                    <Btn
+                        variant="primary"
+                        disabled={busy || rating === 0}
+                        onClick={() => setConfirming(true)}
+                    >
+                        Submit
+                    </Btn>
+                    <Btn
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => onOpenChange(false)}
+                    >
+                        Cancel
+                    </Btn>
+                </DialogFooter>
+            </Shell>
+
+            <Shell
+                open={open && confirming}
+                onOpenChange={(next) => !next && !busy && setConfirming(false)}
+                title="Submit your rating?"
+                description="Are you sure you want to submit? Ratings and feedback are permanent once sent and cannot be edited or deleted."
+            >
+                <DialogFooter className="gap-3">
+                    <Btn variant="primary" disabled={busy} onClick={complete}>
+                        {busy && <Spinner />}
+                        Yes, submit
+                    </Btn>
+                    <Btn
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setConfirming(false)}
+                    >
+                        Go back
+                    </Btn>
+                </DialogFooter>
+            </Shell>
+        </>
     );
 }
 

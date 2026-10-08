@@ -34,7 +34,7 @@ class AppealController extends Controller
         );
 
         Inertia::flash('toast', $appeal === null
-            ? ['type' => 'error', 'message' => __('You have already filed an appeal. Each account can file one.')]
+            ? ['type' => 'error', 'message' => __('Your appeal is still waiting for an administrator. You can appeal again once it is decided.')]
             : ['type' => 'success', 'message' => __('Appeal submitted. An administrator will review it.')],
         );
 

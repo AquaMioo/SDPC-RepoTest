@@ -12,6 +12,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Client\ProjectStatusChanged;
 use App\Services\Recommendation\RecommendationService;
+use App\Support\HiringRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -147,6 +148,8 @@ class ProjectController extends Controller
             ->whereNotIn('id', $applied)
             ->with('studentProfile.course')
             ->get()
+            /* Only students this business may hire (HiringRule). */
+            ->filter(fn (User $student): bool => HiringRule::allows($student, $project->team))
             ->map(fn (User $student): array => [
                 'id' => $student->id,
                 'name' => $student->name,

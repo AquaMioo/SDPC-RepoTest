@@ -11,6 +11,7 @@ import BriefDialog from '@/components/sdpc/brief-dialog';
 import { Btn } from '@/components/sdpc/btn';
 import { ListSkeleton } from '@/components/sdpc/list-skeleton';
 import { Panel, PanelAccent, PanelKicker } from '@/components/sdpc/panel';
+import { DeactivatedTag, RatingLine } from '@/components/sdpc/ratings';
 import { Tag } from '@/components/sdpc/tag';
 import UserAvatar from '@/components/sdpc/user-avatar';
 import { Input } from '@/components/ui/input';
@@ -316,11 +317,9 @@ export default function Recruit({
 /**
  * One student, as a full-width row.
  *
- * The design also sketched a ratings-and-reviews wall with quoted feedback.
- * There is no review table on this platform — a student's rating_average and
- * completed_projects_count are the only figures behind it — so the quotes are
- * absent rather than invented, and a student nobody has finished a project
- * with says so instead of showing a 0.0.
+ * The rating clients gave on completed builds sits under the name (owner,
+ * 2026-10-09); the quoted feedback is on the profile. A student nobody has
+ * finished a project with says so instead of showing a 0.0.
  */
 function StudentRow({
     student,
@@ -380,6 +379,12 @@ function StudentRow({
                             />
                         )}
                     </div>
+
+                    {student.isDeactivated && <DeactivatedTag />}
+                    <RatingLine
+                        rating={student.rating}
+                        count={student.ratingCount}
+                    />
 
                     {credentials && (
                         <div className="text-[13px] text-primary">

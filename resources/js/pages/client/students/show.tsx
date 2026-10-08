@@ -8,6 +8,12 @@ import {
 import { useState } from 'react';
 import ReportAccountDialog from '@/components/report-account-dialog';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
+import {
+    DeactivatedTag,
+    FeedbackList,
+    RatingLine,
+} from '@/components/sdpc/ratings';
+import type { Review } from '@/components/sdpc/ratings';
 import { Tag } from '@/components/sdpc/tag';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/hooks/use-current-team';
@@ -28,6 +34,9 @@ type Props = {
         githubUrl: string | null;
         isAvailable: boolean;
         rating: number;
+        ratingCount: number;
+        reviews: Review[];
+        isDeactivated: boolean;
         completedProjects: number;
         skills: { name: string; type: string }[];
         location: string | null;
@@ -112,6 +121,11 @@ export default function StudentProfile({
                             <StudentAvatar url={student.avatarUrl} />
                             <div className="mr-auto min-w-0">
                                 <h3 className="m-0">{student.name}</h3>
+                                {student.isDeactivated && <DeactivatedTag />}
+                                <RatingLine
+                                    rating={student.rating}
+                                    count={student.ratingCount}
+                                />
                                 <div className="text-[13px] text-muted-foreground">
                                     {[
                                         student.headline,
@@ -411,6 +425,12 @@ export default function StudentProfile({
                             )}
                         </Panel>
                     )}
+
+                    {/* Clients' ratings on completed builds (owner, 2026-10-09). */}
+                    <Panel padding="lg" gap="sm">
+                        <PanelKicker>Feedback</PanelKicker>
+                        <FeedbackList reviews={student.reviews} />
+                    </Panel>
                 </aside>
             </div>
         </>

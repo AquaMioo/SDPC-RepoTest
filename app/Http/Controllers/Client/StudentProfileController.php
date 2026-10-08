@@ -12,6 +12,7 @@ use App\Models\Project;
 use App\Models\StudentPortfolioItem;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\HiringRule;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -36,6 +37,15 @@ class StudentProfileController extends Controller
             ->with('project:id,slug,title')
             ->get();
 
+        /*
+         * A new client cannot see a student who has finished a project
+         * (HiringRule) — unless they are already connected through one of
+         * the team's postings.
+         */
+        $hireable = HiringRule::allows($user, $currentTeam);
+
+        abort_unless($hireable || $links->isNotEmpty(), 404);
+
         return Inertia::render('client/students/show', [
             'student' => [
                 'id' => $user->id,
@@ -50,6 +60,10 @@ class StudentProfileController extends Controller
                 'isAvailable' => $profile->is_available,
                 /** Deliberately not sent — see RecruitController::toCard(). */
                 'rating' => (float) $profile->rating_average,
+                'ratingCount' => $profile->ratings_count,
+                /* Every rating clients gave, newest first; the screen shows a few and Show all. */
+                'reviews' => $user->ratingsReceived()->latest('id')->get()->map->toReview()->values()->all(),
+                'isDeactivated' => $user->isDeactivated(),
                 'completedProjects' => $profile->completed_projects_count,
                 'skills' => $profile->skills->map->only(['name', 'type']),
                 // Composed, so a client reads "Towerville, Barangay Muzon,
@@ -106,7 +120,7 @@ class StudentProfileController extends Controller
                 ])
                 ->values(),
 
-            'canInvite' => $request->user()->isVerifiedForOperating(),
+            'canInvite' => $request->user()->isVerifiedForOperating() && $hireable,
 
             /*
              * Already taken on by a client, so an invitation could not be

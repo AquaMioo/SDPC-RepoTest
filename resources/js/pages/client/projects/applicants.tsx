@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { StarIcon } from '@phosphor-icons/react';
 import { Panel, PanelKicker } from '@/components/sdpc/panel';
+import { DeactivatedTag } from '@/components/sdpc/ratings';
 import { Tag } from '@/components/sdpc/tag';
 import UserAvatar from '@/components/sdpc/user-avatar';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ type Applicant = {
         yearLevel: number | null;
         rating: number | null;
         completedProjects: number | null;
+        isDeactivated: boolean;
         skills: string[];
     };
 };
@@ -101,6 +103,9 @@ export default function Applicants({ project, applications }: Props) {
                                         >
                                             {application.student.name}
                                         </Link>
+                                        {application.student.isDeactivated && (
+                                            <DeactivatedTag />
+                                        )}
                                         <div className="text-[12px] text-muted-foreground">
                                             {[
                                                 application.student.headline,
