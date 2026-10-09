@@ -147,6 +147,15 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        /* Shown under whichever field the dialog is asking for. */
+        if ($user->hasContract()) {
+            throw ValidationException::withMessages([
+                $user->password === null ? 'code' : 'password' => $user->hasRole(UserRole::Client)
+                    ? __('Your account cannot be deleted while it has an existing contract with a student.')
+                    : __('Your account cannot be deleted while it has an existing contract with a client.'),
+            ]);
+        }
+
         /* No password to confirm with: the mailed code stands in for it. */
         if ($user->password === null) {
             $result = $passwords->check($user->email, OneTimePasswordPurpose::DeleteAccount, $request->validated('code'));

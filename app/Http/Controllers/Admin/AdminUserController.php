@@ -86,6 +86,15 @@ class AdminUserController extends Controller
 
         $name = $user->name;
 
+        if ($user->hasContract()) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => __(':name’s account cannot be deleted while it has an existing contract between a client and a student.', ['name' => $name]),
+            ]);
+
+            return back();
+        }
+
         $deleteUserAccount->handle($user);
 
         Inertia::flash('toast', [

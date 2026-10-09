@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Concerns\HasTeams;
 use App\Contracts\StudentVerifier;
+use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\CredentialStatus;
 use App\Enums\TeamRole;
@@ -312,6 +313,30 @@ class User extends Authenticatable implements PasskeyUser
     {
         /* Named for the role it plays, so the column has to be spelled out. */
         return $this->hasMany(Agreement::class, 'student_id');
+    }
+
+    /**
+     * Determine if the account is a party to a contract between a client and a student.
+     *
+     * The same two sides AgreementPolicy::partyFor recognises: the signing
+     * student, or anyone on the client's business team. A contract still being
+     * negotiated, signed or completed counts; a cancelled or superseded version
+     * does not. Deleting the account would hard-delete the contract, so it is
+     * kept from being deleted instead.
+     */
+    public function hasContract(): bool
+    {
+        return Agreement::query()
+            ->whereIn('status', [
+                AgreementStatus::Draft,
+                AgreementStatus::AwaitingSignatures,
+                AgreementStatus::Active,
+                AgreementStatus::Completed,
+            ])
+            ->where(fn (Builder $query) => $query
+                ->where('student_id', $this->id)
+                ->orWhereIn('team_id', $this->teamMemberships()->select('team_id')))
+            ->exists();
     }
 
     /**
