@@ -19,7 +19,7 @@ use App\Http\Controllers\Agreements\ServiceDescriptionController;
 use App\Http\Controllers\Agreements\SimulatedCheckoutController;
 use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureTeamMembership;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -229,6 +229,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
  * session and no CSRF token: the Paymongo-Signature header is the proof.
  */
 Route::post('webhooks/paymongo', PayMongoWebhookController::class)
-    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->withoutMiddleware([PreventRequestForgery::class])
     ->middleware('throttle:120,1')
     ->name('webhooks.paymongo');

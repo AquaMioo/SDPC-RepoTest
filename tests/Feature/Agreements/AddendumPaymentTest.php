@@ -11,8 +11,11 @@ use App\Models\Agreement;
 use App\Models\AgreementTask;
 use App\Models\User;
 use App\Notifications\Agreements\AddendumPaymentCleared;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -195,6 +198,24 @@ class AddendumPaymentTest extends TestCase
     public function test_the_webhook_is_closed_without_a_secret(): void
     {
         $this->postJson(route('webhooks.paymongo'), [])->assertNotFound();
+    }
+
+    /**
+     * PayMongo sends no CSRF token. Tests skip CSRF checks entirely, so this
+     * reads the route's real middleware: Laravel 13's web group guards with
+     * PreventRequestForgery, and excluding the older ValidateCsrfToken left
+     * the live webhook answering 419 (2026-10-10).
+     */
+    public function test_the_webhook_is_not_behind_the_csrf_check(): void
+    {
+        /* The HTTP kernel is what registers the web group with the router. */
+        $this->app->make(HttpKernel::class);
+
+        $route = app('router')->getRoutes()->getByName('webhooks.paymongo');
+        $middleware = app('router')->gatherRouteMiddleware($route);
+
+        $this->assertContains(StartSession::class, $middleware);
+        $this->assertNotContains(PreventRequestForgery::class, $middleware);
     }
 
     public function test_the_extensions_files_stay_locked_from_the_client_until_the_final_balance(): void

@@ -36,6 +36,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Requests/Agreements/** | .ai/rules/requests-agreements.md |
 | app/Http/Requests/Client/UpdateClientProfileRequest.php | .ai/rules/requests-client.md |
 | app/Http/Responses/** | .ai/rules/responses.md |
+| routes/** | .ai/rules/routes-2.md |
 | resources/js/routes/** | .ai/rules/routes.md |
 | app/Services/Matching/SkillInference.php | .ai/rules/services-matching.md |
 | app/Http/Controllers/Student/**, app/Http/Controllers/Student/StudentEducationController.php, app/Http/Controllers/Student/LinkedGoogleAccountController.php | .ai/rules/student.md |
