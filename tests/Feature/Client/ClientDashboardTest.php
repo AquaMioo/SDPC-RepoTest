@@ -5,6 +5,7 @@ namespace Tests\Feature\Client;
 use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
+use App\Enums\ProjectStatus;
 use App\Enums\SiteContentKey;
 use App\Enums\TaskStatus;
 use App\Enums\TeamRole;
@@ -279,6 +280,40 @@ class ClientDashboardTest extends TestCase
 
         $this->partialDashboard($client, $team, 'projectTeam')
             ->assertJsonCount(2, 'props.projectTeam');
+    }
+
+    public function test_the_project_team_leaves_out_students_from_finished_collaborations(): void
+    {
+        [$client, $team, $project] = $this->teamWithProject();
+        $project->forceFill(['status' => ProjectStatus::InProgress])->save();
+
+        $finished = Project::factory()->completed()->create([
+            'team_id' => $team->id,
+            'created_by' => $client->id,
+        ]);
+        $closed = Project::factory()->create([
+            'team_id' => $team->id,
+            'created_by' => $client->id,
+            'status' => ProjectStatus::Closed,
+        ]);
+
+        $ongoing = Application::factory()->create([
+            'project_id' => $project->id,
+            'status' => ApplicationStatus::Accepted,
+        ]);
+
+        foreach ([$finished, $closed] as $done) {
+            Application::factory()->create([
+                'project_id' => $done->id,
+                'status' => ApplicationStatus::Accepted,
+            ]);
+        }
+
+        $client->switchTeam($team);
+
+        $this->partialDashboard($client, $team, 'projectTeam')
+            ->assertJsonCount(1, 'props.projectTeam')
+            ->assertJsonPath('props.projectTeam.0.id', $ongoing->user_id);
     }
 
     public function test_the_team_panel_says_who_is_here_not_who_is_on_it(): void

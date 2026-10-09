@@ -7,6 +7,7 @@ use App\Actions\Messaging\UpcomingMeetings;
 use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
+use App\Enums\ProjectStatus;
 use App\Enums\SiteContentKey;
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
@@ -125,7 +126,11 @@ class ClientDashboardController extends Controller
     }
 
     /**
-     * The students accepted onto the team's postings.
+     * The students accepted onto the team's postings while the work is ongoing.
+     *
+     * A finished collaboration (completed, closed or archived posting) drops
+     * off the panel: the same Open / In progress reading the student
+     * dashboard uses for "the project I am building".
      *
      * @return array<int, array<string, mixed>>
      */
@@ -133,6 +138,7 @@ class ClientDashboardController extends Controller
     {
         return $this->applications($team)
             ->withStatus(ApplicationStatus::Accepted)
+            ->whereHas('project', fn (Builder $query) => $query->whereIn('status', ProjectStatus::active()))
             ->with(['student.studentProfile', 'project'])
             ->get()
             ->flatMap(function (Application $application): array {
