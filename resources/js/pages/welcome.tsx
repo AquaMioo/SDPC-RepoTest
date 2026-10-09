@@ -39,16 +39,15 @@ const STAT_BAND: React.CSSProperties = {
         'inset 0 1px 0 var(--color-divider), inset 0 -1px 0 var(--color-divider)',
 };
 
-/** The Terms of Service and Privacy Policy links: highlighted, pure black text. */
+/**
+ * The Terms of Service and Privacy Policy links: set exactly like the "STI
+ * College San Jose Del Monte" line beside them, with no chip and no underline.
+ * The colour and its hover fade come from `data-quiet` (nocturne.css), since an
+ * inline colour would shut :hover out.
+ */
 const LEGAL_LINK: React.CSSProperties = {
-    color: '#000000',
-    background: '#ffffff',
-    fontWeight: 600,
-    padding: '4px 10px',
-    borderRadius: 999,
-    textDecoration: 'underline',
-    textUnderlineOffset: 3,
-    boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.12)',
+    fontSize: 13.5,
+    textDecoration: 'none',
 };
 
 const FOOTER_BAND: React.CSSProperties = {
@@ -466,16 +465,17 @@ export default function Welcome({
                     <div
                         style={{
                             display: 'flex',
-                            gap: 10,
-                            fontSize: 12,
+                            gap: 20,
                         }}
                     >
-                        {/* Highlighted, pure black text only (owner, 2026-10-09). */}
+                        {/* The same type as the school's name, with a subtle
+                            hover (owner, 2026-10-10). */}
                         <a
                             href={legal.url('terms-of-service')}
                             target="_blank"
                             rel="noopener noreferrer"
                             data-test="legal-link"
+                            data-quiet
                             style={LEGAL_LINK}
                         >
                             Terms of Service
@@ -485,6 +485,7 @@ export default function Welcome({
                             target="_blank"
                             rel="noopener noreferrer"
                             data-test="legal-link"
+                            data-quiet
                             style={LEGAL_LINK}
                         >
                             Privacy Policy
@@ -624,33 +625,56 @@ const HERO_SLIDES = [
     },
 ];
 
-/** How long each photo stays before the next fades in. */
+/** How long each photo stays before the next slides in. */
 const SLIDE_MS = 5000;
 
+/** How long one photo takes to slide across. */
+const SLIDE_TRANSITION_MS = 800;
+
+/** Whether the visitor asked their system for reduced motion. */
+function prefersReducedMotion(): boolean {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /**
- * The hero picture as a slideshow: the photos cross-fade every few seconds,
- * and the dots jump to one. It holds still while pointed at or focused, and
+ * The hero picture as a slideshow: the photos slide in from the right every
+ * few seconds, and the dots jump to one. A copy of the first photo trails the
+ * last, so the strip keeps sliding forward past the end and then snaps back to
+ * the real first photo unseen. It holds still while pointed at or focused, and
  * for anybody who asked their system for reduced motion.
  */
 function HeroCarousel() {
-    const [current, setCurrent] = useState(0);
+    /* 0 to HERO_SLIDES.length; the last is the trailing copy of photo 1. */
+    const [position, setPosition] = useState(0);
+    const [animated, setAnimated] = useState(true);
     const [paused, setPaused] = useState(false);
+    const current = position % HERO_SLIDES.length;
 
     useEffect(() => {
-        if (
-            paused ||
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ) {
+        if (paused || prefersReducedMotion()) {
             return;
         }
 
-        const timer = window.setInterval(
-            () => setCurrent((index) => (index + 1) % HERO_SLIDES.length),
-            SLIDE_MS,
-        );
+        const timer = window.setInterval(() => {
+            setAnimated(true);
+            setPosition((index) => Math.min(index + 1, HERO_SLIDES.length));
+        }, SLIDE_MS);
 
         return () => window.clearInterval(timer);
     }, [paused]);
+
+    useEffect(() => {
+        if (position !== HERO_SLIDES.length) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            setAnimated(false);
+            setPosition(0);
+        }, SLIDE_TRANSITION_MS);
+
+        return () => window.clearTimeout(timer);
+    }, [position]);
 
     return (
         <div
@@ -661,26 +685,34 @@ function HeroCarousel() {
             onMouseLeave={() => setPaused(false)}
             onFocus={() => setPaused(true)}
             onBlur={() => setPaused(false)}
-            style={{ position: 'relative', height: 380 }}
+            style={{ position: 'relative', height: 380, overflow: 'hidden' }}
         >
-            {HERO_SLIDES.map((slide, index) => (
-                <img
-                    key={slide.src}
-                    src={slide.src}
-                    alt={slide.alt}
-                    aria-hidden={index !== current}
-                    fetchPriority={index === 0 ? 'high' : 'low'}
-                    style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        opacity: index === current ? 1 : 0,
-                        transition: 'opacity 0.8s ease',
-                    }}
-                />
-            ))}
+            <div
+                style={{
+                    display: 'flex',
+                    height: '100%',
+                    transform: `translateX(-${position * 100}%)`,
+                    transition: animated
+                        ? `transform ${SLIDE_TRANSITION_MS}ms cubic-bezier(0.65, 0, 0.35, 1)`
+                        : 'none',
+                }}
+            >
+                {[...HERO_SLIDES, HERO_SLIDES[0]].map((slide, index) => (
+                    <img
+                        key={index}
+                        src={slide.src}
+                        alt={index < HERO_SLIDES.length ? slide.alt : ''}
+                        aria-hidden={index !== position}
+                        fetchPriority={index === 0 ? 'high' : 'low'}
+                        style={{
+                            flex: '0 0 100%',
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                        }}
+                    />
+                ))}
+            </div>
 
             {/* Top right: the match cards sit along the bottom. */}
             <div
@@ -701,7 +733,10 @@ function HeroCarousel() {
                         type="button"
                         aria-label={`Show photo ${index + 1} of ${HERO_SLIDES.length}`}
                         aria-current={index === current}
-                        onClick={() => setCurrent(index)}
+                        onClick={() => {
+                            setAnimated(!prefersReducedMotion());
+                            setPosition(index);
+                        }}
                         style={{
                             width: index === current ? 18 : 7,
                             height: 7,
