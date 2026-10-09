@@ -318,6 +318,16 @@ class AgreementTaskController extends Controller
 
         $this->ensureBelongs($task, $agreement);
 
+        /*
+         * An extension task's file is the extended work: the client side may
+         * not open it until the addendum's final balance clears (Section VI).
+         */
+        abort_if(
+            $request->user()->belongsToTeam($agreement->team) && $task->isProofLockedFromClient(),
+            Response::HTTP_FORBIDDEN,
+            __('This file unlocks once the extension’s final payment clears.'),
+        );
+
         $disk = Storage::disk(AgreementTask::PROOF_DISK);
 
         abort_if($task->proof_path === null || ! $disk->exists($task->proof_path), Response::HTTP_NOT_FOUND);

@@ -54,6 +54,13 @@ class ProfileController extends Controller
             'appeal' => $this->appealState($user),
             /* Deleting confirms with the password, or with a mailed code when there is none. */
             'hasPassword' => $user->password !== null,
+            /*
+             * Clients and students: the GCash account the Project Extension
+             * Addendum imports. Only ever masked, even to its owner.
+             */
+            'gcash' => $user->hasRole(UserRole::Client, UserRole::Student)
+                ? ['masked' => $user->maskedGcashNumber()]
+                : null,
         ]);
     }
 

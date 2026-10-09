@@ -1,5 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { FlagCheckeredIcon, LockSimpleIcon } from '@phosphor-icons/react';
+import {
+    ArrowsOutIcon,
+    FlagCheckeredIcon,
+    LockSimpleIcon,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -13,6 +17,7 @@ import {
 import type {
     ManagedAgreement,
     Phase,
+    ProjectExtension,
     ProjectManagementProps,
 } from '@/components/project-management/types';
 import { Btn } from '@/components/sdpc/btn';
@@ -29,6 +34,28 @@ import { index as boardIndex } from '@/routes/student/board';
 
 const MUTED = (pct: number) =>
     `color-mix(in srgb, var(--color-text) ${pct}%, transparent)`;
+
+/** What the open project extension is waiting on, for the side reading it. */
+function extensionNotice(
+    open: NonNullable<ProjectExtension['open']>,
+    isStudentSide: boolean,
+): string {
+    if (open.status === 'draft' || open.status === 'awaiting_signatures') {
+        return isStudentSide
+            ? 'The client wants to extend this project. Add to the addendum’s Section II, agree on the amount, then sign it.'
+            : 'Your project extension addendum is waiting to be filled in and signed by both sides.';
+    }
+
+    if (!open.downPaymentPaid) {
+        return isStudentSide
+            ? 'The extension addendum is signed. The extended work starts once the client’s down payment clears.'
+            : 'The extension addendum is signed. Pay Milestone 1, the down payment, to start the extended work.';
+    }
+
+    return isStudentSide
+        ? 'Down payment received: the extended services are in Objective & Scope below. The final balance is due once you hand them all in.'
+        : 'The extended services are in Objective & Scope below. Their files unlock once you pay the final balance.';
+}
 
 const STATE_TAG: Record<
     Phase['state'],
@@ -302,6 +329,35 @@ function Workspace({
                 </Panel>
             )}
 
+            {/* The project extension still being signed or paid: both sides
+                hear about it here, the student first of all. */}
+            {agreement.extension.open && (
+                <Panel
+                    padding="lg"
+                    gap="sm"
+                    className="pm-reveal"
+                    data-test="extension-notice"
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        background:
+                            'color-mix(in srgb, var(--color-accent) 9%, transparent)',
+                    }}
+                >
+                    <ArrowsOutIcon style={{ fontSize: 20, flex: 'none' }} />
+                    <span style={{ fontSize: 13.5, marginRight: 'auto' }}>
+                        {extensionNotice(agreement.extension.open, canManage)}
+                    </span>
+                    <Btn asChild variant="primary">
+                        <Link href={agreement.extension.open.url}>
+                            Open addendum {agreement.extension.open.reference}
+                        </Link>
+                    </Btn>
+                </Panel>
+            )}
+
             <div
                 style={{
                     display: 'flex',
@@ -474,6 +530,11 @@ function Workspace({
                                       0,
                                   ),
                               }
+                            : null
+                    }
+                    extension={
+                        phase.isTurnover && canComplete
+                            ? agreement.extension
                             : null
                     }
                 />

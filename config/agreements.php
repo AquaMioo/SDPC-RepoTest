@@ -236,6 +236,157 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payment & Project Extension Addendum
+    |--------------------------------------------------------------------------
+    |
+    | The wording of SDPC_Addendum.pdf (resources/documents/sdpc-addendum.pdf
+    | is the blank form), drawn by components/agreements/addendum-document.tsx.
+    | Nobody edits this text. The parties fill only Section II's services and
+    | Section IV's target amount; the cover's names and title, the GCash
+    | accounts, Section IV's table and the signature lines come from the
+    | addendum itself (PresentAddendum).
+    |
+    | CA1 is the CONTRACTING AGENCY, the student team lead; CA2 the CUSTOMER
+    | AGENCY, the client. That is this document's own legend (owner,
+    | 2026-10-10), the reverse of the memorandum's.
+    |
+    | Blocks read like the memorandum's: a paragraph, or a numbered list whose
+    | **double asterisks** print in bold.
+    |
+    */
+
+    'sdpc_addendum' => [
+        'title' => 'PAYMENT & PROJECT EXTENSION ADDENDUM (ADDENDUM)',
+        'footer' => 'SDPC Addendum',
+
+        'cover' => [
+            'ca1' => 'CONTRACTING AGENCY / STUDENT TEAM LEAD NAME',
+            'ca2' => 'CUSTOMER AGENCY / CLIENT NAME',
+            'services' => 'DESCRIPTION OF EXTENDED SERVICES (Capstone / Project Extension Title)',
+        ],
+
+        'sections' => [
+            [
+                'numeral' => 'I',
+                'heading' => 'PARTIES',
+                'blocks' => [
+                    ['paragraph' => 'The parties to this Addendum are the CONTRACTING AGENCY, hereafter referenced as "CA1" (representing the Student Developer Team) and the CUSTOMER AGENCY, hereafter referenced as "CA2" (representing the Client). This Addendum is entered into under the framework of the Student Developer Project Connection (SDPC) platform.'],
+                ],
+            ],
+            [
+                'numeral' => 'II',
+                'heading' => 'PURPOSE & SCOPE OF EXTENSION',
+                'key' => 'services',
+                'blocks' => [
+                    ['paragraph' => 'Pursuant to Section VI, Clause 3 and Section IX of the parent Memorandum of Agreement (MOA), the purpose of this Addendum is to formally extend the engagement duration, specify supplementary technical deliverables beyond the primary Capstone 2 academic scope, and establish an automated two-tier milestone payment process using the integrated PayMongo payment gateway.'],
+                    ['paragraph' => 'CA1 agrees to perform the following extended post-capstone technical services for CA2:'],
+                ],
+                /* Shown while Section II is empty, on screen only: the PDF's own three items, as the format to follow. */
+                'example' => [
+                    '**Post-Deployment Maintenance**: Provide routine bug fixes, dependency updates, and environment stabilization.',
+                    '**Feature Enhancements**: Implement supplementary client-requested modules as documented in the SDPC Project Management portal.',
+                    '**Infrastructure Handover**: Configure production server hosting, domain records, and administrative credential transfers.',
+                ],
+            ],
+            [
+                'numeral' => 'III',
+                'heading' => 'ELIGIBILITY & WORK COMMENCEMENT (80% THRESHOLD)',
+                'blocks' => [
+                    ['numbered' => [
+                        '**Academic Protection Threshold:** In compliance with SDPC governance rules, project extension requests may only be activated once the original capstone deliverables have reached an evaluated completion metric of at least 80%. This condition guarantees that student academic commitments remain unimpaired prior to commercial commitments.',
+                        '**Mobilization Prerequisite:** CA1 shall not be obligated or permitted to commence extended development work until Milestone 1 (Mobilization Downpayment) has been verified as cleared through the automated payment gateway.',
+                    ]],
+                ],
+            ],
+            [
+                'numeral' => 'IV',
+                'heading' => 'TWO-TIER MILESTONE PAYMENT TERMS (PAYMONGO GATEWAY)',
+                'key' => 'payments',
+                'new_page' => true,
+                'blocks' => [
+                    ['paragraph' => 'Settlement of financial considerations under this Addendum is strictly segmented into exactly two (2) milestones, denominated in Philippine Pesos (PHP), and settled via the integrated PayMongo payment gateway (supporting GCash):'],
+                ],
+                /* Section IV's table, one row per milestone and the total. */
+                'milestones' => [
+                    [
+                        'name' => 'Milestone 1',
+                        'description' => 'Mobilization Downpayment',
+                        'condition' => 'Due immediately upon Addendum execution. Initiates development phase upon gateway clearance.',
+                    ],
+                    [
+                        'name' => 'Milestone 2',
+                        'description' => 'Full Payment (Final Balance)',
+                        'condition' => 'Due upon completion of extended tasks and demonstration. Unlocks source code and repository access.',
+                    ],
+                    [
+                        'name' => 'TOTAL',
+                        'description' => 'Consolidated Extended Fee',
+                        'condition' => 'Total agreed financial consideration for extended scope.',
+                    ],
+                ],
+            ],
+            [
+                'numeral' => 'V',
+                'heading' => 'AUTOMATED PAYMENT CLEARANCE & AUDIT LOGGING',
+                'blocks' => [
+                    ['numbered' => [
+                        '**Elimination of Manual Submissions:** Neither physical receipt uploads nor manual 13-digit reference number entries are required from CA2. Payment authorization is executed directly through the PayMongo hosted checkout.',
+                        '**Server-to-Server Webhooks:** Upon client authorization via GCash, PayMongo dispatches a secure webhook (checkout_session.payment.paid) directly to the SDPC backend, automatically transitioning the milestone status to Fully Paid without human delay.',
+                        '**Transaction Audit Trail:** Every transaction automatically records a unique PayMongo Transaction ID (e.g., pay_xxxx) and an internal invoice identifier in the system database, ensuring an immutable financial audit trail.',
+                    ]],
+                ],
+            ],
+            [
+                'numeral' => 'VI',
+                'heading' => 'DIGITAL ASSET LOCK & INTELLECTUAL PROPERTY TRANSFER',
+                'blocks' => [
+                    ['numbered' => [
+                        '**Software-Based Asset Lock:** In place of a custodial monetary escrow, the SDPC platform enforces a programmatic digital lock on all source code repositories, deployment archives, and production credentials.',
+                        '**Asset Unlocking Condition:** Production files, unmasked repository links, and deployment configurations remain strictly inaccessible until Milestone 2 (Full Payment) achieves automated clearance through the gateway.',
+                        '**Title and Ownership:** Final title and intellectual property ownership over the extended deliverables transfer to CA2 only upon complete settlement of Milestone 2, consistent with the parent MOA.',
+                    ]],
+                ],
+            ],
+            [
+                'numeral' => 'VII',
+                'heading' => 'COMPLIANCE TO REGULATIONS & DATA PRIVACY',
+                'new_page' => true,
+                'blocks' => [
+                    ['numbered' => [
+                        '**Data Privacy Act of 2012 (R.A. 10173):** In accordance with the Data Privacy Act of 2012 and National Privacy Commission regulations, all billing profiles, phone numbers, and transactional logs stored in SDPC are encrypted, masked on user interfaces, and isolated from public access.',
+                        '**Non-Banking Entity Delimitation:** The SDPC platform functions solely as an academic software coordination tool and digital transaction ledger. The platform is not a financial institution, escrow depository, or licensed Operator of Payment Systems (OPS) under the Bangko Sentral ng Pilipinas (BSP). All monetary flows are cleared externally via BSP-licensed payment aggregators.',
+                    ]],
+                ],
+            ],
+            [
+                'numeral' => 'VIII',
+                'heading' => 'TERMS OF AGREEMENT & AMENDMENTS',
+                'blocks' => [
+                    ['numbered' => [
+                        '**Revisions and Modifications:** Minor technical adjustments within the extended scope are permissible. Any major additions beyond the tasks herein require an additional written addendum and adjusted payment schedule.',
+                        '**Termination:** Either party may terminate this Addendum with valid cause upon five (5) business days written notice through the SDPC messaging system. Uncompleted work shall be reconciled against milestone clearances.',
+                        '**Duration:** This Addendum takes effect on the date of mutual electronic execution and remains active until final delivery of extended tasks or through the specified Extended Project End Date.',
+                    ]],
+                ],
+            ],
+            [
+                'numeral' => 'IX',
+                'heading' => 'EFFECTIVE DATE AND SIGNATURE',
+                'blocks' => [
+                    ['paragraph' => 'This Addendum shall be effective upon the mutual electronic signatures of authorized representatives of CA1 and CA2. Electronic signatures and timestamps generated through authenticated user accounts on the SDPC platform hold full legal validity under Republic Act No. 8792 (Electronic Commerce Act of 2000).'],
+                ],
+            ],
+        ],
+
+        /* The signature block's headings and (Title) lines. */
+        'signatories' => [
+            'student' => ['party' => 'CONTRACTING AGENCY (CA1)', 'title' => 'Student Team Lead'],
+            'client' => ['party' => 'CUSTOMER AGENCY (CA2)', 'title' => 'Client Representative'],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Memorandum of Agreement (earlier wording)
     |--------------------------------------------------------------------------
     |

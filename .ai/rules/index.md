@@ -25,10 +25,11 @@ Before planning or editing, find the row whose globs match the file's path and r
 | tests/Feature/Matching/** | .ai/rules/matching.md |
 | app/Actions/Messaging/**, app/Http/Controllers/Messaging/ConversationController.php, app/Http/Controllers/Messaging/MeetingController.php, app/Http/Controllers/Messaging/ConversationMemberController.php | .ai/rules/messaging.md |
 | database/migrations/** | .ai/rules/migrations.md |
-| app/Models/Conversation.php, app/Models/Agreement.php | .ai/rules/models.md |
+| app/Models/Conversation.php, app/Models/Agreement.php, app/Models/User.php | .ai/rules/models.md |
 | app/Actions/Notifications/** | .ai/rules/notifications.md |
 | resources/js/pages/agreements/** | .ai/rules/pages-agreements.md |
 | resources/js/pages/** | .ai/rules/pages.md |
+| app/Services/Payments/** | .ai/rules/payments.md |
 | app/Policies/ProjectPolicy.php, app/Policies/AgreementPolicy.php | .ai/rules/policies.md |
 | resources/js/components/project-management/** | .ai/rules/project-management.md |
 | app/Services/Recommendation/** | .ai/rules/recommendation.md |

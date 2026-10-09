@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
+    ArrowsOutIcon,
     ClockIcon,
     FlagIcon,
     ListChecksIcon,
@@ -20,6 +21,7 @@ import {
     contract as agreementContract,
     update as agreementUpdate,
 } from '@/routes/agreements';
+import { show as addendumShow } from '@/routes/agreements/addenda';
 import type { Agreement } from '@/types/agreements';
 
 const MUTED = (pct: number) =>
@@ -83,6 +85,14 @@ type TermsDraft = {
 
 type Props = {
     agreement: Agreement;
+    /** The Payment & Project Extension Addenda beside this memorandum. */
+    addenda?: {
+        id: number;
+        reference: string;
+        statusLabel: string;
+        statusVariant: string;
+        requestedOn: string | null;
+    }[];
 };
 
 /**
@@ -92,7 +102,7 @@ type Props = {
  * student reads them; who gets which affordance comes from `viewer`, never
  * from the account type, so AgreementPolicy stays the single answer.
  */
-export default function AgreementShow({ agreement }: Props) {
+export default function AgreementShow({ agreement, addenda = [] }: Props) {
     const team = useCurrentTeam();
     const [isEditing, setIsEditing] = useState(false);
 
@@ -223,6 +233,57 @@ export default function AgreementShow({ agreement }: Props) {
                         {agreement.statusLabel}
                     </Tag>
                 </div>
+
+                {/* Each addendum is its own document; the memorandum is unchanged by it. */}
+                {addenda.length > 0 && (
+                    <Panel
+                        style={{ padding: 18, gap: 10, marginBottom: 18 }}
+                        data-test="addenda-panel"
+                    >
+                        <CardHeading
+                            icon={<ArrowsOutIcon />}
+                            label="Payment & Project Extension Addenda"
+                        />
+                        {addenda.map((addendum) => (
+                            <div
+                                key={addendum.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    flexWrap: 'wrap',
+                                    fontSize: 13,
+                                }}
+                            >
+                                <span style={{ marginRight: 'auto' }}>
+                                    {addendum.reference}
+                                    {addendum.requestedOn
+                                        ? ` · requested ${addendum.requestedOn}`
+                                        : ''}
+                                </span>
+                                <Tag
+                                    variant={
+                                        TAG_VARIANT[addendum.statusVariant] ??
+                                        'neutral'
+                                    }
+                                >
+                                    {addendum.statusLabel}
+                                </Tag>
+                                <Btn asChild variant="secondary">
+                                    <Link
+                                        href={addendumShow.url({
+                                            current_team: team.slug,
+                                            agreement: agreement.id,
+                                            addendum: addendum.id,
+                                        })}
+                                    >
+                                        Open addendum
+                                    </Link>
+                                </Btn>
+                            </div>
+                        ))}
+                    </Panel>
+                )}
 
                 <div
                     style={{

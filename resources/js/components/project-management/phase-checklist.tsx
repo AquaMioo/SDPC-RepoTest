@@ -1,12 +1,14 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import {
     ArrowDownIcon,
+    ArrowsOutIcon,
     ArrowUpIcon,
     CalendarBlankIcon,
     CheckIcon,
     ClockCounterClockwiseIcon,
     FlagCheckeredIcon,
     LinkSimpleIcon,
+    LockSimpleIcon,
     PencilSimpleIcon,
     PlusIcon,
     TrashIcon,
@@ -28,6 +30,7 @@ import {
 import type {
     DeadlineRequest,
     Phase,
+    ProjectExtension,
     Task,
 } from '@/components/project-management/types';
 import { Btn } from '@/components/sdpc/btn';
@@ -35,6 +38,7 @@ import { PageNumbers, usePagination } from '@/components/sdpc/page-numbers';
 import { Panel } from '@/components/sdpc/panel';
 import { Tag } from '@/components/sdpc/tag';
 import { earliestTurnoverEnd, shortDate } from '@/lib/calendar-days';
+import { store as storeAddendum } from '@/routes/agreements/addenda';
 import { store as completeProject } from '@/routes/agreements/completion';
 import {
     approve as approveDeadline,
@@ -108,6 +112,7 @@ export function PhaseChecklist({
     finalDeadline,
     finalDeadlineRequest,
     completion,
+    extension = null,
 }: {
     phase: Phase;
     teamSlug: string;
@@ -122,7 +127,31 @@ export function PhaseChecklist({
         projectTitle: string;
         unverifiedCount: number;
     } | null;
+    /** Set for the client on Turnover: the "Project extension" button beside Complete. */
+    extension?: ProjectExtension | null;
 }) {
+    const [requestingExtension, setRequestingExtension] = useState(false);
+
+    /*
+     * Opens a draft Payment & Project Extension Addendum and goes to it, in
+     * the Agreements tab. Only from the threshold up (80%), so an extension
+     * never lands on a student still finishing the capstone itself.
+     */
+    const requestExtension = () => {
+        setRequestingExtension(true);
+        router.post(
+            storeAddendum.url({
+                current_team: teamSlug,
+                agreement: agreementId,
+            }),
+            {},
+            {
+                onError: reportFailure,
+                onFinish: () => setRequestingExtension(false),
+            },
+        );
+    };
+
     const [dialog, setDialog] = useState<Dialog>(null);
 
     /*
@@ -353,11 +382,46 @@ export function PhaseChecklist({
                             Add task
                         </Btn>
                     )}
+                    {/* Beside Complete: extend the project with an addendum. */}
+                    {extension &&
+                        (extension.open ? (
+                            <Btn
+                                asChild
+                                variant="secondary"
+                                style={{ marginLeft: 'auto' }}
+                            >
+                                <Link href={extension.open.url}>
+                                    <ArrowsOutIcon />
+                                    Project extension ·{' '}
+                                    {extension.open.statusLabel}
+                                </Link>
+                            </Btn>
+                        ) : (
+                            <Btn
+                                variant="secondary"
+                                style={{ marginLeft: 'auto' }}
+                                disabled={
+                                    !extension.canRequest || requestingExtension
+                                }
+                                title={
+                                    extension.canRequest
+                                        ? 'Extend the project with an addendum: more work, paid through PayMongo.'
+                                        : `Available once the project is at least ${extension.threshold}% complete (now ${extension.progress}%).`
+                                }
+                                data-test="project-extension"
+                                onClick={requestExtension}
+                            >
+                                <ArrowsOutIcon />
+                                Project extension
+                            </Btn>
+                        ))}
                     {/* The client's Complete, bottom right of Turnover. */}
                     {completion !== null && (
                         <Btn
                             variant="primary"
-                            style={{ marginLeft: 'auto' }}
+                            style={{
+                                marginLeft: extension ? undefined : 'auto',
+                            }}
                             onClick={() => setDialog({ kind: 'complete' })}
                         >
                             <FlagCheckeredIcon />
@@ -664,7 +728,8 @@ function TaskRow({
     const checked = task.status !== 'open';
     /* The student ticks open work and unticks work not yet reviewed; verified is final. */
     const canToggle = canManage && task.status !== 'verified';
-    const hasProof = task.proofNote || task.proofUrl || task.proofHref;
+    const hasProof =
+        task.proofNote || task.proofUrl || task.proofHref || task.proofLocked;
     const canAsk =
         canManage &&
         task.status !== 'verified' &&
@@ -729,6 +794,14 @@ function TaskRow({
                         }}
                     >
                         {task.title}
+                        {task.isExtension && (
+                            <Tag
+                                variant="outline"
+                                style={{ marginLeft: 8, verticalAlign: 1 }}
+                            >
+                                Extension
+                            </Tag>
+                        )}
                     </div>
                     {task.description && (
                         <div style={{ fontSize: 11.5, color: MUTED(58) }}>
@@ -876,6 +949,19 @@ function TaskRow({
                             href={task.proofHref}
                             name={task.proofName}
                         />
+                    )}
+                    {/* An extension's work stays locked until it is paid for (Addendum VI). */}
+                    {task.proofLocked && (
+                        <span
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                            }}
+                        >
+                            <LockSimpleIcon />
+                            File and link unlock after the final payment
+                        </span>
                     )}
                     {task.submittedAt && (
                         <span>Submitted {task.submittedAt}</span>

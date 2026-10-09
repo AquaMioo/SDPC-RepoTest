@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Settings\AccountDeletionCodeController;
 use App\Http\Controllers\Settings\AppealController;
+use App\Http\Controllers\Settings\GcashAccountController;
 use App\Http\Controllers\Settings\PasswordSetupController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
@@ -51,6 +52,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('settings/profile/delete-code', AccountDeletionCodeController::class)
         ->middleware('throttle:6,1')
         ->name('profile.destroy.code');
+
+    /*
+     * The GCash account a client or student registers once for the Project
+     * Extension Addendum. Private and always shown masked; see
+     * GcashAccountController.
+     */
+    Route::put('settings/gcash', [GcashAccountController::class, 'update'])
+        ->middleware('throttle:12,1')
+        ->name('gcash.update');
+    Route::delete('settings/gcash', [GcashAccountController::class, 'destroy'])
+        ->name('gcash.destroy');
 
     Route::get('settings/security', [SecurityController::class, 'edit'])
         ->middleware(RequirePassword::class)

@@ -190,3 +190,130 @@ export type AgreementListItem = {
     counterparty: string;
     totalAmount: number;
 };
+
+/** One Section II service on the addendum: an Objective and its Scope. */
+export type AddendumEntry = {
+    id: number;
+    objective: string;
+    scope: string;
+    authorName: string | null;
+    authorSide: 'client' | 'student' | null;
+    /** Only its author may change it, and only until somebody signs. */
+    canChange: boolean;
+};
+
+export type AddendumSection = {
+    numeral: string;
+    heading: string;
+    /** 'services' for Section II, 'payments' for Section IV. */
+    key: 'services' | 'payments' | null;
+    newPage: boolean;
+    blocks: (
+        | { type: 'paragraph'; text: string }
+        | { type: 'numbered'; items: string[] }
+    )[];
+    /** Section IV's table: each milestone, then the total. */
+    milestones: {
+        name: string;
+        description: string;
+        allocation: string;
+        /** "₱3,000.00", or null while no target amount is set. */
+        amount: string | null;
+        condition: string;
+    }[];
+};
+
+export type AddendumSignatory = {
+    party: string;
+    title: string;
+    printName: string;
+    signedOn: string | null;
+};
+
+export type AddendumPayment = {
+    id: number;
+    milestone: 1 | 2;
+    label: string;
+    percentage: number;
+    /** Centavos. */
+    amount: number;
+    amountLabel: string;
+    status: 'pending' | 'paid';
+    statusLabel: string;
+    invoiceNumber: string;
+    /** The gateway's payment id (pay_…), once paid. */
+    providerPaymentId: string | null;
+    gateway: string | null;
+    method: string | null;
+    paidBy: string | null;
+    paidAt: string | null;
+    isPayable: boolean;
+};
+
+/** The Payment & Project Extension Addendum (PresentAddendum). */
+export type Addendum = {
+    id: number;
+    reference: string;
+    status:
+        'draft' | 'awaiting_signatures' | 'active' | 'completed' | 'cancelled';
+    statusLabel: string;
+    statusVariant: string;
+    agreementId: number;
+    agreementReference: string;
+    projectTitle: string;
+    requestedOn: string | null;
+    executedOn: string | null;
+    completedOn: string | null;
+    /** Section IV's target amount, whole pesos. */
+    totalAmount: number | null;
+    limits: {
+        min: number;
+        max: number;
+        downPaymentPercent: number;
+        threshold: number;
+    };
+    document: {
+        title: string;
+        footer: string;
+        /** The cover's labels under each filled-in name. */
+        cover: { ca1: string; ca2: string; services: string };
+        /** CA1, the Student Team Lead. */
+        ca1: string;
+        /** CA2, the Client Representative. */
+        ca2: string;
+        /** The project title. */
+        services: string;
+        sections: AddendumSection[];
+        /** Section II's format, shown on screen while it is empty. */
+        example: string[];
+        entries: AddendumEntry[];
+        /** Always masked: 09******297, or null when none is on record. */
+        gcash: { student: string | null; client: string | null };
+        signatories: { student: AddendumSignatory; client: AddendumSignatory };
+    };
+    signatures: {
+        party: 'client' | 'student';
+        partyLabel: string;
+        signedName: string;
+        signedAt: string;
+    }[];
+    payments: AddendumPayment[];
+    work: { taskCount: number; handedInCount: number; isHandedIn: boolean };
+    /** 'paymongo', or 'simulated' while no PayMongo key is set. */
+    gateway: string;
+    viewer: {
+        party: 'client' | 'student' | null;
+        canEdit: boolean;
+        canSign: boolean;
+        hasSigned: boolean;
+        canCancel: boolean;
+        canPay: boolean;
+        signingBlockedBy: string | null;
+        /** This viewer's own side still has no GCash account in Settings. */
+        needsGcash: boolean;
+        clientRepresentativeName: string;
+        isClientRepresentative: boolean;
+    };
+    isOpen: boolean;
+    isCancelled: boolean;
+};

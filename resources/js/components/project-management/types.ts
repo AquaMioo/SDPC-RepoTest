@@ -37,6 +37,10 @@ export type Task = {
     proofName: string | null;
     /** Through the access-checked proof route, never a disk URL. */
     proofHref: string | null;
+    /** Put here by a project extension addendum's Section II. */
+    isExtension: boolean;
+    /** The client's view of an extension task: a file or link was handed in, locked until the final payment. */
+    proofLocked: boolean;
     /** Why the client sent it back; cleared when the student resubmits. */
     reviewNote: string | null;
     submittedAt: string | null;
@@ -98,6 +102,25 @@ export type ManagedAgreement = {
     finalDeadline: string | null;
     finalDeadlineRequest: DeadlineRequest | null;
     phases: Phase[];
+    extension: ProjectExtension;
+};
+
+/** The Payment & Project Extension Addendum, as Project Management offers it. */
+export type ProjectExtension = {
+    /** The least progress, in percent, at which the client may ask. */
+    threshold: number;
+    progress: number;
+    /** The client may press "Project extension" now. */
+    canRequest: boolean;
+    /** The extension still being signed or paid, if there is one. */
+    open: {
+        id: number;
+        reference: string;
+        status: string;
+        statusLabel: string;
+        downPaymentPaid: boolean;
+        url: string;
+    } | null;
 };
 
 export type Application = {

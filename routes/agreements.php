@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Agreements\AddendumController;
+use App\Http\Controllers\Agreements\AddendumPaymentController;
+use App\Http\Controllers\Agreements\AddendumServiceController;
+use App\Http\Controllers\Agreements\AddendumSignatureController;
 use App\Http\Controllers\Agreements\AgreementChangeRequestController;
 use App\Http\Controllers\Agreements\AgreementController;
 use App\Http\Controllers\Agreements\AgreementMilestoneController;
@@ -7,12 +11,15 @@ use App\Http\Controllers\Agreements\AgreementSignatureController;
 use App\Http\Controllers\Agreements\AgreementTaskController;
 use App\Http\Controllers\Agreements\DeadlineChangeRequestController;
 use App\Http\Controllers\Agreements\MemorandumRequirementController;
+use App\Http\Controllers\Agreements\PayMongoWebhookController;
 use App\Http\Controllers\Agreements\PhaseScheduleController;
 use App\Http\Controllers\Agreements\ProjectCompletionController;
 use App\Http\Controllers\Agreements\ProjectManagementController;
 use App\Http\Controllers\Agreements\ServiceDescriptionController;
+use App\Http\Controllers\Agreements\SimulatedCheckoutController;
 use App\Http\Middleware\EnsureAccountIsNotMonitored;
 use App\Http\Middleware\EnsureTeamMembership;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -152,4 +159,76 @@ Route::prefix('{current_team}')
         /* The client accepts the turnover. Final: see ProjectCompletionController. */
         Route::post('agreements/{agreement}/completion', [ProjectCompletionController::class, 'store'])
             ->name('agreements.completion.store');
+
+        /*
+         * The Payment & Project Extension Addendum: a second document beside
+         * the memorandum, opened by the client's "Project extension" button
+         * once the build is at least 80% done. Both parties fill Section II
+         * and Section IV and sign; the client then pays its two milestones
+         * through the gateway. AddendumPolicy decides; every controller checks
+         * the addendum (and payment, service) belongs to the URL's agreement.
+         */
+        Route::post('agreements/{agreement}/addenda', [AddendumController::class, 'store'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.store');
+        Route::get('agreements/{agreement}/addenda/{addendum}', [AddendumController::class, 'show'])
+            ->name('agreements.addenda.show');
+        Route::patch('agreements/{agreement}/addenda/{addendum}', [AddendumController::class, 'update'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.update');
+        Route::delete('agreements/{agreement}/addenda/{addendum}', [AddendumController::class, 'destroy'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.destroy');
+        /* Filled in, signed or not, to print or save as a PDF. */
+        Route::get('agreements/{agreement}/addenda/{addendum}/printable', [AddendumController::class, 'printable'])
+            ->name('agreements.addenda.printable');
+        /* The blank SDPC_Addendum.pdf, unsigned. */
+        Route::get('agreements/{agreement}/addenda/{addendum}/template', [AddendumController::class, 'template'])
+            ->name('agreements.addenda.template');
+        /* The transaction record of its two milestones, to print or save. */
+        Route::get('agreements/{agreement}/addenda/{addendum}/records', [AddendumController::class, 'records'])
+            ->name('agreements.addenda.records');
+
+        Route::post('agreements/{agreement}/addenda/{addendum}/services', [AddendumServiceController::class, 'store'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.services.store');
+        Route::patch('agreements/{agreement}/addenda/{addendum}/services/{service}', [AddendumServiceController::class, 'update'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.services.update');
+        Route::delete('agreements/{agreement}/addenda/{addendum}/services/{service}', [AddendumServiceController::class, 'destroy'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.services.destroy');
+
+        Route::post('agreements/{agreement}/addenda/{addendum}/signatures', [AddendumSignatureController::class, 'store'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.signatures.store');
+
+        Route::post('agreements/{agreement}/addenda/{addendum}/payments/{payment}/checkout', [AddendumPaymentController::class, 'checkout'])
+            ->middleware(['throttle:12,1', $trusted])
+            ->name('agreements.addenda.payments.checkout');
+        /* PayMongo's success_url: back from the hosted checkout. */
+        Route::get('agreements/{agreement}/addenda/{addendum}/payments/{payment}/paid', [AddendumPaymentController::class, 'paid'])
+            ->name('agreements.addenda.payments.paid');
     });
+
+/*
+ * SDPC's test checkout, standing in for PayMongo's hosted page while no
+ * PAYMONGO_SECRET_KEY is set (404 otherwise). Outside the team prefix like
+ * PayMongo's own page: the payment row says which addendum it is.
+ */
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('payments/simulated/{payment}', [SimulatedCheckoutController::class, 'show'])
+        ->name('payments.simulated.show');
+    Route::post('payments/simulated/{payment}', [SimulatedCheckoutController::class, 'store'])
+        ->middleware('throttle:12,1')
+        ->name('payments.simulated.store');
+});
+
+/*
+ * PayMongo's server-to-server webhook (checkout_session.payment.paid). No
+ * session and no CSRF token: the Paymongo-Signature header is the proof.
+ */
+Route::post('webhooks/paymongo', PayMongoWebhookController::class)
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.paymongo');

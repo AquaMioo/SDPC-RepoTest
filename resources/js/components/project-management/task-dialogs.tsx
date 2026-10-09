@@ -530,6 +530,15 @@ export function ReviewTaskDialog({
                     </div>
                 )}
 
+                {/* An extension's work: handed in, locked until it is paid for (Addendum VI). */}
+                {task.proofLocked && (
+                    <span style={{ fontSize: 12, color: MUTED(65) }}>
+                        The file and link for this extension task unlock once
+                        you pay the extension’s final balance. You can verify it
+                        from the student’s demonstration.
+                    </span>
+                )}
+
                 {task.submittedAt && (
                     <span style={{ fontSize: 11, color: MUTED(55) }}>
                         Submitted {task.submittedAt}

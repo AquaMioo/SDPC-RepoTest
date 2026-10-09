@@ -401,7 +401,7 @@ function SignLine({ label, value }: { label: string; value: string | null }) {
  * Text with the **bold** runs the template prints — the filled-in blanks and
  * the clause labels. Only that marker is read; nothing else is markup.
  */
-function Bold({ text }: { text: string }): ReactNode {
+export function Bold({ text }: { text: string }): ReactNode {
     return (
         <>
             {text

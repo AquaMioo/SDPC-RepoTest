@@ -550,6 +550,77 @@ html[data-mod='admin'] {
     }
 }
 
+/*
+ * The Payment & Project Extension Addendum (components/agreements/
+ * addendum-document.tsx) is the same paper as the memorandum, footed
+ * "SDPC Addendum … Page n" as SDPC_Addendum.pdf is, with Section IV's
+ * milestone table ruled like the form's.
+ */
+.addendum-doc {
+    page: addendum;
+}
+
+.addendum-cover-label {
+    font-size: 9.5pt;
+    color: #6b6b6b;
+}
+
+.addendum-table-wrap {
+    margin: 4px 0 12px 3.4em;
+    overflow-x: auto;
+}
+
+.addendum-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10.5pt;
+    line-height: 1.35;
+}
+
+.addendum-table th,
+.addendum-table td {
+    border: 1px solid #141414;
+    padding: 5px 7px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.addendum-table thead th {
+    font-weight: 700;
+}
+
+.addendum-table tbody th {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .addendum-table-wrap {
+        margin-left: 0;
+    }
+}
+
+@page addendum {
+    size: A4;
+    margin: 20mm 22mm 22mm;
+
+    @bottom-left {
+        content: 'SDPC Addendum';
+        font:
+            9pt Arial,
+            Helvetica,
+            sans-serif;
+    }
+
+    @bottom-right {
+        content: 'Page ' counter(page);
+        font:
+            9pt Arial,
+            Helvetica,
+            sans-serif;
+    }
+}
+
 @media print {
     html,
     body {

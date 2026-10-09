@@ -2,11 +2,14 @@
 
 namespace App\Providers;
 
+use App\Contracts\PaymentGateway;
 use App\Contracts\StudentVerifier;
 use App\Contracts\VerifiesStudentCredentials;
 use App\Listeners\ClearLastSeen;
 use App\Mail\Transport\BrevoTransport;
 use App\Services\Credentials\AutomatedCredentialVerifier;
+use App\Services\Payments\PayMongoGateway;
+use App\Services\Payments\SimulatedPaymentGateway;
 use App\Services\Recommendation\ComputedRecommendationService;
 use App\Services\Recommendation\GeminiRecommendationService;
 use App\Services\Recommendation\RecommendationService;
@@ -67,6 +70,17 @@ class AppServiceProvider extends ServiceProvider
                 ? $schoolEmail
                 : $this->app->make(NullStudentVerifier::class);
         });
+
+        /*
+         * Where an addendum milestone is paid: PayMongo once its secret key is
+         * set (test or live), SDPC's simulated checkout until then.
+         */
+        $this->app->bind(PaymentGateway::class, fn () => filled(config('services.paymongo.secret_key'))
+            ? new PayMongoGateway(
+                (string) config('services.paymongo.secret_key'),
+                (string) config('services.paymongo.base_url'),
+            )
+            : new SimulatedPaymentGateway);
     }
 
     /**

@@ -59,6 +59,11 @@ createInertiaApp({
             case name === 'messaging/call':
             // The printable memorandum: the paper alone, nothing to print around it.
             case name === 'agreements/printable':
+            // The addendum's printable copy and its transaction record: paper too.
+            case name === 'agreements/addendum-printable':
+            case name === 'agreements/addendum-records':
+            // The test checkout stands in for PayMongo's own page.
+            case name === 'agreements/simulated-checkout':
                 return null;
             case name.startsWith('client/'):
             case name.startsWith('student/'):

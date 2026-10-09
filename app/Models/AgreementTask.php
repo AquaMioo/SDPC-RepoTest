@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AddendumStatus;
 use App\Enums\TaskStatus;
 use Database\Factories\AgreementTaskFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -36,9 +37,11 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $verified_at
  * @property int|null $verified_by
  * @property string|null $review_note
+ * @property int|null $addendum_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read AgreementMilestone $milestone
+ * @property-read Addendum|null $addendum
  * @property-read User|null $submitter
  * @property-read User|null $verifier
  * @property-read Collection<int, DeadlineChangeRequest> $deadlineRequests
@@ -47,7 +50,7 @@ use Illuminate\Support\Facades\Storage;
 #[Fillable([
     'agreement_milestone_id', 'position', 'title', 'description', 'due_on', 'status',
     'proof_note', 'proof_url', 'proof_path', 'proof_name', 'submitted_at',
-    'submitted_by', 'verified_at', 'verified_by', 'review_note',
+    'submitted_by', 'verified_at', 'verified_by', 'review_note', 'addendum_id',
 ])]
 class AgreementTask extends Model
 {
@@ -71,6 +74,28 @@ class AgreementTask extends Model
     public function milestone(): BelongsTo
     {
         return $this->belongsTo(AgreementMilestone::class, 'agreement_milestone_id');
+    }
+
+    /**
+     * Get the addendum whose Section II put this task here, if one did.
+     *
+     * @return BelongsTo<Addendum, $this>
+     */
+    public function addendum(): BelongsTo
+    {
+        return $this->belongsTo(Addendum::class);
+    }
+
+    /**
+     * Determine if the client may not open this task's file or link yet.
+     *
+     * An extension task's proof is the extended work itself, locked until the
+     * addendum's final balance clears (Section VI, the digital asset lock).
+     */
+    public function isProofLockedFromClient(): bool
+    {
+        return $this->addendum_id !== null
+            && $this->addendum?->status !== AddendumStatus::Completed;
     }
 
     /**

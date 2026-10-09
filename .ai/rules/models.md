@@ -2,6 +2,7 @@
 paths:
   - app/Models/Conversation.php
   - app/Models/Agreement.php
+  - app/Models/User.php
 ---
 
 # Models
@@ -18,3 +19,6 @@ Do not "tidy" this into a unique index on application_id alone. The whole change
 Since Project Management, Agreement::progress() counts agreement_tasks the client has **verified** over every task in every phase except Turnover (Agreement::progressPhases, since 2026-10-03) — not approved milestones any more. taskCount()/verifiedTaskCount() leave Turnover out too, so the "x of y tasks verified" beside every ring does. A task the student checked off (submitted) counts for nothing until the client verifies it, and no tasks is 0%, never a division by zero. SummariseProgress computes the same figure plus per-phase shares, current phase and next milestone; the page and both dashboards read it, so they cannot disagree. Every ring says "x of y tasks verified" beside the number.
 
 The milestone status is derived from its tasks by SyncPhaseStatus (all verified → Approved, reopened when a task is added), so the calendar, contract screen and ledger keep working off status. Do not let anybody set a percentage or a task's Verified state except the client through AgreementTaskController::verify, and do not reintroduce a per-status percentage — the old 40%/80% scores were nobody's measurement.
+
+## GCash numbers are encrypted, hidden, and only ever leave the server masked
+users.gcash_number (and addenda.client/student_gcash_number snapshots) use the `encrypted` cast and are in #[Hidden] — auth.user is shared to every Inertia page, so forgetting Hidden leaks the number everywhere. Every screen, including the owner's own Settings card, the addendum, its printable copy and the transaction records, gets App\Support\GcashNumber::mask() (09******297); the full number is never sent to the browser after it is saved. Registered in Settings → GCash account (gcash.update / gcash.destroy, clients and students only; GcashNumber::normalize accepts spaces, dashes and +63). Tests assert the raw number is absent from responses.

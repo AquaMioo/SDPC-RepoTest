@@ -283,6 +283,30 @@ class PresentNotification
                 __('Once both parties have signed, the project moves into progress.'),
                 $this->agreementUrl($data, $team),
             ],
+            'addendum.requested' => [
+                __('The client wants to extend :project', ['project' => $project ?? __('your project')]),
+                __('Add the extended services to the addendum, agree on the amount, then sign it.'),
+                $this->addendumUrl($data, $team),
+            ],
+            'addendum.signed' => [
+                __('Addendum :reference was signed', ['reference' => $this->text($data, 'addendum_reference') ?? '']),
+                __('The down payment falls due once both sides have signed.'),
+                $this->addendumUrl($data, $team),
+            ],
+            'addendum.executed' => [
+                __('Addendum :reference is signed by both sides', ['reference' => $this->text($data, 'addendum_reference') ?? '']),
+                __('The down payment is due. The extended work starts once it clears.'),
+                $this->addendumUrl($data, $team),
+            ],
+            'addendum.paid' => [
+                ($data['milestone'] ?? null) === 2
+                    ? __('The final balance for :project is paid', ['project' => $project ?? __('the extension')])
+                    : __('The down payment for :project is paid', ['project' => $project ?? __('the extension')]),
+                ($data['milestone'] ?? null) === 2
+                    ? __('The extension is fully paid and its files are unlocked.')
+                    : __('The extended services are in Project Management. The work can start.'),
+                $this->addendumUrl($data, $team),
+            ],
             'deadline.requested' => [
                 __(':student asked to move :what', [
                     'student' => $this->text($data, 'student_name') ?? __('The student'),
@@ -414,6 +438,21 @@ class PresentNotification
 
         return is_int($id) || is_string($id)
             ? route('agreements.show', ['current_team' => $team->slug, 'agreement' => $id])
+            : null;
+    }
+
+    /**
+     * Build the link to an addendum, when the payload names one.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function addendumUrl(array $data, Team $team): ?string
+    {
+        $agreement = $data['agreement_id'] ?? null;
+        $addendum = $data['addendum_id'] ?? null;
+
+        return (is_int($agreement) || is_string($agreement)) && (is_int($addendum) || is_string($addendum))
+            ? route('agreements.addenda.show', ['current_team' => $team->slug, 'agreement' => $agreement, 'addendum' => $addendum])
             : null;
     }
 

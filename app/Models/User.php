@@ -12,6 +12,7 @@ use App\Enums\TeamRole;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
+use App\Support\GcashNumber;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -66,7 +67,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Appeal|null $latestAppeal
  */
 #[Fillable(['name', 'first_name', 'last_name', 'email', 'password', 'google_id', 'avatar', 'current_team_id'])]
-#[Hidden(['password', 'google_id', 'google_email', 'microsoft_id', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'active_session_token'])]
+#[Hidden(['password', 'google_id', 'google_email', 'microsoft_id', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'active_session_token', 'gcash_number'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -111,6 +112,7 @@ class User extends Authenticatable implements PasskeyUser
             'restricted_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'last_seen_at' => 'datetime',
+            'gcash_number' => 'encrypted',
         ];
     }
 
@@ -337,6 +339,22 @@ class User extends Authenticatable implements PasskeyUser
                 ->where('student_id', $this->id)
                 ->orWhereIn('team_id', $this->teamMemberships()->select('team_id')))
             ->exists();
+    }
+
+    /**
+     * Determine if the account has registered a GCash number in Settings.
+     */
+    public function hasGcashAccount(): bool
+    {
+        return filled($this->gcash_number);
+    }
+
+    /**
+     * Get the registered GCash number as every screen shows it: 09******297.
+     */
+    public function maskedGcashNumber(): ?string
+    {
+        return GcashNumber::mask($this->gcash_number);
     }
 
     /**

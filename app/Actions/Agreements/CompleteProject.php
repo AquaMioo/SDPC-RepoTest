@@ -4,6 +4,7 @@ namespace App\Actions\Agreements;
 
 use App\Enums\AgreementStatus;
 use App\Enums\ProjectStatus;
+use App\Models\Addendum;
 use App\Models\Agreement;
 use App\Models\Project;
 use App\Models\ProjectRating;
@@ -54,6 +55,19 @@ class CompleteProject
             if ($project->status !== ProjectStatus::InProgress) {
                 throw ValidationException::withMessages([
                     'project' => __('Only a project in progress can be completed.'),
+                ]);
+            }
+
+            /*
+             * An extension still being signed or paid is unfinished business:
+             * completing would strand its payments and its locked files.
+             */
+            if (Addendum::query()
+                ->whereIn('agreement_id', Agreement::query()->where('project_id', $project->id)->select('id'))
+                ->open()
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'project' => __('Finish the project extension first, or cancel it if it is not signed yet.'),
                 ]);
             }
 

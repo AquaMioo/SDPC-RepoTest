@@ -9,6 +9,7 @@ use App\Enums\AgreementTemplate;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Agreements\SaveAgreementRequest;
+use App\Models\Addendum;
 use App\Models\Agreement;
 use App\Models\Membership;
 use App\Models\Team;
@@ -103,6 +104,21 @@ class AgreementController extends Controller
                 $request->user(),
                 $this->partyFor($request->user(), $agreement),
             ),
+            /*
+             * The Payment & Project Extension Addenda beside the memorandum,
+             * each its own document; only the ones this reader may open.
+             */
+            'addenda' => $agreement->addenda()->get()
+                ->filter(fn (Addendum $addendum): bool => $request->user()->can('view', $addendum))
+                ->map(fn (Addendum $addendum): array => [
+                    'id' => $addendum->id,
+                    'reference' => $addendum->reference,
+                    'statusLabel' => $addendum->status->label(),
+                    'statusVariant' => $addendum->status->tagVariant(),
+                    'requestedOn' => $addendum->created_at?->format('j M Y'),
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 

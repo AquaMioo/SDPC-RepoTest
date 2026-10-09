@@ -178,6 +178,16 @@ class Agreement extends Model
     }
 
     /**
+     * Get the Payment & Project Extension Addenda on this agreement, oldest first.
+     *
+     * @return HasMany<Addendum, $this>
+     */
+    public function addenda(): HasMany
+    {
+        return $this->hasMany(Addendum::class)->orderBy('sequence');
+    }
+
+    /**
      * Get the money recorded against this agreement.
      *
      * @return HasMany<Transaction, $this>

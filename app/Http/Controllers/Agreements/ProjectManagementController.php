@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Agreements;
 
 use App\Actions\Agreements\SummariseProgress;
 use App\Actions\Student\ListStudentApplications;
+use App\Enums\AddendumPaymentStatus;
 use App\Enums\AgreementStatus;
 use App\Enums\DeadlineRequestStatus;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
+use App\Models\Addendum;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
@@ -127,6 +129,8 @@ class ProjectManagementController extends Controller
                 'project.team.clientProfile',
                 'student',
                 'milestones.tasks.verifier',
+                'milestones.tasks.addendum',
+                'addenda.payments',
                 'milestones.tasks.deadlineRequests.requester',
                 'milestones.deadlineRequests.requester',
             ])
@@ -204,6 +208,7 @@ class ProjectManagementController extends Controller
             'finalDeadlineRequest' => $this->presentRequest(
                 $agreement->turnoverPhase()?->deadlineRequests->first(),
             ),
+            'extension' => $this->presentExtension($agreement, $summary['progress'], $isStudentSide),
             'phases' => $agreement->milestones
                 ->map(fn (AgreementMilestone $milestone): array => [
                     'id' => $milestone->id,
@@ -223,7 +228,7 @@ class ProjectManagementController extends Controller
                     'taskCount' => $phaseSummaries[$milestone->id]['taskCount'],
                     'state' => $phaseSummaries[$milestone->id]['state'],
                     'tasks' => $milestone->tasks
-                        ->map(fn (AgreementTask $task): array => $this->presentTask($agreement, $task))
+                        ->map(fn (AgreementTask $task): array => $this->presentTask($agreement, $task, $isStudentSide))
                         ->values()
                         ->all(),
                 ])
@@ -237,8 +242,15 @@ class ProjectManagementController extends Controller
      *
      * @return array<string, mixed>
      */
-    protected function presentTask(Agreement $agreement, AgreementTask $task): array
+    protected function presentTask(Agreement $agreement, AgreementTask $task, bool $isStudentSide): array
     {
+        /*
+         * An extension task's file and link are the extended work itself:
+         * the client sees that it was handed in, not what, until the
+         * addendum's final balance clears (Section VI).
+         */
+        $isLocked = ! $isStudentSide && $task->isProofLockedFromClient();
+
         return [
             'id' => $task->id,
             'position' => $task->position,
@@ -255,10 +267,12 @@ class ProjectManagementController extends Controller
             'status' => $task->status->value,
             'statusLabel' => $task->status->label(),
             'proofNote' => $task->proof_note,
-            'proofUrl' => $task->proof_url,
-            'proofName' => $task->proof_name,
+            'proofUrl' => $isLocked ? null : $task->proof_url,
+            'proofName' => $isLocked ? null : $task->proof_name,
+            'isExtension' => $task->addendum_id !== null,
+            'proofLocked' => $isLocked && ($task->proof_path !== null || $task->proof_url !== null),
             /* Through the checked route, never a disk URL. */
-            'proofHref' => $task->proof_path === null ? null : route('agreements.tasks.proof', [
+            'proofHref' => $isLocked || $task->proof_path === null ? null : route('agreements.tasks.proof', [
                 'current_team' => request()->route('current_team'),
                 'agreement' => $agreement->id,
                 'task' => $task->id,
@@ -267,6 +281,41 @@ class ProjectManagementController extends Controller
             'submittedAt' => $task->submitted_at?->format('j M Y, g:i a'),
             'verifiedAt' => $task->verified_at?->format('j M Y, g:i a'),
             'verifiedBy' => $task->verifier?->name,
+        ];
+    }
+
+    /**
+     * The Project Extension Addendum, as Project Management offers it.
+     *
+     * The client's "Project extension" button (beside Complete project) works
+     * from Addendum::EXTENSION_THRESHOLD% up and while no other extension is
+     * open; the student side reads the open one as a notice.
+     *
+     * @return array<string, mixed>
+     */
+    protected function presentExtension(Agreement $agreement, int $progress, bool $isStudentSide): array
+    {
+        $open = $agreement->addenda->first(fn (Addendum $addendum): bool => $addendum->status->isOpen());
+
+        return [
+            'threshold' => Addendum::EXTENSION_THRESHOLD,
+            'progress' => $progress,
+            'canRequest' => ! $isStudentSide
+                && $open === null
+                && $progress >= Addendum::EXTENSION_THRESHOLD
+                && Gate::allows('create', [Addendum::class, $agreement]),
+            'open' => $open === null ? null : [
+                'id' => $open->id,
+                'reference' => $open->reference,
+                'status' => $open->status->value,
+                'statusLabel' => $open->status->label(),
+                'downPaymentPaid' => $open->payment(1)?->status === AddendumPaymentStatus::Paid,
+                'url' => route('agreements.addenda.show', [
+                    'current_team' => request()->route('current_team'),
+                    'agreement' => $agreement->id,
+                    'addendum' => $open->id,
+                ]),
+            ],
         ];
     }
 
