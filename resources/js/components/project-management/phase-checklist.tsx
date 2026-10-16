@@ -74,6 +74,52 @@ type Dialog =
     | { kind: 'complete' }
     | null;
 
+/** The panel's rows: header, body and footer each carry their own padding. */
+const SECTION: React.CSSProperties = {
+    padding: 'var(--space-3) var(--space-4)',
+};
+
+const RULE = '1px solid var(--color-divider)';
+
+/**
+ * A phase's number in a circle: filled once the phase has started, outlined
+ * while it is still to come. Project Management's summary draws the same one.
+ */
+export function PhaseNumber({
+    number,
+    filled,
+}: {
+    number: number;
+    filled: boolean;
+}) {
+    return (
+        <span
+            aria-hidden="true"
+            style={{
+                width: 22,
+                height: 22,
+                flex: 'none',
+                borderRadius: '50%',
+                display: 'inline-grid',
+                placeItems: 'center',
+                fontSize: 11.5,
+                fontWeight: 600,
+                ...(filled
+                    ? {
+                          background: 'var(--color-accent)',
+                          color: 'var(--color-bg)',
+                      }
+                    : {
+                          border: `1.5px solid ${MUTED(35)}`,
+                          color: MUTED(70),
+                      }),
+            }}
+        >
+            {number}
+        </span>
+    );
+}
+
 /** Objective & Scope tasks per page (owner, 2026-10-08). */
 const TASKS_PER_PAGE = 4;
 
@@ -113,6 +159,7 @@ export function PhaseChecklist({
     finalDeadlineRequest,
     completion,
     extension = null,
+    number,
 }: {
     phase: Phase;
     teamSlug: string;
@@ -129,6 +176,8 @@ export function PhaseChecklist({
     } | null;
     /** Set for the client on Turnover: the "Project extension" button beside Complete. */
     extension?: ProjectExtension | null;
+    /** The phase's place in the agreement, drawn in its numbered badge. */
+    number?: number;
 }) {
     const [requestingExtension, setRequestingExtension] = useState(false);
 
@@ -261,21 +310,30 @@ export function PhaseChecklist({
     };
 
     return (
-        <Panel padding="lg" gap="md" className="pm-reveal">
+        <Panel
+            padding="none"
+            gap="none"
+            className="pm-reveal"
+            style={{ overflow: 'hidden' }}
+        >
             <div
                 style={{
+                    ...SECTION,
                     display: 'flex',
-                    alignItems: 'baseline',
-                    gap: 12,
+                    alignItems: 'center',
+                    gap: 10,
                     flexWrap: 'wrap',
+                    borderBottom: RULE,
                 }}
             >
+                <PhaseNumber
+                    number={number ?? phase.position}
+                    filled={phase.state !== 'upcoming'}
+                />
                 <span
                     style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 600,
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
                         marginRight: 'auto',
                     }}
                 >
@@ -286,9 +344,9 @@ export function PhaseChecklist({
                     {phase.isTurnover ? ' · not counted in progress' : ''}
                 </span>
                 {(phase.startsOn || phase.endsOn) && (
-                    <span style={{ fontSize: 11.5, color: MUTED(55) }}>
+                    <Tag variant="neutral">
                         {shortDate(phase.startsOn)} – {shortDate(phase.endsOn)}
-                    </span>
+                    </Tag>
                 )}
             </div>
 
@@ -307,89 +365,102 @@ export function PhaseChecklist({
                 />
             )}
 
-            {phase.tasks.length === 0 && (
-                <div
-                    style={{
-                        fontSize: 12.5,
-                        color: MUTED(60),
-                        padding: '6px 2px',
-                    }}
-                >
-                    {canManage
-                        ? 'No tasks yet. Add the scope and modules this phase covers.'
-                        : 'The student has not listed this phase’s tasks yet.'}
+            <div style={{ ...SECTION, display: 'grid', gap: 10 }}>
+                {phase.tasks.length === 0 && (
+                    <div
+                        style={{
+                            fontSize: 12.5,
+                            color: MUTED(60),
+                            padding: '6px 2px',
+                        }}
+                    >
+                        {canManage
+                            ? 'No tasks yet. Add the scope and modules this phase covers.'
+                            : 'The student has not listed this phase’s tasks yet.'}
+                    </div>
+                )}
+
+                <div style={{ display: 'grid', gap: 6 }}>
+                    {pageItems.map((task, offset) => {
+                        /* Its place in the whole checklist, for reordering. */
+                        const index = firstIndex + offset;
+
+                        return (
+                            <TaskRow
+                                key={task.id}
+                                task={task}
+                                canManage={canManage}
+                                canVerify={canVerify}
+                                isFirst={index === 0}
+                                isLast={index === phase.tasks.length - 1}
+                                onToggle={() => toggle(task)}
+                                onEdit={() => setDialog({ kind: 'edit', task })}
+                                onDelete={() => remove(task)}
+                                onMoveUp={() => move(index, -1)}
+                                onMoveDown={() => move(index, 1)}
+                                carriesDeadline={phase.isTurnover}
+                                /* The client opens the file through Verify. */
+                                showsProofFile={
+                                    !(canVerify && !phase.isTurnover)
+                                }
+                                onVerify={() =>
+                                    setDialog({ kind: 'review', task })
+                                }
+                                onReviewOutcome={() =>
+                                    setDialog({ kind: 'outcome', task })
+                                }
+                                onAsk={() => setDialog({ kind: 'ask', task })}
+                                onApprove={approve}
+                                onDecline={(request) =>
+                                    setDialog({
+                                        kind: 'decline',
+                                        task,
+                                        request,
+                                    })
+                                }
+                                onTakeBack={takeBack}
+                            />
+                        );
+                    })}
                 </div>
-            )}
 
-            <div style={{ display: 'grid', gap: 6 }}>
-                {pageItems.map((task, offset) => {
-                    /* Its place in the whole checklist, for reordering. */
-                    const index = firstIndex + offset;
+                <PageNumbers
+                    page={page}
+                    pageCount={pageCount}
+                    onChange={setPage}
+                    label={phase.title}
+                />
 
-                    return (
-                        <TaskRow
-                            key={task.id}
-                            task={task}
-                            canManage={canManage}
-                            canVerify={canVerify}
-                            isFirst={index === 0}
-                            isLast={index === phase.tasks.length - 1}
-                            onToggle={() => toggle(task)}
-                            onEdit={() => setDialog({ kind: 'edit', task })}
-                            onDelete={() => remove(task)}
-                            onMoveUp={() => move(index, -1)}
-                            onMoveDown={() => move(index, 1)}
-                            carriesDeadline={phase.isTurnover}
-                            /* The client opens the file through Verify. */
-                            showsProofFile={!(canVerify && !phase.isTurnover)}
-                            onVerify={() => setDialog({ kind: 'review', task })}
-                            onReviewOutcome={() =>
-                                setDialog({ kind: 'outcome', task })
-                            }
-                            onAsk={() => setDialog({ kind: 'ask', task })}
-                            onApprove={approve}
-                            onDecline={(request) =>
-                                setDialog({ kind: 'decline', task, request })
-                            }
-                            onTakeBack={takeBack}
-                        />
-                    );
-                })}
+                {canManage && (
+                    <Btn
+                        variant="ghost"
+                        block
+                        onClick={() => setDialog({ kind: 'add' })}
+                        style={{ border: RULE, justifyContent: 'center' }}
+                    >
+                        <PlusIcon />
+                        Add task
+                    </Btn>
+                )}
             </div>
 
-            <PageNumbers
-                page={page}
-                pageCount={pageCount}
-                onChange={setPage}
-                label={phase.title}
-            />
-
-            {(canManage || completion !== null) && (
+            {completion !== null && (
                 <div
                     style={{
+                        ...SECTION,
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'flex-end',
                         gap: 8,
                         flexWrap: 'wrap',
+                        borderTop: RULE,
+                        background: MUTED(3),
                     }}
                 >
-                    {canManage && (
-                        <Btn
-                            variant="ghost"
-                            onClick={() => setDialog({ kind: 'add' })}
-                        >
-                            <PlusIcon />
-                            Add task
-                        </Btn>
-                    )}
                     {/* Beside Complete: extend the project with an addendum. */}
                     {extension &&
                         (extension.open ? (
-                            <Btn
-                                asChild
-                                variant="secondary"
-                                style={{ marginLeft: 'auto' }}
-                            >
+                            <Btn asChild variant="secondary">
                                 <Link href={extension.open.url}>
                                     <ArrowsOutIcon />
                                     Project extension ·{' '}
@@ -398,8 +469,7 @@ export function PhaseChecklist({
                             </Btn>
                         ) : (
                             <Btn
-                                variant="secondary"
-                                style={{ marginLeft: 'auto' }}
+                                variant="ghost"
                                 disabled={
                                     !extension.canRequest || requestingExtension
                                 }
@@ -418,10 +488,7 @@ export function PhaseChecklist({
                     {/* The client's Complete, bottom right of Turnover. */}
                     {completion !== null && (
                         <Btn
-                            variant="primary"
-                            style={{
-                                marginLeft: extension ? undefined : 'auto',
-                            }}
+                            variant="secondary"
                             onClick={() => setDialog({ kind: 'complete' })}
                         >
                             <FlagCheckeredIcon />
@@ -569,8 +636,8 @@ function FinalDeadlineBar({
                 alignItems: 'center',
                 gap: 10,
                 flexWrap: 'wrap',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-md)',
+                padding: '10px var(--space-4)',
+                borderBottom: RULE,
                 background:
                     'color-mix(in srgb, var(--color-accent) 9%, transparent)',
                 fontSize: 12.5,

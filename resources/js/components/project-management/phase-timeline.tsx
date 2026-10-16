@@ -536,16 +536,25 @@ export function PhaseTimeline({
 
 function TimelineTitle({ canEdit }: { canEdit: boolean }) {
     return (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        /* A header row ruled off to the panel's edges, like the checklists'. */
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 12,
+                margin: 'calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0',
+                padding: 'var(--space-3) var(--space-4)',
+                borderBottom: '1px solid var(--color-divider)',
+            }}
+        >
             <span
                 style={{
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
-                    letterSpacing: '0.04em',
                     marginRight: 'auto',
                 }}
             >
-                TIMELINE
+                Timeline
             </span>
             <span style={{ fontSize: 11.5, color: MUTED(55) }}>
                 {canEdit

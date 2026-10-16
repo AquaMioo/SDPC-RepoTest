@@ -1,14 +1,19 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
     ArrowsOutIcon,
+    CaretRightIcon,
     FlagCheckeredIcon,
     LockSimpleIcon,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ApplicationsSection } from '@/components/project-management/applications-section';
-import { PhaseChecklist } from '@/components/project-management/phase-checklist';
+import {
+    PhaseChecklist,
+    PhaseNumber,
+} from '@/components/project-management/phase-checklist';
 import { PhaseTimeline } from '@/components/project-management/phase-timeline';
 import {
     IN_PLACE,
@@ -30,6 +35,7 @@ import { projectManagement } from '@/routes';
 import { show as agreementShow } from '@/routes/agreements';
 import { schedule as scheduleMilestone } from '@/routes/agreements/milestones';
 import { index as projectsIndex } from '@/routes/projects';
+import { index as recruitIndex } from '@/routes/recruit';
 import { index as boardIndex } from '@/routes/student/board';
 
 const MUTED = (pct: number) =>
@@ -116,8 +122,26 @@ export default function ProjectManagement({
                     }}
                 >
                     <div style={{ marginRight: 'auto', minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: MUTED(55) }}>
-                            Project Management
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                flexWrap: 'wrap',
+                                fontSize: 12,
+                                color: MUTED(55),
+                            }}
+                        >
+                            <span>Project Management</span>
+                            {agreement !== null && (
+                                <>
+                                    <CaretRightIcon aria-hidden="true" />
+                                    <span>
+                                        {agreement.reference} · with{' '}
+                                        {agreement.counterpart}
+                                    </span>
+                                </>
+                            )}
                         </div>
                         <h3 style={{ margin: 0 }}>
                             {agreement?.projectTitle ?? 'Project Management'}
@@ -176,14 +200,23 @@ export default function ProjectManagement({
                             )
                         ))}
 
-                    {agreement !== null && (
-                        <Tag
-                            variant="outline"
-                            title={`${agreement.summary.verifiedCount} of ${agreement.summary.taskCount} tasks verified, Turnover not counted`}
-                        >
-                            {agreement.summary.progress}% overall
-                        </Tag>
-                    )}
+                    {/* No collaboration yet: the way to start one sits up here. */}
+                    {agreement === null &&
+                        (side === 'client' ? (
+                            <Btn asChild variant="secondary">
+                                <Link href={recruitIndex.url(team.slug)}>
+                                    Hire student
+                                </Link>
+                            </Btn>
+                        ) : (
+                            !isLocked && (
+                                <Btn asChild variant="secondary">
+                                    <Link href={boardIndex.url(team.slug)}>
+                                        Find clients
+                                    </Link>
+                                </Btn>
+                            )
+                        ))}
                 </div>
 
                 {agreement === null ? (
@@ -191,7 +224,6 @@ export default function ProjectManagement({
                         side={side}
                         teamSlug={team.slug}
                         pendingAgreementId={pendingAgreementId}
-                        isLocked={isLocked}
                     />
                 ) : (
                     <Workspace
@@ -253,9 +285,6 @@ function Workspace({
     canComplete: boolean;
     onEditDates: (phase: Phase) => void;
 }) {
-    const { summary } = agreement;
-    const daysLeft = summary.daysToFinalDeadline;
-
     /*
      * Dragging a bar moves it at once and asks the server afterwards: a bar
      * that snaps back until the round trip lands reads as a failed drag.
@@ -358,143 +387,7 @@ function Workspace({
                 </Panel>
             )}
 
-            <div
-                style={{
-                    display: 'flex',
-                    gap: 16,
-                    flexWrap: 'wrap',
-                    fontSize: 12.5,
-                    color: MUTED(65),
-                }}
-            >
-                <span>
-                    <strong style={{ color: 'var(--color-text)' }}>
-                        {summary.verifiedCount} of {summary.taskCount}
-                    </strong>{' '}
-                    tasks verified (Turnover not counted)
-                </span>
-                {summary.finalDeadline && !agreement.isCompleted && (
-                    <span
-                        style={{
-                            color:
-                                daysLeft !== null && daysLeft < 0
-                                    ? 'var(--destructive)'
-                                    : undefined,
-                        }}
-                    >
-                        Final deadline {shortDate(summary.finalDeadline)}
-                        {daysLeft === null
-                            ? ''
-                            : daysLeft > 1
-                              ? ` · ${daysLeft} days left`
-                              : daysLeft === 1
-                                ? ' · 1 day left'
-                                : daysLeft === 0
-                                  ? ' · today'
-                                  : ` · ${Math.abs(daysLeft)} days over`}
-                    </span>
-                )}
-                {summary.overdueTaskCount > 0 && !agreement.isCompleted && (
-                    <span style={{ color: 'var(--destructive)' }}>
-                        {summary.overdueTaskCount} overdue
-                    </span>
-                )}
-                {summary.submittedCount > 0 && (
-                    <span>{summary.submittedCount} pending client review</span>
-                )}
-                {summary.currentPhase && (
-                    <span>Current phase: {summary.currentPhase.title}</span>
-                )}
-                {summary.nextMilestone && (
-                    <span>
-                        Next: {summary.nextMilestone.title}
-                        {summary.nextMilestone.dueOn
-                            ? ` · due ${summary.nextMilestone.dueOn}`
-                            : ''}
-                    </span>
-                )}
-                <span style={{ marginLeft: 'auto' }}>
-                    {agreement.reference} · with {agreement.counterpart}
-                </span>
-            </div>
-
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-                    gap: 12,
-                }}
-            >
-                {/*
-                 * One card per phase: Objective & Scope and Turnover. Each
-                 * Section VII service is one Objective & Scope task (the
-                 * objective its title, the scope its description). Turnover is
-                 * listed but never counted in the percentage.
-                 */}
-                {agreement.phases.map((phase) => (
-                    <Panel key={phase.id} padding="lg" gap="sm">
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: 8,
-                            }}
-                        >
-                            <span
-                                style={{ fontSize: 13.5, marginRight: 'auto' }}
-                            >
-                                {phase.title}
-                            </span>
-                            <Tag variant={STATE_TAG[phase.state].variant}>
-                                {STATE_TAG[phase.state].label}
-                            </Tag>
-                        </div>
-                        {/* Objective & Scope has no dates. */}
-                        {(phase.startsOn || phase.endsOn) && (
-                            <span style={{ fontSize: 11.5, color: MUTED(58) }}>
-                                {shortDate(phase.startsOn)} –{' '}
-                                {shortDate(phase.endsOn)}
-                            </span>
-                        )}
-                        {phase.isTurnover ? (
-                            <span style={{ fontSize: 11, color: MUTED(55) }}>
-                                {phase.verifiedCount} of {phase.taskCount} tasks
-                                verified · not counted in progress
-                            </span>
-                        ) : (
-                            <>
-                                <div
-                                    role="progressbar"
-                                    aria-valuenow={phase.progress}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                    aria-label={`${phase.title} verified`}
-                                    style={{
-                                        height: 4,
-                                        borderRadius: 2,
-                                        background: MUTED(10),
-                                        overflow: 'hidden',
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: `${phase.progress}%`,
-                                            height: '100%',
-                                            background: 'var(--color-accent)',
-                                        }}
-                                    />
-                                </div>
-                                <span
-                                    style={{ fontSize: 11, color: MUTED(55) }}
-                                >
-                                    {phase.verifiedCount} of {phase.taskCount}{' '}
-                                    tasks verified
-                                </span>
-                            </>
-                        )}
-                    </Panel>
-                ))}
-            </div>
+            <ProgressSummary agreement={agreement} />
 
             {/* The Gantt chart is Turnover only (owner, 2026-10-07). */}
             <PhaseTimeline
@@ -504,9 +397,10 @@ function Workspace({
                 onEditDates={onEditDates}
             />
 
-            {agreement.phases.map((phase) => (
+            {agreement.phases.map((phase, index) => (
                 <PhaseChecklist
                     key={phase.id}
+                    number={index + 1}
                     phase={phase}
                     teamSlug={teamSlug}
                     agreementId={agreement.id}
@@ -608,48 +502,60 @@ function LockedPanel({
     side,
     teamSlug,
     pendingAgreementId,
-    isLocked,
 }: {
     side: 'student' | 'client';
     teamSlug: string;
     pendingAgreementId: number | null;
-    /** A student already taken on, waiting for the agreement to be signed. */
-    isLocked: boolean;
 }) {
     return (
-        <Panel padding="lg" gap="md" style={{ alignItems: 'flex-start' }}>
-            <span
-                style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: '50%',
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: MUTED(8),
-                    color: MUTED(70),
-                    fontSize: 18,
-                }}
-            >
-                <LockSimpleIcon />
-            </span>
-            <div style={{ fontSize: 15 }}>
-                Project Management opens when your project starts
-            </div>
+        <>
+            <div
+                aria-hidden="true"
+                style={{ height: 1, background: 'var(--color-divider)' }}
+            />
             <div
                 style={{
-                    fontSize: 13,
-                    color: MUTED(62),
-                    maxWidth: 620,
-                    lineHeight: 1.55,
+                    minHeight: '52vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
+                    textAlign: 'center',
+                    padding: '32px 16px',
                 }}
             >
-                {side === 'student'
-                    ? 'It opens once a client accepts you and you both sign the agreement. Then you can list the tasks for each phase, plan your timeline, and mark work done for the client to check.'
-                    : 'It opens once you accept a student and you both sign the agreement. The student then lists the tasks and marks work done, and you check and approve it here.'}
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        display: 'grid',
+                        placeItems: 'center',
+                        background: MUTED(8),
+                        color: MUTED(70),
+                        fontSize: 18,
+                    }}
+                >
+                    <LockSimpleIcon />
+                </span>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    Project Management opens when your project starts
+                </div>
+                <div
+                    style={{
+                        fontSize: 13,
+                        color: MUTED(62),
+                        maxWidth: 470,
+                        lineHeight: 1.6,
+                    }}
+                >
+                    {side === 'student'
+                        ? 'It opens once a client accepts you and you both sign the agreement. Then you can list the tasks for each phase, plan your timeline, and mark work done for the client to check.'
+                        : 'It opens once you accept a student and you both sign the agreement. The student then lists the tasks and marks work done, and you check and approve it here.'}
+                </div>
                 {pendingAgreementId !== null && (
-                    <Btn asChild variant="primary">
+                    <Btn asChild variant="primary" style={{ marginTop: 6 }}>
                         <Link
                             href={agreementShow.url({
                                 current_team: teamSlug,
@@ -660,22 +566,339 @@ function LockedPanel({
                         </Link>
                     </Btn>
                 )}
-                {side === 'client' ? (
-                    <Btn asChild variant="secondary">
-                        <Link href={projectsIndex.url(teamSlug)}>
-                            Your postings
-                        </Link>
-                    </Btn>
-                ) : (
-                    !isLocked && (
-                        <Btn asChild variant="secondary">
-                            <Link href={boardIndex.url(teamSlug)}>
-                                Find clients
-                            </Link>
-                        </Btn>
-                    )
+            </div>
+        </>
+    );
+}
+
+/**
+ * The top of a running build: overall progress, the final deadline and what
+ * comes next, then the phases in order with the current one picked out.
+ */
+function ProgressSummary({ agreement }: { agreement: ManagedAgreement }) {
+    const { summary } = agreement;
+    const daysLeft = summary.daysToFinalDeadline;
+    const RULE = '1px solid var(--color-divider)';
+
+    const daysLabel =
+        daysLeft === null
+            ? null
+            : daysLeft > 1
+              ? `${daysLeft} days left`
+              : daysLeft === 1
+                ? '1 day left'
+                : daysLeft === 0
+                  ? 'Due today'
+                  : `${Math.abs(daysLeft)} days over`;
+
+    return (
+        <Panel
+            padding="none"
+            gap="none"
+            className="pm-reveal"
+            style={{ overflow: 'hidden' }}
+        >
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                }}
+            >
+                <SummaryStat label="Overall">
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: 6,
+                        }}
+                    >
+                        <span style={STAT_VALUE}>{summary.progress}%</span>
+                        <span style={{ fontSize: 11.5, color: MUTED(55) }}>
+                            overall
+                        </span>
+                    </div>
+                    <ProgressBar
+                        value={summary.progress}
+                        label="Overall progress"
+                    />
+                    <span style={{ fontSize: 11.5, color: MUTED(62) }}>
+                        <strong style={{ color: 'var(--color-text)' }}>
+                            {summary.verifiedCount} of {summary.taskCount}
+                        </strong>{' '}
+                        tasks verified (Turnover not counted)
+                    </span>
+                    {summary.submittedCount > 0 && (
+                        <span style={{ fontSize: 11.5, color: MUTED(62) }}>
+                            {summary.submittedCount} pending client review
+                        </span>
+                    )}
+                </SummaryStat>
+
+                <SummaryStat label="Final deadline" divided>
+                    <span style={STAT_VALUE}>
+                        {summary.finalDeadline
+                            ? shortDate(summary.finalDeadline)
+                            : 'Not set'}
+                    </span>
+                    {summary.finalDeadline &&
+                        !agreement.isCompleted &&
+                        daysLabel && (
+                            <Tag
+                                variant="neutral"
+                                style={{
+                                    alignSelf: 'flex-start',
+                                    ...(daysLeft !== null && daysLeft < 0
+                                        ? { color: 'var(--destructive)' }
+                                        : {}),
+                                }}
+                            >
+                                {daysLabel}
+                            </Tag>
+                        )}
+                    {summary.overdueTaskCount > 0 && !agreement.isCompleted && (
+                        <span
+                            style={{
+                                fontSize: 11.5,
+                                color: 'var(--destructive)',
+                            }}
+                        >
+                            {summary.overdueTaskCount} overdue
+                        </span>
+                    )}
+                </SummaryStat>
+
+                <SummaryStat label="Next" divided>
+                    <span style={STAT_VALUE}>
+                        {summary.nextMilestone?.title ??
+                            (agreement.isCompleted
+                                ? 'Completed'
+                                : 'Nothing due')}
+                    </span>
+                    {summary.nextMilestone?.dueOn && (
+                        <span style={{ fontSize: 11.5, color: MUTED(58) }}>
+                            due {summary.nextMilestone.dueOn}
+                        </span>
+                    )}
+                </SummaryStat>
+            </div>
+
+            <div
+                style={{
+                    display: 'grid',
+                    gap: 10,
+                    padding: 'var(--space-3) var(--space-4) var(--space-4)',
+                    borderTop: RULE,
+                    background: MUTED(3),
+                }}
+            >
+                {summary.currentPhase && (
+                    <span style={{ fontSize: 12, color: MUTED(62) }}>
+                        Current phase ·{' '}
+                        <strong style={{ color: 'var(--color-text)' }}>
+                            {summary.currentPhase.title}
+                        </strong>
+                    </span>
                 )}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                    }}
+                >
+                    {/*
+                     * One card per phase: Objective & Scope and Turnover. Each
+                     * Section VII service is one Objective & Scope task (the
+                     * objective its title, the scope its description). Turnover
+                     * is listed but never counted in the percentage.
+                     */}
+                    {agreement.phases.map((phase, index) => (
+                        <Fragment key={phase.id}>
+                            {index > 0 && (
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        width: 18,
+                                        borderTop: `2px dotted ${MUTED(25)}`,
+                                        flex: 'none',
+                                    }}
+                                />
+                            )}
+                            <PhaseCard
+                                phase={phase}
+                                number={index + 1}
+                                isCurrent={
+                                    summary.currentPhase?.id === phase.id
+                                }
+                            />
+                        </Fragment>
+                    ))}
+                </div>
             </div>
         </Panel>
+    );
+}
+
+const STAT_VALUE: React.CSSProperties = {
+    fontFamily: 'var(--font-heading)',
+    fontSize: 24,
+    lineHeight: 1.15,
+};
+
+function SummaryStat({
+    label,
+    divided = false,
+    children,
+}: {
+    label: string;
+    divided?: boolean;
+    children: ReactNode;
+}) {
+    return (
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                padding: 'var(--space-4)',
+                borderLeft: divided
+                    ? '1px solid var(--color-divider)'
+                    : undefined,
+            }}
+        >
+            <span
+                style={{
+                    fontSize: 10.5,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: MUTED(55),
+                }}
+            >
+                {label}
+            </span>
+            {children}
+        </div>
+    );
+}
+
+function ProgressBar({ value, label }: { value: number; label: string }) {
+    return (
+        <div
+            role="progressbar"
+            aria-valuenow={value}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={label}
+            style={{
+                height: 4,
+                borderRadius: 2,
+                background: MUTED(10),
+                overflow: 'hidden',
+            }}
+        >
+            <div
+                style={{
+                    width: `${value}%`,
+                    height: '100%',
+                    background: 'var(--color-accent)',
+                }}
+            />
+        </div>
+    );
+}
+
+/** One phase in the summary: its number, state and how much of it is verified. */
+function PhaseCard({
+    phase,
+    number,
+    isCurrent,
+}: {
+    phase: Phase;
+    number: number;
+    isCurrent: boolean;
+}) {
+    return (
+        <div
+            style={{
+                flex: '1 1 260px',
+                minWidth: 0,
+                display: 'grid',
+                gap: 6,
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--color-surface)',
+                border: isCurrent
+                    ? '1.5px solid var(--color-accent)'
+                    : '1px solid var(--color-divider)',
+            }}
+        >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <PhaseNumber
+                    number={number}
+                    filled={phase.state !== 'upcoming'}
+                />
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+                    {phase.title}
+                </span>
+                {!phase.isTurnover && (
+                    <Tag variant="accent">{phase.progress}%</Tag>
+                )}
+                <span style={{ marginLeft: 'auto' }}>
+                    {phase.state === 'in_progress' ? (
+                        <span
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                fontSize: 11,
+                                background:
+                                    'color-mix(in srgb, var(--color-accent) 12%, transparent)',
+                            }}
+                        >
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    background: 'var(--color-accent)',
+                                }}
+                            />
+                            In progress
+                        </span>
+                    ) : (
+                        <Tag variant={STATE_TAG[phase.state].variant}>
+                            {STATE_TAG[phase.state].label}
+                        </Tag>
+                    )}
+                </span>
+            </div>
+            {/* Objective & Scope has no dates. */}
+            {(phase.startsOn || phase.endsOn) && (
+                <span style={{ fontSize: 12, fontWeight: 600 }}>
+                    {shortDate(phase.startsOn)} – {shortDate(phase.endsOn)}
+                </span>
+            )}
+            {phase.isTurnover ? (
+                <span style={{ fontSize: 11, color: MUTED(55) }}>
+                    {phase.verifiedCount} of {phase.taskCount} tasks verified ·
+                    not counted in progress
+                </span>
+            ) : (
+                <>
+                    <ProgressBar
+                        value={phase.progress}
+                        label={`${phase.title} verified`}
+                    />
+                    <span style={{ fontSize: 11, color: MUTED(55) }}>
+                        {phase.verifiedCount} of {phase.taskCount} tasks
+                        verified
+                    </span>
+                </>
+            )}
+        </div>
     );
 }
