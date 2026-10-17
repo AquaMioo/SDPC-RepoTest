@@ -5,6 +5,8 @@ export type User = {
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
+    /** The first-login walkthrough was finished or skipped (owner, 2026-10-18). */
+    has_completed_onboarding?: boolean;
     created_at: string;
     updated_at: string;
     [key: string]: unknown;

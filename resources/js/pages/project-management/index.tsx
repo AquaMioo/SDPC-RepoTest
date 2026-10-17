@@ -9,6 +9,11 @@ import type { ReactNode } from 'react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
+import {
+    ContractRequestBanner,
+    TerminationButton,
+} from '@/components/agreements/contract-requests';
+import { PaymentDueDialog } from '@/components/agreements/payment-due-dialog';
 import { ApplicationsSection } from '@/components/project-management/applications-section';
 import {
     PhaseChecklist,
@@ -34,6 +39,7 @@ import { shortDate } from '@/lib/calendar-days';
 import { projectManagement } from '@/routes';
 import { show as agreementShow } from '@/routes/agreements';
 import { schedule as scheduleMilestone } from '@/routes/agreements/milestones';
+import { store as terminationsStore } from '@/routes/agreements/terminations';
 import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
 import { index as boardIndex } from '@/routes/student/board';
@@ -358,6 +364,36 @@ function Workspace({
                 </Panel>
             )}
 
+            {/* A request to end the build early, waiting for an answer. */}
+            {agreement.termination && (
+                <ContractRequestBanner
+                    request={agreement.termination}
+                    teamSlug={teamSlug}
+                    agreementId={agreement.id}
+                />
+            )}
+
+            {/* The milestone due now, announced once to each side (owner, 2026-10-18). */}
+            {agreement.extension.open && (
+                <PaymentDueDialog
+                    addendumId={agreement.extension.open.id}
+                    reference={agreement.extension.open.reference}
+                    stage={
+                        agreement.extension.open.status !== 'active'
+                            ? null
+                            : !agreement.extension.open.downPaymentPaid
+                              ? 'down'
+                              : agreement.extension.open.workHandedIn &&
+                                  !agreement.extension.open.finalPaid
+                                ? 'final'
+                                : null
+                    }
+                    amountLabel={null}
+                    isClient={canVerify}
+                    addendumUrl={agreement.extension.open.url}
+                />
+            )}
+
             {/* The project extension still being signed or paid: both sides
                 hear about it here, the student first of all. */}
             {agreement.extension.open && (
@@ -433,6 +469,38 @@ function Workspace({
                     }
                 />
             ))}
+
+            {/* Ending early takes both sides; it then completes the project. */}
+            {agreement.canRequestTermination && (
+                <Panel
+                    padding="lg"
+                    gap="sm"
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                    }}
+                >
+                    <div style={{ marginRight: 'auto', minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                            End the collaboration early
+                        </div>
+                        <div style={{ fontSize: 12.5, color: MUTED(62) }}>
+                            Ask the other side to terminate this agreement. It
+                            ends, and the project is completed, only once they
+                            agree.
+                        </div>
+                    </div>
+                    <TerminationButton
+                        url={terminationsStore.url({
+                            current_team: teamSlug,
+                            agreement: agreement.id,
+                        })}
+                        rates={canVerify}
+                    />
+                </Panel>
+            )}
         </>
     );
 }

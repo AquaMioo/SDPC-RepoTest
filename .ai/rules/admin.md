@@ -1,6 +1,7 @@
 ---
 paths:
   - app/Http/Controllers/Admin/AdminPostingController.php
+  - 'app/Http/Controllers/Admin/**'
 ---
 
 # Admin
@@ -28,3 +29,6 @@ Since 2026-10-01 admin/users has no Status column and no Pending/Approve/Monitor
 Both lists page in the browser with components/sdpc/page-numbers.tsx (5 postings on the dashboard, 15 users), because the controllers send them whole; the role filter (All/Client/Student) sits beside the search. No request per page.
 
 The admin bell (components/admin/activity-bell.tsx) reads the shared `adminActivity` prop, sent only to admins: App\Support\AdminActivityFeed merges the latest sign-ups, reports (Issue), appeals and testimonials. "Seen" is a cache timestamp per admin set by POST admin.activity.seen — no notification rows, so nothing has to remember to notify the admin.
+
+## The Announcement is images, served through a checked route
+Since 2026-10-18 (owner) the Announcement on Content Management is up to AnnouncementImage::MAX (10) images (JPG/PNG/WebP, 5 MB each), posted via AdminAnnouncementImageController and previewed client-side before posting; Platform rules and System policies stay text (the old announcements text column is no longer shown anywhere). Files live on the public disk under announcements/, which is NOT published in config/filesystems.php links: AnnouncementImageController (auth) streams them at announcements.images.show. Both dashboards read AnnouncementImage::forDashboard() and draw components/announcement-carousel.tsx: one image still, two or more auto-slide every 5 s. The panel heading reads "Announcement" (was "News & announcements").

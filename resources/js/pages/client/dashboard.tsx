@@ -27,6 +27,8 @@ type Props = {
     userName: string;
     pendingInvitations?: DashboardInvitation[];
     canPostProject: boolean;
+    /** The unfinished posting holding the team's one slot, if any. */
+    postingSlot?: { title: string; statusLabel: string; url: string } | null;
     announcement: Announcement | null;
     currentProject?: CurrentProject | null;
     projectTeam?: TeamMemberCard[];
@@ -47,6 +49,7 @@ export default function ClientDashboard({
     userName,
     pendingInvitations = [],
     canPostProject,
+    postingSlot = null,
     announcement,
     currentProject,
     projectTeam,
@@ -82,14 +85,42 @@ export default function ClientDashboard({
                             Here's what's happening with your projects today.
                         </div>
                     </div>
-                    {/* Hidden while the team's one posting slot is taken. */}
-                    {canPostProject && (
+                    {/*
+                     * Never just gone (owner, 2026-10-18): while the team's one
+                     * posting slot is taken it stays, disabled, and names the
+                     * posting holding it, so a client back from a finished
+                     * collaboration can see why and where to look.
+                     */}
+                    {canPostProject ? (
                         <Button asChild variant="outline">
                             <Link href={projectsCreate.url(team.slug)}>
                                 <PlusIcon />
                                 Post a Job
                             </Link>
                         </Button>
+                    ) : (
+                        postingSlot && (
+                            <div className="flex flex-col items-end gap-1 text-right">
+                                <Button
+                                    variant="outline"
+                                    disabled
+                                    data-test="post-a-job-disabled"
+                                >
+                                    <PlusIcon />
+                                    Post a Job
+                                </Button>
+                                <span className="max-w-[320px] text-[11.5px] text-muted-foreground">
+                                    One posting at a time:{' '}
+                                    <Link
+                                        href={postingSlot.url}
+                                        data-inline-link=""
+                                    >
+                                        {postingSlot.title}
+                                    </Link>{' '}
+                                    is {postingSlot.statusLabel.toLowerCase()}.
+                                </span>
+                            </div>
+                        )
                     )}
                 </div>
 

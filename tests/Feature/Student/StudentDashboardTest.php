@@ -10,6 +10,7 @@ use App\Enums\TaskStatus;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
+use App\Models\AnnouncementImage;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -244,15 +245,14 @@ class StudentDashboardTest extends TestCase
     {
         $student = $this->student();
 
-        SiteContent::create([
-            'key' => SiteContentKey::Announcements,
-            'body' => 'Milestone escrow is now live for extension payments.',
-        ]);
+        /* The Announcement is pictures since 2026-10-18 (owner). */
+        $image = AnnouncementImage::factory()->create(['position' => 1]);
 
         $this->actingAs($student)
             ->get(route('dashboard', ['current_team' => $student->currentTeam]))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('announcement.body', 'Milestone escrow is now live for extension payments.'));
+                ->where('announcement.images.0.id', $image->id)
+                ->where('announcement.images.0.url', route('announcements.images.show', $image)));
     }
 
     public function test_an_empty_announcements_block_is_not_an_announcement(): void

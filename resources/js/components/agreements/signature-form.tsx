@@ -2,12 +2,17 @@ import { useForm } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
+import {
+    ContractRequestBanner,
+    DenyButton,
+} from '@/components/agreements/contract-requests';
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
 import { Input, Textarea } from '@/components/sdpc/input';
 import { Panel, PanelDivider } from '@/components/sdpc/panel';
 import { useCurrentTeam } from '@/hooks/use-current-team';
 import { store as changesStore } from '@/routes/agreements/changes';
+import { store as agreementDenials } from '@/routes/agreements/denials';
 import { store as signaturesStore } from '@/routes/agreements/signatures';
 import type { Agreement } from '@/types/agreements';
 
@@ -79,223 +84,255 @@ export default function SignatureForm({
     };
 
     return (
-        <Panel
-            padding="lg"
-            gap="lg"
-            style={{
-                padding: '22px 24px',
-                ...(tone === 'accent'
-                    ? {
-                          background:
-                              'color-mix(in srgb, var(--color-accent) 8%, var(--color-surface))',
-                      }
-                    : {}),
-            }}
-        >
-            <h6 style={{ margin: 0 }}>Agreement acknowledgement</h6>
-
-            <div
+        <div style={{ display: 'grid', gap: 12 }}>
+            {/* A denial waiting for an answer (owner, 2026-10-18). */}
+            {agreement.denial && (
+                <ContractRequestBanner
+                    request={agreement.denial}
+                    teamSlug={team.slug}
+                    agreementId={agreement.id}
+                />
+            )}
+            <Panel
+                padding="lg"
+                gap="lg"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '14px 32px',
+                    padding: '22px 24px',
+                    ...(tone === 'accent'
+                        ? {
+                              background:
+                                  'color-mix(in srgb, var(--color-accent) 8%, var(--color-surface))',
+                          }
+                        : {}),
                 }}
             >
-                {agreement.acknowledgements.map((acknowledgement) => (
-                    <label
-                        key={acknowledgement.key}
+                <h6 style={{ margin: 0 }}>Agreement acknowledgement</h6>
+
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                            'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '14px 32px',
+                    }}
+                >
+                    {agreement.acknowledgements.map((acknowledgement) => (
+                        <label
+                            key={acknowledgement.key}
+                            style={{
+                                display: 'flex',
+                                gap: 11,
+                                alignItems: 'flex-start',
+                                fontSize: 12.5,
+                                lineHeight: 1.55,
+                                cursor: isSigning ? 'pointer' : 'default',
+                                color: isSigning ? undefined : MUTED(70),
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                style={{
+                                    accentColor: 'var(--color-accent)',
+                                    width: 16,
+                                    height: 16,
+                                    marginTop: 1,
+                                    flex: 'none',
+                                }}
+                                disabled={!isSigning}
+                                checked={
+                                    viewer.hasSigned ||
+                                    signature.data.acknowledgements.includes(
+                                        acknowledgement.key,
+                                    )
+                                }
+                                onChange={() => toggle(acknowledgement.key)}
+                            />
+                            {acknowledgement.label}
+                        </label>
+                    ))}
+                </div>
+
+                <InputError
+                    message={signature.errors.acknowledgements}
+                    className="text-[11px]"
+                />
+
+                <PanelDivider />
+
+                {/*
+                 * Said before anyone tries: on the SDPC memorandum neither side
+                 * may sign while Section VII describes no service. The server
+                 * refuses it too (SignAgreement).
+                 */}
+                {isSigning && viewer.signingBlockedBy && (
+                    <div
+                        role="status"
                         style={{
-                            display: 'flex',
-                            gap: 11,
-                            alignItems: 'flex-start',
+                            padding: '10px 12px',
+                            borderRadius: 8,
                             fontSize: 12.5,
-                            lineHeight: 1.55,
-                            cursor: isSigning ? 'pointer' : 'default',
-                            color: isSigning ? undefined : MUTED(70),
+                            lineHeight: 1.5,
+                            color: 'var(--destructive)',
+                            background:
+                                'color-mix(in srgb, var(--destructive) 8%, transparent)',
                         }}
                     >
-                        <input
-                            type="checkbox"
-                            style={{
-                                accentColor: 'var(--color-accent)',
-                                width: 16,
-                                height: 16,
-                                marginTop: 1,
-                                flex: 'none',
-                            }}
-                            disabled={!isSigning}
-                            checked={
-                                viewer.hasSigned ||
-                                signature.data.acknowledgements.includes(
-                                    acknowledgement.key,
-                                )
-                            }
-                            onChange={() => toggle(acknowledgement.key)}
-                        />
-                        {acknowledgement.label}
-                    </label>
-                ))}
-            </div>
-
-            <InputError
-                message={signature.errors.acknowledgements}
-                className="text-[11px]"
-            />
-
-            <PanelDivider />
-
-            {/*
-             * Said before anyone tries: on the SDPC memorandum neither side
-             * may sign while Section VII describes no service. The server
-             * refuses it too (SignAgreement).
-             */}
-            {isSigning && viewer.signingBlockedBy && (
-                <div
-                    role="status"
-                    style={{
-                        padding: '10px 12px',
-                        borderRadius: 8,
-                        fontSize: 12.5,
-                        lineHeight: 1.5,
-                        color: 'var(--destructive)',
-                        background:
-                            'color-mix(in srgb, var(--destructive) 8%, transparent)',
-                    }}
-                >
-                    Signing is blocked: {viewer.signingBlockedBy}
-                </div>
-            )}
-
-            {isSigning && (
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'flex-end',
-                        gap: 12,
-                        flexWrap: 'wrap',
-                    }}
-                >
-                    <div className="field" style={{ maxWidth: 320, flex: 1 }}>
-                        <label htmlFor="signed-name">
-                            Type your full name to sign
-                        </label>
-                        <Input
-                            id="signed-name"
-                            value={signature.data.signed_name}
-                            maxLength={120}
-                            autoComplete="off"
-                            placeholder="Your name, as you would write it"
-                            aria-invalid={Boolean(signature.errors.signed_name)}
-                            onChange={(event) =>
-                                signature.setData(
-                                    'signed_name',
-                                    event.target.value,
-                                )
-                            }
-                        />
-                        <InputError
-                            message={signature.errors.signed_name}
-                            className="mt-1 text-[11px]"
-                        />
+                        Signing is blocked: {viewer.signingBlockedBy}
                     </div>
-                </div>
-            )}
-
-            {isRequestingChanges && (
-                <div
-                    style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                    }}
-                >
-                    <label
-                        htmlFor="change-note"
-                        style={{ fontSize: 12, color: MUTED(70) }}
-                    >
-                        What needs to move? The other party sees this verbatim.
-                    </label>
-                    <Textarea
-                        id="change-note"
-                        value={changes.data.note}
-                        maxLength={2000}
-                        placeholder="The turnover milestone lands during finals week — could it move to the following Monday?"
-                        aria-invalid={Boolean(changes.errors.note)}
-                        onChange={(event) =>
-                            changes.setData('note', event.target.value)
-                        }
-                    />
-                    <InputError
-                        message={changes.errors.note}
-                        className="text-[11px]"
-                    />
-                    <div style={{ display: 'flex', gap: 10 }}>
-                        <Btn
-                            variant="primary"
-                            disabled={changes.processing}
-                            onClick={requestChanges}
-                        >
-                            {changes.processing ? 'Sending…' : 'Send request'}
-                        </Btn>
-                        <Btn
-                            variant="ghost"
-                            onClick={() => setIsRequestingChanges(false)}
-                        >
-                            Cancel
-                        </Btn>
-                    </div>
-                </div>
-            )}
-
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    flexWrap: 'wrap',
-                }}
-            >
-                <span
-                    style={{
-                        fontSize: 11.5,
-                        color: MUTED(68),
-                        marginRight: 'auto',
-                    }}
-                >
-                    {/*
-                     * A teammate on the signing student's team reads the
-                     * contract but never signs it, so neither line above is
-                     * true for them — the one signature on the student side is
-                     * the person the client took on.
-                     */}
-                    {viewer.party === null
-                        ? 'You are reading this as a teammate on the project. Only the student the client took on signs it.'
-                        : viewer.hasSigned
-                          ? 'You have signed. Your name, account ID and timestamp are on the contract log.'
-                          : 'Signing records your name, account ID and timestamp to the contract log.'}
-                </span>
-
-                {leading}
-
-                {viewer.canRequestChanges && !isRequestingChanges && (
-                    <Btn onClick={() => setIsRequestingChanges(true)}>
-                        Request changes
-                    </Btn>
                 )}
 
                 {isSigning && (
-                    <Btn
-                        variant="primary"
-                        disabled={
-                            signature.processing ||
-                            viewer.signingBlockedBy !== null
-                        }
-                        onClick={sign}
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                        }}
                     >
-                        {signature.processing ? 'Signing…' : 'Sign agreement'}
-                    </Btn>
+                        <div
+                            className="field"
+                            style={{ maxWidth: 320, flex: 1 }}
+                        >
+                            <label htmlFor="signed-name">
+                                Type your full name to sign
+                            </label>
+                            <Input
+                                id="signed-name"
+                                value={signature.data.signed_name}
+                                maxLength={120}
+                                autoComplete="off"
+                                placeholder="Your name, as you would write it"
+                                aria-invalid={Boolean(
+                                    signature.errors.signed_name,
+                                )}
+                                onChange={(event) =>
+                                    signature.setData(
+                                        'signed_name',
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                            <InputError
+                                message={signature.errors.signed_name}
+                                className="mt-1 text-[11px]"
+                            />
+                        </div>
+                    </div>
                 )}
-            </div>
-        </Panel>
+
+                {isRequestingChanges && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                        }}
+                    >
+                        <label
+                            htmlFor="change-note"
+                            style={{ fontSize: 12, color: MUTED(70) }}
+                        >
+                            What needs to move? The other party sees this
+                            verbatim.
+                        </label>
+                        <Textarea
+                            id="change-note"
+                            value={changes.data.note}
+                            maxLength={2000}
+                            placeholder="The turnover milestone lands during finals week — could it move to the following Monday?"
+                            aria-invalid={Boolean(changes.errors.note)}
+                            onChange={(event) =>
+                                changes.setData('note', event.target.value)
+                            }
+                        />
+                        <InputError
+                            message={changes.errors.note}
+                            className="text-[11px]"
+                        />
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <Btn
+                                variant="primary"
+                                disabled={changes.processing}
+                                onClick={requestChanges}
+                            >
+                                {changes.processing
+                                    ? 'Sending…'
+                                    : 'Send request'}
+                            </Btn>
+                            <Btn
+                                variant="ghost"
+                                onClick={() => setIsRequestingChanges(false)}
+                            >
+                                Cancel
+                            </Btn>
+                        </div>
+                    </div>
+                )}
+
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: 11.5,
+                            color: MUTED(68),
+                            marginRight: 'auto',
+                        }}
+                    >
+                        {/*
+                         * A teammate on the signing student's team reads the
+                         * contract but never signs it, so neither line above is
+                         * true for them — the one signature on the student side is
+                         * the person the client took on.
+                         */}
+                        {viewer.party === null
+                            ? 'You are reading this as a teammate on the project. Only the student the client took on signs it.'
+                            : viewer.hasSigned
+                              ? 'You have signed. Your name, account ID and timestamp are on the contract log.'
+                              : 'Signing records your name, account ID and timestamp to the contract log.'}
+                    </span>
+
+                    {leading}
+
+                    {/* Either party may turn it down, with a reason. */}
+                    {viewer.canDeny && (
+                        <DenyButton
+                            url={agreementDenials.url({
+                                current_team: team.slug,
+                                agreement: agreement.id,
+                            })}
+                            subject="agreement"
+                        />
+                    )}
+
+                    {viewer.canRequestChanges && !isRequestingChanges && (
+                        <Btn onClick={() => setIsRequestingChanges(true)}>
+                            Request changes
+                        </Btn>
+                    )}
+
+                    {isSigning && (
+                        <Btn
+                            variant="primary"
+                            disabled={
+                                signature.processing ||
+                                viewer.signingBlockedBy !== null
+                            }
+                            onClick={sign}
+                        >
+                            {signature.processing
+                                ? 'Signing…'
+                                : 'Sign agreement'}
+                        </Btn>
+                    )}
+                </div>
+            </Panel>
+        </div>
     );
 }

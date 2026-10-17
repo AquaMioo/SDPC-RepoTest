@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Admin\AdminActivityController;
+use App\Http\Controllers\Admin\AdminAnnouncementImageController;
 use App\Http\Controllers\Admin\AdminContentController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminIssueController;
@@ -69,6 +70,11 @@ Route::prefix('admin')->name('admin.')->group(function () use ($guard, $loginLim
         /* Content Management: its own tab again (owner, 2026-10-07). */
         Route::get('content', [AdminContentController::class, 'index'])->name('content.index');
         Route::put('content', [AdminContentController::class, 'update'])->name('content.update');
+        /* The Announcement is images now (owner, 2026-10-18): post up to ten, remove one at a time. */
+        Route::post('content/announcement-images', [AdminAnnouncementImageController::class, 'store'])
+            ->name('content.images.store');
+        Route::delete('content/announcement-images/{image}', [AdminAnnouncementImageController::class, 'destroy'])
+            ->name('content.images.destroy');
 
         Route::get('issues', [AdminIssueController::class, 'index'])->name('issues');
         Route::patch('issues/{issue}', [AdminIssueController::class, 'update'])->name('issues.update');

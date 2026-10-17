@@ -13,6 +13,8 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import { AnnouncementCarousel } from '@/components/announcement-carousel';
+import type { AnnouncementImage } from '@/components/announcement-carousel';
 import type { UpcomingMeeting } from '@/components/sdpc/upcoming-meetings';
 import { Skeleton } from '@/components/ui/skeleton';
 import { localDateKey } from '@/lib/meeting-time';
@@ -580,7 +582,8 @@ export function ProjectTeamPanel({
 /* --------------------------------------------------------- announcements */
 
 export type Announcement = {
-    body: string;
+    /** The pictures the administrator posted, in order (owner, 2026-10-18). */
+    images: AnnouncementImage[];
     updatedAt: string | null;
 };
 
@@ -603,7 +606,7 @@ export function AnnouncementsPanel({
     return (
         <Card className="flex h-[280px] flex-col">
             <div className="flex items-baseline gap-3">
-                <CardTitle>News &amp; announcements</CardTitle>
+                <CardTitle>Announcement</CardTitle>
                 {announcement?.updatedAt && (
                     <span className="ml-auto text-[11.5px] text-muted-foreground">
                         Updated {announcement.updatedAt}
@@ -611,19 +614,14 @@ export function AnnouncementsPanel({
                 )}
             </div>
 
-            <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+            <div className="mt-3 min-h-0 flex-1">
                 {announcement === null ? (
                     <p className="m-0 text-[12.5px] text-muted-foreground">
                         Nothing posted yet.
                     </p>
                 ) : (
-                    /*
-                     * The administrator writes plain text, so newlines are
-                     * the only formatting there is to honour.
-                     */
-                    <p className="m-0 text-[13px] leading-relaxed whitespace-pre-line">
-                        {announcement.body}
-                    </p>
+                    /* One picture still, more than one sliding. */
+                    <AnnouncementCarousel images={announcement.images} />
                 )}
             </div>
         </Card>

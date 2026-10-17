@@ -9,6 +9,7 @@ import type { CSSProperties, ReactNode } from 'react';
 
 import AccountStatusBanner from '@/components/account-status-banner';
 import IncomingCallAlert from '@/components/messaging/incoming-call-alert';
+import { OnboardingTour } from '@/components/onboarding-tour';
 import AccountSessionGuard from '@/components/sdpc/account-session-guard';
 import { Btn } from '@/components/sdpc/btn';
 import {
@@ -29,15 +30,21 @@ import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
 import { index as messagesIndex } from '@/routes/messages';
 import { edit as profileEdit } from '@/routes/profile';
+import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
 import { index as studentBoard } from '@/routes/student/board';
+import { index as studentClients } from '@/routes/student/clients';
 import { edit as studentProfileEdit } from '@/routes/student/profile';
 import { index as teamsIndex } from '@/routes/teams';
 import { index as transactionsIndex } from '@/routes/transactions';
 
 type SharedProps = {
     auth?: {
-        user?: { name: string; role: string } | null;
+        user?: {
+            name: string;
+            role: string;
+            has_completed_onboarding?: boolean;
+        } | null;
         role?: string | null;
         /** UserStatus value; "deactivated" confines the account to settings. */
         status?: string | null;
@@ -66,6 +73,9 @@ type NavItem = {
  * .btn-icon is a 36px box, which is what made them look mis-sized inside it.
  */
 const NAV_ICON = 22;
+
+/** The header icons sit in these so the first-login walkthrough can point at each. */
+const TOUR_SLOT: CSSProperties = { display: 'inline-flex' };
 
 const BRAND: CSSProperties = {
     fontFamily: 'var(--font-heading)',
@@ -177,7 +187,16 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
         isStudent
             ? [
                   { label: 'Dashboard', href: dashboard.url(team.slug) },
-                  { label: 'Get Client', href: studentBoard.url(team.slug) },
+                  /*
+                   * Posting is the board of open postings; Get Client is the
+                   * directory of businesses (owner, 2026-10-18 — Get Client
+                   * used to open the postings board).
+                   */
+                  { label: 'Posting', href: studentBoard.url(team.slug) },
+                  {
+                      label: 'Get Client',
+                      href: studentClients.url(team.slug),
+                  },
                   /*
                    * Was "Workflow". Both sides now land on the same
                    * Project Management screen for a signed build; the
@@ -204,6 +223,12 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
               ]
             : [
                   { label: 'Dashboard', href: clientDashboard.url(team.slug) },
+                  /*
+                   * The business's postings, where Post a project lives, so
+                   * they are never more than one click away (owner,
+                   * 2026-10-18).
+                   */
+                  { label: 'Posting', href: projectsIndex.url(team.slug) },
                   { label: 'Recruit', href: recruitIndex.url(team.slug) },
                   billing,
                   /*
@@ -291,82 +316,94 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                     </nav>
 
                     <div className="app-bar-actions" style={{ fontSize: 18 }}>
-                        <IconAction
-                            label="Messages"
-                            href={
-                                isDeactivated
-                                    ? undefined
-                                    : messagesIndex.url(team.slug)
-                            }
-                            pending={DEACTIVATED}
-                            badge={
-                                isDeactivated
-                                    ? 0
-                                    : (page.props.unreadMessages ?? 0)
-                            }
-                            active={isAt(messagesIndex.url(team.slug))}
-                        >
-                            <ChatCircleIcon size={NAV_ICON} />
-                        </IconAction>
+                        <span data-tour="icon-messages" style={TOUR_SLOT}>
+                            <IconAction
+                                label="Messages"
+                                href={
+                                    isDeactivated
+                                        ? undefined
+                                        : messagesIndex.url(team.slug)
+                                }
+                                pending={DEACTIVATED}
+                                badge={
+                                    isDeactivated
+                                        ? 0
+                                        : (page.props.unreadMessages ?? 0)
+                                }
+                                active={isAt(messagesIndex.url(team.slug))}
+                            >
+                                <ChatCircleIcon size={NAV_ICON} />
+                            </IconAction>
+                        </span>
                         {/*
                          * The bell opens its own menu rather than navigating.
                          * Everything else on this row is still a plain link.
                          */}
-                        {isDeactivated ? (
+                        <span data-tour="icon-notifications" style={TOUR_SLOT}>
+                            {isDeactivated ? (
+                                <IconAction
+                                    label="Notifications"
+                                    pending={DEACTIVATED}
+                                >
+                                    <BellIcon size={NAV_ICON} />
+                                </IconAction>
+                            ) : (
+                                <NotificationMenu
+                                    rows={page.props.recentNotifications ?? []}
+                                    unread={page.props.unreadNotifications ?? 0}
+                                    teamSlug={team.slug}
+                                />
+                            )}
+                        </span>
+                        <span data-tour="icon-profile" style={TOUR_SLOT}>
+                            {isStudent ? (
+                                <IconAction
+                                    label="Your profile"
+                                    href={
+                                        isDeactivated
+                                            ? undefined
+                                            : studentProfileEdit.url(team.slug)
+                                    }
+                                    pending={DEACTIVATED}
+                                    active={isAt(
+                                        studentProfileEdit.url(team.slug),
+                                    )}
+                                >
+                                    <UserCircleIcon size={NAV_ICON} />
+                                </IconAction>
+                            ) : (
+                                <IconAction
+                                    label="Business profile"
+                                    href={
+                                        isDeactivated
+                                            ? undefined
+                                            : clientProfileEdit.url(team.slug)
+                                    }
+                                    pending={DEACTIVATED}
+                                    active={isAt(
+                                        clientProfileEdit.url(team.slug),
+                                    )}
+                                >
+                                    <UserCircleIcon size={NAV_ICON} />
+                                </IconAction>
+                            )}
+                        </span>
+                        <span data-tour="icon-settings" style={TOUR_SLOT}>
                             <IconAction
-                                label="Notifications"
-                                pending={DEACTIVATED}
-                            >
-                                <BellIcon size={NAV_ICON} />
-                            </IconAction>
-                        ) : (
-                            <NotificationMenu
-                                rows={page.props.recentNotifications ?? []}
-                                unread={page.props.unreadNotifications ?? 0}
-                                teamSlug={team.slug}
-                            />
-                        )}
-                        {isStudent ? (
-                            <IconAction
-                                label="Your profile"
-                                href={
-                                    isDeactivated
-                                        ? undefined
-                                        : studentProfileEdit.url(team.slug)
+                                label="Settings"
+                                href={profileEdit.url()}
+                                /*
+                                 * The Team page lives at /settings/teams, so a
+                                 * bare "under /settings" check lit this up too.
+                                 * Team has its own link in the nav.
+                                 */
+                                active={
+                                    isAt('/settings') && !isAt(teamsIndex.url())
                                 }
-                                pending={DEACTIVATED}
-                                active={isAt(studentProfileEdit.url(team.slug))}
                             >
-                                <UserCircleIcon size={NAV_ICON} />
+                                <GearSixIcon size={NAV_ICON} />
                             </IconAction>
-                        ) : (
-                            <IconAction
-                                label="Business profile"
-                                href={
-                                    isDeactivated
-                                        ? undefined
-                                        : clientProfileEdit.url(team.slug)
-                                }
-                                pending={DEACTIVATED}
-                                active={isAt(clientProfileEdit.url(team.slug))}
-                            >
-                                <UserCircleIcon size={NAV_ICON} />
-                            </IconAction>
-                        )}
-                        <IconAction
-                            label="Settings"
-                            href={profileEdit.url()}
-                            /*
-                             * The Team page lives at /settings/teams, so a
-                             * bare "under /settings" check lit this up too.
-                             * Team has its own link in the nav.
-                             */
-                            active={
-                                isAt('/settings') && !isAt(teamsIndex.url())
-                            }
-                        >
-                            <GearSixIcon size={NAV_ICON} />
-                        </IconAction>
+                        </span>
                     </div>
                 </div>
 
@@ -383,10 +420,21 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             <AccountSessionGuard />
             {/* Calls happen in messages, which a deactivated account cannot open. */}
             {!isDeactivated && <IncomingCallAlert />}
+            {/* The first-login walkthrough, once per account (owner, 2026-10-18). */}
+            {!isDeactivated &&
+                user !== null &&
+                user.has_completed_onboarding === false && (
+                    <OnboardingTour role={isStudent ? 'student' : 'client'} />
+                )}
 
             <main>{children}</main>
         </div>
     );
+}
+
+/** Where the first-login walkthrough points for a nav item: "nav-project-management". */
+function tourAnchor(label: string): string {
+    return `nav-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 }
 
 function NavLink({
@@ -401,6 +449,7 @@ function NavLink({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span
+                        data-tour={tourAnchor(item.label)}
                         style={{
                             ...NAV_LINK,
                             color: MUTED,
@@ -421,6 +470,7 @@ function NavLink({
         <Link
             href={item.href}
             data-nav=""
+            data-tour={tourAnchor(item.label)}
             aria-current={isCurrent ? 'page' : undefined}
             style={NAV_LINK}
         >

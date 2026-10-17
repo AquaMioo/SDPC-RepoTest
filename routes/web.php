@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\AnnouncementImageController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LegalController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -60,6 +62,12 @@ Route::middleware(['auth'])->group(function () {
      * account must be able to say so before their own permit is reviewed.
      */
     Route::post('reports', [ReportController::class, 'store'])->name('reports.store');
+
+    /* The first-login walkthrough, finished or skipped: it never shows again. */
+    Route::post('onboarding/complete', OnboardingController::class)->name('onboarding.complete');
+
+    /* The Announcement's pictures, for both dashboards; the directory is not published. */
+    Route::get('announcements/images/{image}', AnnouncementImageController::class)->name('announcements.images.show');
 });
 
 require __DIR__.'/messaging.php';

@@ -10,6 +10,8 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import { AnnouncementCarousel } from '@/components/announcement-carousel';
+import type { AnnouncementImage } from '@/components/announcement-carousel';
 import PendingInvitationsModal from '@/components/pending-invitations-modal';
 import { Btn } from '@/components/sdpc/btn';
 import { Panel } from '@/components/sdpc/panel';
@@ -96,7 +98,11 @@ type Props = {
     } | null;
     /** The agreed milestone dates, every month's, as YYYY-MM-DD → label. */
     calendar: { marks: Record<string, string> };
-    announcement: { body: string; updatedAt: string | null } | null;
+    /** The pictures the administrator posted (owner, 2026-10-18). */
+    announcement: {
+        images: AnnouncementImage[];
+        updatedAt: string | null;
+    } | null;
     pendingInvitations?: DashboardInvitation[];
     /** Meetings booked in this student's threads, soonest first. */
     upcomingMeetings?: UpcomingMeeting[];
@@ -694,7 +700,7 @@ function AnnouncementsCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MegaphoneIcon style={{ color: 'var(--color-accent)' }} />
                 <span style={{ fontSize: 13, marginRight: 'auto' }}>
-                    News &amp; announcements
+                    Announcement
                 </span>
                 {announcement?.updatedAt && (
                     <span style={{ fontSize: 11, color: MUTED(68) }}>
@@ -703,24 +709,15 @@ function AnnouncementsCard({
                 )}
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div style={{ flex: 1, minHeight: 0 }}>
                 {announcement === null ? (
                     <div style={{ fontSize: 12.5, color: MUTED(55) }}>
                         No announcements yet. Anything the administrators post
                         appears here.
                     </div>
                 ) : (
-                    <p
-                        style={{
-                            margin: 0,
-                            fontSize: 12.5,
-                            lineHeight: 1.55,
-                            color: MUTED(80),
-                            whiteSpace: 'pre-line',
-                        }}
-                    >
-                        {announcement.body}
-                    </p>
+                    /* One picture still, more than one sliding. */
+                    <AnnouncementCarousel images={announcement.images} />
                 )}
             </div>
         </Panel>

@@ -4,6 +4,7 @@ namespace App\Actions\Notifications;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\Agreements\ContractRequestUpdated;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
 
@@ -282,6 +283,18 @@ class PresentNotification
                 __('Agreement :reference was signed', ['reference' => $reference ?? '']),
                 __('Once both parties have signed, the project moves into progress.'),
                 $this->agreementUrl($data, $team),
+            ],
+            /* A denial or termination request moved (owner, 2026-10-18). */
+            'contract.request' => [
+                ContractRequestUpdated::headline($data),
+                $this->text($data, 'event') === 'requested'
+                    ? __('“:reason” Open it to accept or decline.', ['reason' => $this->text($data, 'reason') ?? ''])
+                    : __('Reason given: “:reason”', ['reason' => $this->text($data, 'reason') ?? '']),
+                match (true) {
+                    $this->text($data, 'request_type') === 'termination' => $this->projectManagementUrl($data, $team),
+                    $this->text($data, 'subject') === 'addendum' => $this->addendumUrl($data, $team),
+                    default => $this->agreementUrl($data, $team),
+                },
             ],
             'addendum.requested' => [
                 __('The client wants to extend :project', ['project' => $project ?? __('your project')]),

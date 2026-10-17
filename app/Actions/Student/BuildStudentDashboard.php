@@ -5,11 +5,10 @@ namespace App\Actions\Student;
 use App\Actions\Agreements\SummariseProgress;
 use App\Enums\ApplicationStatus;
 use App\Enums\ProjectStatus;
-use App\Enums\SiteContentKey;
 use App\Enums\TaskStatus;
 use App\Models\Agreement;
+use App\Models\AnnouncementImage;
 use App\Models\Project;
-use App\Models\SiteContent;
 use App\Models\User;
 
 /**
@@ -220,19 +219,12 @@ class BuildStudentDashboard
     /**
      * Get the announcements block an administrator maintains.
      *
-     * @return array<string, string|null>|null
+     * Images since 2026-10-18 (owner), the same ones the client dashboard shows.
+     *
+     * @return array{images: list<array{id: int, url: string}>, updatedAt: string|null}|null
      */
     protected function announcement(): ?array
     {
-        $block = SiteContent::firstWhere('key', SiteContentKey::Announcements);
-
-        if ($block === null || blank($block->body)) {
-            return null;
-        }
-
-        return [
-            'body' => $block->body,
-            'updatedAt' => $block->updated_at?->diffForHumans(),
-        ];
+        return AnnouncementImage::forDashboard();
     }
 }

@@ -107,7 +107,35 @@ class AddendumPolicy
             return false;
         }
 
-        return ! $addendum->isSignedBy($party);
+        /* Nobody signs while a denial is waiting for its answer. */
+        return ! $addendum->isSignedBy($party) && ! $this->hasPendingDenial($addendum);
+    }
+
+    /**
+     * Determine whether the user can deny the addendum (owner, 2026-10-18).
+     *
+     * Either party, before both have signed, with a reason: the extension is a
+     * proposal either side may turn down. It takes the other side's acceptance
+     * to cancel it; the memorandum and the build carry on regardless.
+     */
+    public function deny(User $user, Addendum $addendum): bool
+    {
+        $agreement = $addendum->agreement;
+        $party = $this->partyFor($user, $agreement);
+
+        return $party !== null
+            && $addendum->status->acceptsSignatures()
+            && $agreement->status === AgreementStatus::Active
+            && ($party === AgreementParty::Student || $this->isManagingClient($user, $agreement))
+            && ! $this->hasPendingDenial($addendum);
+    }
+
+    /**
+     * Whether a denial of the addendum is waiting for an answer.
+     */
+    protected function hasPendingDenial(Addendum $addendum): bool
+    {
+        return $addendum->contractRequests()->pending()->exists();
     }
 
     /**

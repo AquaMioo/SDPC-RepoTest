@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
+use App\Enums\ContractRequestType;
 use App\Enums\TeamPermission;
 use App\Enums\TeamRole;
 use App\Models\Agreement;
@@ -117,7 +118,55 @@ class AgreementPolicy
             return false;
         }
 
-        return ! $agreement->isSignedBy($party);
+        /* Nobody signs while a denial is waiting for its answer. */
+        return ! $agreement->isSignedBy($party) && ! $this->hasPending($agreement, ContractRequestType::Denial);
+    }
+
+    /**
+     * Determine whether the user can deny the agreement (owner, 2026-10-18).
+     *
+     * Either party, before both have signed, with a reason; it takes the other
+     * side's acceptance to cancel the agreement (AcceptContractRequest).
+     */
+    public function deny(User $user, Agreement $agreement): bool
+    {
+        return $agreement->status->acceptsSignatures()
+            && $this->isActingParty($user, $agreement)
+            && ! $this->hasPending($agreement, ContractRequestType::Denial);
+    }
+
+    /**
+     * Determine whether the user can ask to terminate the collaboration early.
+     *
+     * Either party of a running build (owner, 2026-10-18). It ends only when
+     * the other side agrees too, and then completes the project.
+     */
+    public function terminate(User $user, Agreement $agreement): bool
+    {
+        return $agreement->status === AgreementStatus::Active
+            && $this->isActingParty($user, $agreement)
+            && ! $this->hasPending($agreement, ContractRequestType::Termination);
+    }
+
+    /**
+     * Whether the user may act for their side: the signing student, or someone
+     * on the business who may manage its projects.
+     */
+    protected function isActingParty(User $user, Agreement $agreement): bool
+    {
+        $party = $this->partyFor($user, $agreement);
+
+        return $party === AgreementParty::Student
+            || ($party === AgreementParty::Client
+                && $user->hasTeamPermission($agreement->team, TeamPermission::ManageProjects));
+    }
+
+    /**
+     * Whether a request of the given type is waiting for an answer.
+     */
+    protected function hasPending(Agreement $agreement, ContractRequestType $type): bool
+    {
+        return $agreement->contractRequests()->pending()->where('type', $type)->exists();
     }
 
     /**

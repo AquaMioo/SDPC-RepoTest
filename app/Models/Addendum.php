@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -133,6 +134,16 @@ class Addendum extends Model
     public function tasks(): HasMany
     {
         return $this->hasMany(AgreementTask::class);
+    }
+
+    /**
+     * Get the denials asked of this addendum, newest first.
+     *
+     * @return MorphMany<ContractRequest, $this>
+     */
+    public function contractRequests(): MorphMany
+    {
+        return $this->morphMany(ContractRequest::class, 'subject')->latest('id');
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
+use App\Models\AnnouncementImage;
 use App\Models\Application;
 use App\Models\Project;
 use App\Models\SiteContent;
@@ -165,17 +166,18 @@ class ClientDashboardTest extends TestCase
     {
         $client = User::factory()->client()->create();
 
-        SiteContent::create([
-            'key' => SiteContentKey::Announcements,
-            'body' => "Enrolment closes on the 30th.\nSubmit your permits before then.",
-        ]);
+        /* The Announcement is pictures since 2026-10-18 (owner). */
+        $first = AnnouncementImage::factory()->create(['position' => 1]);
+        $second = AnnouncementImage::factory()->create(['position' => 2]);
 
         $this->actingAs($client)
             ->get(route('client.dashboard', ['current_team' => $client->currentTeam]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('client/dashboard')
-                ->where('announcement.body', "Enrolment closes on the 30th.\nSubmit your permits before then.")
+                ->where('announcement.images.0.id', $first->id)
+                ->where('announcement.images.0.url', route('announcements.images.show', $first))
+                ->where('announcement.images.1.id', $second->id)
                 ->etc()
             );
     }
@@ -195,16 +197,16 @@ class ClientDashboardTest extends TestCase
     }
 
     /**
-     * A row saved and then cleared should read as nothing posted, not as an
-     * empty panel with an "updated" timestamp on it.
+     * Text left over from before the Announcement became pictures is not an
+     * announcement: only posted images are.
      */
-    public function test_a_blank_announcement_body_reads_as_nothing_posted(): void
+    public function test_leftover_announcement_text_reads_as_nothing_posted(): void
     {
         $client = User::factory()->client()->create();
 
         SiteContent::create([
             'key' => SiteContentKey::Announcements,
-            'body' => '   ',
+            'body' => 'An old text announcement.',
         ]);
 
         $this->actingAs($client)

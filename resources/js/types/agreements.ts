@@ -4,6 +4,7 @@
  * The Agreement screen and the Contract screen are the same document at two
  * distances, so they read one type rather than two that could drift apart.
  */
+import type { ContractRequestView } from '@/components/agreements/contract-requests';
 export type AgreementMilestone = {
     id: number;
     position: number;
@@ -174,9 +175,14 @@ export type Agreement = {
         canRequestChanges: boolean;
         /** Either party, until somebody signs: the memorandum's "Add requirement". */
         canAddRequirements: boolean;
+        /** Either party, before both have signed: turn it down with a reason. */
+        canDeny: boolean;
         /** What still stops anyone signing, e.g. an empty Section VII. */
         signingBlockedBy: string | null;
     };
+
+    /** A denial waiting for the other side's answer (owner, 2026-10-18). */
+    denial: ContractRequestView | null;
 };
 
 export type AgreementListItem = {
@@ -309,11 +315,15 @@ export type Addendum = {
         canCancel: boolean;
         canPay: boolean;
         signingBlockedBy: string | null;
+        /** Either party, before both have signed: turn the extension down with a reason. */
+        canDeny: boolean;
         /** This viewer's own side still has no GCash account in Settings. */
         needsGcash: boolean;
         clientRepresentativeName: string;
         isClientRepresentative: boolean;
     };
+    /** A denial waiting for the other side's answer (owner, 2026-10-18). */
+    denial: ContractRequestView | null;
     isOpen: boolean;
     isCancelled: boolean;
 };

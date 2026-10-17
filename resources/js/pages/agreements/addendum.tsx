@@ -11,6 +11,11 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { AddendumDocument } from '@/components/agreements/addendum-document';
+import {
+    ContractRequestBanner,
+    DenyButton,
+} from '@/components/agreements/contract-requests';
+import { PaymentDueDialog } from '@/components/agreements/payment-due-dialog';
 import InputError from '@/components/input-error';
 import { Btn } from '@/components/sdpc/btn';
 import { Input } from '@/components/sdpc/input';
@@ -35,6 +40,7 @@ import {
     records as addendumRecords,
     template as addendumTemplate,
 } from '@/routes/agreements/addenda';
+import { store as addendumDenials } from '@/routes/agreements/addenda/denials';
 import { checkout as paymentCheckout } from '@/routes/agreements/addenda/payments';
 import { store as signatureStore } from '@/routes/agreements/addenda/signatures';
 import { edit as profileEdit } from '@/routes/profile';
@@ -70,9 +76,32 @@ export default function AddendumShow({ addendum }: { addendum: Addendum }) {
         addendum: addendum.id,
     };
 
+    /* Which milestone the popup announces (owner, 2026-10-18), if either. */
+    const [down, final] = addendum.payments;
+    const dueStage =
+        addendum.status !== 'active' || !down
+            ? null
+            : down.status !== 'paid'
+              ? 'down'
+              : addendum.work.isHandedIn && final && final.status !== 'paid'
+                ? 'final'
+                : null;
+
     return (
         <>
             <Head title={`Addendum ${addendum.reference}`} />
+
+            <PaymentDueDialog
+                addendumId={addendum.id}
+                reference={addendum.reference}
+                stage={dueStage}
+                amountLabel={
+                    dueStage === 'down'
+                        ? (down?.amountLabel ?? null)
+                        : (final?.amountLabel ?? null)
+                }
+                isClient={viewer.party === 'client'}
+            />
 
             <div
                 style={{
@@ -186,6 +215,15 @@ export default function AddendumShow({ addendum }: { addendum: Addendum }) {
                         gap: 16,
                     }}
                 >
+                    {/* A denial waiting for an answer (owner, 2026-10-18). */}
+                    {addendum.denial && (
+                        <ContractRequestBanner
+                            request={addendum.denial}
+                            teamSlug={team.slug}
+                            agreementId={addendum.agreementId}
+                        />
+                    )}
+
                     {(addendum.status === 'draft' ||
                         addendum.status === 'awaiting_signatures') && (
                         <SigningPanel addendum={addendum} args={args} />
@@ -406,11 +444,23 @@ function SigningPanel({ addendum, args }: { addendum: Addendum; args: Args }) {
                 </>
             )}
 
-            {viewer.canCancel && (
-                <div>
-                    <Btn variant="ghost" onClick={() => setConfirmCancel(true)}>
-                        Cancel the extension
-                    </Btn>
+            {(viewer.canCancel || viewer.canDeny) && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {/* Either party may turn it down, with a reason the other side accepts. */}
+                    {viewer.canDeny && (
+                        <DenyButton
+                            url={addendumDenials.url(args)}
+                            subject="addendum"
+                        />
+                    )}
+                    {viewer.canCancel && (
+                        <Btn
+                            variant="ghost"
+                            onClick={() => setConfirmCancel(true)}
+                        >
+                            Cancel the extension
+                        </Btn>
+                    )}
                 </div>
             )}
 

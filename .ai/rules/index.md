@@ -6,7 +6,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Actions/Auth/** | .ai/rules/actions-auth.md |
 | app/Actions/Client/RespondToApplication.php, app/Actions/Client/UpdateClientProfile.php | .ai/rules/actions-client.md |
-| app/Http/Controllers/Admin/AdminPostingController.php | .ai/rules/admin.md |
+| app/Http/Controllers/Admin/AdminPostingController.php, app/Http/Controllers/Admin/** | .ai/rules/admin.md |
 | app/Actions/Agreements/** | .ai/rules/agreements.md |
 | app/Notifications/** | .ai/rules/app-notifications.md |
 | app/Http/Controllers/Auth/RegistrationController.php, app/Http/Controllers/Auth/AccountAppealController.php, app/Http/Middleware/EnsureAccountIsNotMonitored.php, app/Http/Middleware/**, app/Http/Controllers/Auth/** | .ai/rules/auth.md |
@@ -22,6 +22,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | tests/Feature/** | .ai/rules/feature.md |
 | .env.example, railway-start.sh | .ai/rules/general.md |
 | resources/js/** | .ai/rules/js.md |
+| resources/js/layouts/client/** | .ai/rules/layouts-client.md |
 | tests/Feature/Matching/** | .ai/rules/matching.md |
 | app/Actions/Messaging/**, app/Http/Controllers/Messaging/ConversationController.php, app/Http/Controllers/Messaging/MeetingController.php, app/Http/Controllers/Messaging/ConversationMemberController.php | .ai/rules/messaging.md |
 | database/migrations/** | .ai/rules/migrations.md |

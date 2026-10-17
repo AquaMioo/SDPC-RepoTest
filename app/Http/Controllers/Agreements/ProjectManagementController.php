@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Agreements;
 
+use App\Actions\Agreements\PresentContractRequest;
 use App\Actions\Agreements\SummariseProgress;
 use App\Actions\Student\ListStudentApplications;
 use App\Enums\AddendumPaymentStatus;
 use App\Enums\AgreementStatus;
+use App\Enums\ContractRequestType;
 use App\Enums\DeadlineRequestStatus;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
@@ -47,6 +49,7 @@ class ProjectManagementController extends Controller
     public function __construct(
         private readonly SummariseProgress $summariseProgress,
         private readonly ListStudentApplications $listStudentApplications,
+        private readonly PresentContractRequest $presentContractRequest,
     ) {}
 
     /**
@@ -131,6 +134,7 @@ class ProjectManagementController extends Controller
                 'milestones.tasks.verifier',
                 'milestones.tasks.addendum',
                 'addenda.payments',
+                'addenda.tasks',
                 'milestones.tasks.deadlineRequests.requester',
                 'milestones.deadlineRequests.requester',
             ])
@@ -209,6 +213,15 @@ class ProjectManagementController extends Controller
                 $agreement->turnoverPhase()?->deadlineRequests->first(),
             ),
             'extension' => $this->presentExtension($agreement, $summary['progress'], $isStudentSide),
+            /*
+             * Ending the build early takes both sides (owner, 2026-10-18): the
+             * request waiting for an answer, and whether this viewer may ask.
+             */
+            'termination' => $this->presentContractRequest->handle(
+                $agreement->contractRequests()->pending()->where('type', ContractRequestType::Termination)->with('requester')->first(),
+                request()->user(),
+            ),
+            'canRequestTermination' => Gate::allows('terminate', $agreement),
             'phases' => $agreement->milestones
                 ->map(fn (AgreementMilestone $milestone): array => [
                     'id' => $milestone->id,
@@ -310,6 +323,9 @@ class ProjectManagementController extends Controller
                 'status' => $open->status->value,
                 'statusLabel' => $open->status->label(),
                 'downPaymentPaid' => $open->payment(1)?->status === AddendumPaymentStatus::Paid,
+                /* The extended work is all handed in, so the final balance is due (the popups read these). */
+                'workHandedIn' => $open->isWorkHandedIn(),
+                'finalPaid' => $open->payment(2)?->status === AddendumPaymentStatus::Paid,
                 'url' => route('agreements.addenda.show', [
                     'current_team' => request()->route('current_team'),
                     'agreement' => $agreement->id,

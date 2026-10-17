@@ -9,6 +9,7 @@ use App\Http\Controllers\Agreements\AgreementController;
 use App\Http\Controllers\Agreements\AgreementMilestoneController;
 use App\Http\Controllers\Agreements\AgreementSignatureController;
 use App\Http\Controllers\Agreements\AgreementTaskController;
+use App\Http\Controllers\Agreements\ContractRequestController;
 use App\Http\Controllers\Agreements\DeadlineChangeRequestController;
 use App\Http\Controllers\Agreements\MemorandumRequirementController;
 use App\Http\Controllers\Agreements\PayMongoWebhookController;
@@ -209,6 +210,30 @@ Route::prefix('{current_team}')
         /* PayMongo's success_url: back from the hosted checkout. */
         Route::get('agreements/{agreement}/addenda/{addendum}/payments/{payment}/paid', [AddendumPaymentController::class, 'paid'])
             ->name('agreements.addenda.payments.paid');
+
+        /*
+         * Ending a contract takes both sides (owner, 2026-10-18): one asks with
+         * a reason — a denial of an unsigned MoA or Addendum, or a termination
+         * of a running build — and the other accepts or declines. See
+         * ContractRequestController.
+         */
+        Route::post('agreements/{agreement}/denials', [ContractRequestController::class, 'denyAgreement'])
+            ->middleware($trusted)
+            ->name('agreements.denials.store');
+        Route::post('agreements/{agreement}/addenda/{addendum}/denials', [ContractRequestController::class, 'denyAddendum'])
+            ->middleware($trusted)
+            ->name('agreements.addenda.denials.store');
+        Route::post('agreements/{agreement}/terminations', [ContractRequestController::class, 'terminate'])
+            ->middleware($trusted)
+            ->name('agreements.terminations.store');
+        Route::post('agreements/{agreement}/requests/{contractRequest}/accept', [ContractRequestController::class, 'accept'])
+            ->middleware($trusted)
+            ->name('agreements.requests.accept');
+        Route::post('agreements/{agreement}/requests/{contractRequest}/decline', [ContractRequestController::class, 'decline'])
+            ->middleware($trusted)
+            ->name('agreements.requests.decline');
+        Route::delete('agreements/{agreement}/requests/{contractRequest}', [ContractRequestController::class, 'withdraw'])
+            ->name('agreements.requests.destroy');
     });
 
 /*

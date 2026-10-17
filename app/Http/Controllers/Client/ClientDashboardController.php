@@ -8,16 +8,15 @@ use App\Enums\AgreementStatus;
 use App\Enums\ApplicationStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
-use App\Enums\SiteContentKey;
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
 use App\Models\AgreementTask;
+use App\Models\AnnouncementImage;
 use App\Models\Application;
 use App\Models\Membership;
 use App\Models\Project;
-use App\Models\SiteContent;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
@@ -49,6 +48,12 @@ class ClientDashboardController extends Controller
              */
             'canPostProject' => Gate::allows('create', Project::class),
             /*
+             * The posting holding the team's one slot, so a disabled "Post a
+             * Job" can say what it is waiting on rather than disappearing
+             * (owner, 2026-10-18).
+             */
+            'postingSlot' => $this->postingSlot($team),
+            /*
              * Clients no longer pass through the generic dashboard, so the
              * invitation prompt has to travel with them.
              */
@@ -70,6 +75,22 @@ class ClientDashboardController extends Controller
              */
             'upcomingMeetings' => $upcomingMeetings->handle($request->user()),
         ]);
+    }
+
+    /**
+     * The team's unfinished posting, which is what keeps it from posting another.
+     *
+     * @return array{title: string, statusLabel: string, url: string}|null
+     */
+    protected function postingSlot(Team $team): ?array
+    {
+        $project = Project::query()->forTeam($team)->unfinished()->latest('id')->first();
+
+        return $project === null ? null : [
+            'title' => $project->title,
+            'statusLabel' => $project->status->label(),
+            'url' => route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]),
+        ];
     }
 
     /**
@@ -269,24 +290,15 @@ class ClientDashboardController extends Controller
     /**
      * Get the announcements block an administrator maintains.
      *
-     * The same block the student dashboard shows, read from the same row the
-     * admin Content screen writes — one piece of copy reaching both modules,
-     * rather than two that can drift apart.
+     * The same pictures the student dashboard shows, posted on the admin
+     * Content screen — one Announcement reaching both modules. Images since
+     * 2026-10-18 (owner).
      *
-     * @return array<string, string|null>|null
+     * @return array{images: list<array{id: int, url: string}>, updatedAt: string|null}|null
      */
     protected function announcement(): ?array
     {
-        $block = SiteContent::firstWhere('key', SiteContentKey::Announcements);
-
-        if ($block === null || blank($block->body)) {
-            return null;
-        }
-
-        return [
-            'body' => $block->body,
-            'updatedAt' => $block->updated_at?->diffForHumans(),
-        ];
+        return AnnouncementImage::forDashboard();
     }
 
     /**

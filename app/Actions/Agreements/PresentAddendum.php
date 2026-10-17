@@ -32,6 +32,7 @@ class PresentAddendum
         private readonly SignAddendum $signAddendum,
         private readonly AddendumPolicy $policy,
         private readonly PaymentGateway $gateway,
+        private readonly PresentContractRequest $presentContractRequest,
     ) {}
 
     /**
@@ -153,6 +154,8 @@ class PresentAddendum
                 'hasSigned' => $party !== null && $addendum->isSignedBy($party),
                 'canCancel' => $this->policy->cancel($viewer, $addendum),
                 'canPay' => $this->policy->pay($viewer, $addendum),
+                /* Either party may turn the extension down, with a reason (owner, 2026-10-18). */
+                'canDeny' => $this->policy->deny($viewer, $addendum),
                 'signingBlockedBy' => $addendum->status->acceptsSignatures()
                     ? $this->signAddendum->reasonItCannotBeSigned($addendum)
                     : null,
@@ -166,6 +169,11 @@ class PresentAddendum
                 'clientRepresentativeName' => $clientName,
                 'isClientRepresentative' => $client !== null && $client->is($viewer),
             ],
+            /* A denial waiting for the other side's answer, if there is one. */
+            'denial' => $this->presentContractRequest->handle(
+                $addendum->contractRequests()->pending()->with('requester')->first(),
+                $viewer,
+            ),
             'isOpen' => $addendum->status->isOpen(),
             'isCancelled' => $addendum->status === AddendumStatus::Cancelled,
         ];

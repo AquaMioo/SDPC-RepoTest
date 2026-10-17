@@ -95,6 +95,8 @@ class User extends Authenticatable implements PasskeyUser
     protected $attributes = [
         'role' => UserRole::Student->value,
         'status' => UserStatus::Pending->value,
+        /* The first-login walkthrough is still to come (owner, 2026-10-18). */
+        'has_completed_onboarding' => false,
     ];
 
     /**
@@ -113,6 +115,7 @@ class User extends Authenticatable implements PasskeyUser
             'two_factor_confirmed_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'gcash_number' => 'encrypted',
+            'has_completed_onboarding' => 'boolean',
         ];
     }
 

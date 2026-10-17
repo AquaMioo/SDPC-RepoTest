@@ -4,6 +4,7 @@ namespace App\Actions\Agreements;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementTemplate;
+use App\Enums\ContractRequestType;
 use App\Enums\MemorandumSection;
 use App\Models\Agreement;
 use App\Models\AgreementMilestone;
@@ -27,7 +28,10 @@ class PresentAgreement
     /**
      * Create a new action instance.
      */
-    public function __construct(private readonly SignAgreement $signAgreement) {}
+    public function __construct(
+        private readonly SignAgreement $signAgreement,
+        private readonly PresentContractRequest $presentContractRequest,
+    ) {}
 
     /**
      * Build the payload for one agreement as seen by one person.
@@ -122,6 +126,12 @@ class PresentAgreement
                 ->values()
                 ->all(),
 
+            /* A denial waiting for the other side's answer, if there is one. */
+            'denial' => $this->presentContractRequest->handle(
+                $agreement->contractRequests()->pending()->where('type', ContractRequestType::Denial)->with('requester')->first(),
+                $viewer,
+            ),
+
             'acknowledgements' => collect($agreement->template->acknowledgements())
                 ->map(fn (string $label, string $key): array => ['key' => $key, 'label' => $label])
                 ->values()
@@ -135,6 +145,8 @@ class PresentAgreement
                 'canSign' => $viewer->can('sign', $agreement),
                 'canRequestChanges' => $viewer->can('requestChanges', $agreement),
                 'canAddRequirements' => $viewer->can('addRequirements', $agreement),
+                /* Either party may turn the agreement down, with a reason (owner, 2026-10-18). */
+                'canDeny' => $viewer->can('deny', $agreement),
                 /* What still stops a signature (an empty Section VII, say), said before anyone tries. */
                 'signingBlockedBy' => $agreement->status->acceptsSignatures()
                     ? $this->signAgreement->reasonItCannotBeSigned($agreement)

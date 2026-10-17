@@ -1,3 +1,5 @@
+import type { ContractRequestView } from '@/components/agreements/contract-requests';
+
 /** Where one checklist item stands. See App\Enums\TaskStatus. */
 export type TaskStatus = 'open' | 'submitted' | 'verified';
 
@@ -103,6 +105,10 @@ export type ManagedAgreement = {
     finalDeadlineRequest: DeadlineRequest | null;
     phases: Phase[];
     extension: ProjectExtension;
+    /** A request to end the build early, waiting for an answer (owner, 2026-10-18). */
+    termination: ContractRequestView | null;
+    /** This viewer may ask to end the build early. */
+    canRequestTermination: boolean;
 };
 
 /** The Payment & Project Extension Addendum, as Project Management offers it. */
@@ -119,6 +125,9 @@ export type ProjectExtension = {
         status: string;
         statusLabel: string;
         downPaymentPaid: boolean;
+        /** Every extension task is handed in, so the final balance is due. */
+        workHandedIn: boolean;
+        finalPaid: boolean;
         url: string;
     } | null;
 };

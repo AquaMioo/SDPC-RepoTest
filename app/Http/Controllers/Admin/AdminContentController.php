@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\SiteContentKey;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateSiteContentRequest;
+use App\Models\AnnouncementImage;
 use App\Models\SiteContent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,19 @@ class AdminContentController extends Controller
     {
         return Inertia::render('admin/content', [
             'content' => SiteContent::allKeyed(),
+            /* The Announcement is pictures now (owner, 2026-10-18), posted beside the copy. */
+            'announcementImages' => AnnouncementImage::query()
+                ->orderBy('position')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (AnnouncementImage $image): array => [
+                    'id' => $image->id,
+                    'url' => $image->url(),
+                    'name' => $image->original_name,
+                ])
+                ->values()
+                ->all(),
+            'announcementImageLimit' => AnnouncementImage::MAX,
         ]);
     }
 

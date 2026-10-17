@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -185,6 +186,16 @@ class Agreement extends Model
     public function addenda(): HasMany
     {
         return $this->hasMany(Addendum::class)->orderBy('sequence');
+    }
+
+    /**
+     * Get the denials and termination requests asked of this agreement, newest first.
+     *
+     * @return MorphMany<ContractRequest, $this>
+     */
+    public function contractRequests(): MorphMany
+    {
+        return $this->morphMany(ContractRequest::class, 'subject')->latest('id');
     }
 
     /**
