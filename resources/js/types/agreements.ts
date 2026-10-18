@@ -181,7 +181,7 @@ export type Agreement = {
         signingBlockedBy: string | null;
     };
 
-    /** A denial waiting for the other side's answer (owner, 2026-10-18). */
+    /** The denial that cancelled it, final (owner, 2026-10-18). */
     denial: ContractRequestView | null;
 };
 
@@ -322,7 +322,7 @@ export type Addendum = {
         clientRepresentativeName: string;
         isClientRepresentative: boolean;
     };
-    /** A denial waiting for the other side's answer (owner, 2026-10-18). */
+    /** The denial that cancelled it, final (owner, 2026-10-18). */
     denial: ContractRequestView | null;
     isOpen: boolean;
     isCancelled: boolean;

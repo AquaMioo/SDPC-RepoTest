@@ -5,7 +5,6 @@ namespace App\Actions\Agreements;
 use App\Enums\AddendumStatus;
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
-use App\Enums\ApplicationStatus;
 use App\Enums\ContractRequestStatus;
 use App\Enums\ContractRequestType;
 use App\Models\Addendum;
@@ -18,15 +17,10 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The other side's answer to a denial or a termination request (owner,
- * 2026-10-18).
+ * The other side's answer to a termination request (owner, 2026-10-18).
  *
- * Accepting a denial ends the pre-collaboration state at once. For an MoA the
- * agreement is cancelled and the student's acceptance is undone (withdrawn
- * when the student denied, rejected when the client did), which frees the
- * student to apply elsewhere and leaves the posting open for the client to
- * hire again. For an Addendum the extension is cancelled and the build
- * carries on.
+ * A denial is never answered here: it is final the moment it is sent
+ * (AskToEndContract::deny), so nobody can decline it or deny it back.
  *
  * Accepting a termination cancels any open extension and completes the
  * project through CompleteProject, with the client's rating, so it counts like
@@ -49,7 +43,7 @@ class AnswerContractRequest
         DB::transaction(function () use ($request, $decider, $rating, $feedback): void {
             $locked = ContractRequest::query()->lockForUpdate()->findOrFail($request->id);
 
-            if ($locked->status !== ContractRequestStatus::Pending) {
+            if ($locked->status !== ContractRequestStatus::Pending || $locked->type !== ContractRequestType::Termination) {
                 throw ValidationException::withMessages(['request' => __('This request has already been answered.')]);
             }
 
@@ -64,10 +58,7 @@ class AnswerContractRequest
                 'feedback' => $clientIsAnswering && $locked->type === ContractRequestType::Termination ? $feedback : $locked->feedback,
             ]);
 
-            match ($locked->type) {
-                ContractRequestType::Denial => $this->cancel($locked),
-                ContractRequestType::Termination => $this->terminate($locked, $decider),
-            };
+            $this->terminate($locked, $decider);
         });
 
         $this->announce($request->refresh(), 'accepted');
@@ -100,43 +91,6 @@ class AnswerContractRequest
         ]);
 
         $this->announce($request, 'withdrawn');
-    }
-
-    /**
-     * Cancel the unsigned MoA or Addendum that was denied.
-     */
-    protected function cancel(ContractRequest $request): void
-    {
-        $subject = $request->subject;
-
-        if ($subject instanceof Addendum) {
-            if (! $subject->status->acceptsSignatures()) {
-                throw ValidationException::withMessages(['request' => __('This addendum can no longer be denied.')]);
-            }
-
-            $subject->update(['status' => AddendumStatus::Cancelled, 'cancelled_at' => now()]);
-
-            return;
-        }
-
-        /** @var Agreement $subject */
-        if (! $subject->status->acceptsSignatures()) {
-            throw ValidationException::withMessages(['request' => __('This agreement can no longer be denied.')]);
-        }
-
-        $subject->update(['status' => AgreementStatus::Cancelled]);
-
-        /*
-         * Undo the acceptance the agreement was drafted from: the student is
-         * no longer committed to this posting (User::isLockedToProject reads
-         * accepted applications), and the posting, still open, can take
-         * someone else.
-         */
-        $subject->application?->update([
-            'status' => $request->party === AgreementParty::Student
-                ? ApplicationStatus::Withdrawn
-                : ApplicationStatus::Rejected,
-        ]);
     }
 
     /**

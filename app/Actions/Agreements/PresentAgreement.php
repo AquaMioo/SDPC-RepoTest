@@ -4,6 +4,7 @@ namespace App\Actions\Agreements;
 
 use App\Enums\AgreementParty;
 use App\Enums\AgreementTemplate;
+use App\Enums\ContractRequestStatus;
 use App\Enums\ContractRequestType;
 use App\Enums\MemorandumSection;
 use App\Models\Agreement;
@@ -126,9 +127,13 @@ class PresentAgreement
                 ->values()
                 ->all(),
 
-            /* A denial waiting for the other side's answer, if there is one. */
+            /* The denial that cancelled it, if there is one: final, so both sides only read it. */
             'denial' => $this->presentContractRequest->handle(
-                $agreement->contractRequests()->pending()->where('type', ContractRequestType::Denial)->with('requester')->first(),
+                $agreement->contractRequests()
+                    ->where('type', ContractRequestType::Denial)
+                    ->whereIn('status', [ContractRequestStatus::Denied, ContractRequestStatus::Accepted])
+                    ->with('requester')
+                    ->first(),
                 $viewer,
             ),
 

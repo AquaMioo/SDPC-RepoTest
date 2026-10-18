@@ -14,6 +14,7 @@ use App\Models\AgreementTask;
 use App\Models\User;
 use App\Notifications\Agreements\AddendumExecuted;
 use App\Notifications\Agreements\AddendumSigned;
+use App\Notifications\Agreements\ContractRequestUpdated;
 use App\Notifications\Agreements\ProjectExtensionRequested;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -303,6 +304,52 @@ class ProjectExtensionTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('agreement.extension.canRequest', false)
                 ->where('agreement.extension.open.status', 'draft'));
+    }
+
+    public function test_a_denied_extension_disables_the_button_for_good_and_tells_both_sides(): void
+    {
+        ['client' => $client, 'student' => $student, 'agreement' => $agreement] = $this->collaborationAt(100);
+
+        $this->actingAs($client)->post(route('agreements.addenda.store', $this->asParty($client, $agreement)));
+        $addendum = Addendum::query()->sole();
+
+        $this->actingAs($student)
+            ->post(route('agreements.addenda.denials.store', $this->asParty($student, $agreement, ['addendum' => $addendum])), ['reason' => 'Too much on my plate this term.'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(AddendumStatus::Cancelled, $addendum->refresh()->status);
+        Notification::assertSentTo(
+            [$client, $student],
+            ContractRequestUpdated::class,
+            fn (ContractRequestUpdated $notification): bool => $notification->event === 'denied',
+        );
+
+        $this->actingAs($client)
+            ->get(route('project-management', ['current_team' => $client->currentTeam, 'agreement' => $agreement->id]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('agreement.extension.denied', true)
+                ->where('agreement.extension.canRequest', false)
+                ->where('agreement.extension.open', null));
+
+        $this->actingAs($client)
+            ->post(route('agreements.addenda.store', $this->asParty($client, $agreement)))
+            ->assertSessionHasErrors(['extension' => 'The project extension was denied, so this project cannot be extended again.']);
+
+        $this->assertSame(1, Addendum::query()->count());
+    }
+
+    public function test_a_cancelled_extension_leaves_the_button_available(): void
+    {
+        ['client' => $client, 'agreement' => $agreement] = $this->collaborationAt(100);
+
+        $this->actingAs($client)->post(route('agreements.addenda.store', $this->asParty($client, $agreement)));
+        $this->actingAs($client)->delete(route('agreements.addenda.destroy', $this->asParty($client, $agreement, ['addendum' => Addendum::query()->sole()])));
+
+        $this->actingAs($client)
+            ->get(route('project-management', ['current_team' => $client->currentTeam, 'agreement' => $agreement->id]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('agreement.extension.denied', false)
+                ->where('agreement.extension.canRequest', true));
     }
 
     public function test_every_addendum_notification_reads_as_a_line_with_a_link(): void

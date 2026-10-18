@@ -17,7 +17,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Only once the build is at least Addendum::EXTENSION_THRESHOLD% done
  * (Section III's academic protection threshold, measured the way every
- * progress figure is, Agreement::progress), and only one extension at a time.
+ * progress figure is, Agreement::progress), only one extension at a time, and
+ * never again once an extension was denied (a denial is final).
  * The memorandum is untouched: the addendum is a second document beside it.
  * The student side hears about it at once (ProjectExtensionRequested).
  */
@@ -48,6 +49,12 @@ class RequestProjectExtension
                         'threshold' => Addendum::EXTENSION_THRESHOLD,
                         'progress' => $progress,
                     ]),
+                ]);
+            }
+
+            if ($agreement->hasDeniedExtension()) {
+                throw ValidationException::withMessages([
+                    'extension' => __('The project extension was denied, so this project cannot be extended again.'),
                 ]);
             }
 

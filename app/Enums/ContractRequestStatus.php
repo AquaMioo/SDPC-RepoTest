@@ -16,6 +16,9 @@ enum ContractRequestStatus: string
     /** Taken back by the side that asked. */
     case Withdrawn = 'withdrawn';
 
+    /** A denial: final the moment it is sent, so nobody answers or withdraws it. */
+    case Denied = 'denied';
+
     /**
      * Get the display label for the status.
      */
@@ -26,6 +29,7 @@ enum ContractRequestStatus: string
             self::Accepted => 'Accepted',
             self::Declined => 'Declined',
             self::Withdrawn => 'Withdrawn',
+            self::Denied => 'Denied',
         };
     }
 }

@@ -115,8 +115,10 @@ class AddendumPolicy
      * Determine whether the user can deny the addendum (owner, 2026-10-18).
      *
      * Either party, before both have signed, with a reason: the extension is a
-     * proposal either side may turn down. It takes the other side's acceptance
-     * to cancel it; the memorandum and the build carry on regardless.
+     * proposal either side may turn down. It is final: the extension is
+     * cancelled at once, the other side cannot decline it or deny it back, and
+     * the project cannot be extended again (Agreement::hasDeniedExtension). The
+     * memorandum and the build carry on regardless.
      */
     public function deny(User $user, Addendum $addendum): bool
     {

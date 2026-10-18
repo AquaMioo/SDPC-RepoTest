@@ -31,16 +31,22 @@ const MUTED = (pct: number) =>
 
 type Errors = Record<string, string>;
 
-/** A denial or termination request waiting for an answer (PresentContractRequest). */
+/**
+ * A termination request waiting for an answer, or a denial, which is final
+ * the moment it is sent (PresentContractRequest).
+ */
 export type ContractRequestView = {
     id: number;
     type: 'denial' | 'termination';
+    status: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'denied';
     subject: 'agreement' | 'addendum';
     party: 'client' | 'student';
     partyLabel: string;
     requestedBy: string | null;
     reason: string;
     requestedAt: string | null;
+    /** The viewer is the one who asked (or denied). */
+    byViewer: boolean;
     canDecide: boolean;
     canWithdraw: boolean;
     /** The client agreeing to a termination the student asked for rates the work. */
@@ -60,9 +66,17 @@ function asking(
         : 'deny the Memorandum of Agreement';
 }
 
+/** What a denial turned down. */
+function denied(request: Pick<ContractRequestView, 'subject'>): string {
+    return request.subject === 'addendum'
+        ? 'the project extension addendum'
+        : 'the Memorandum of Agreement';
+}
+
 /**
  * "Deny": turn an unsigned MoA or Addendum down, with a required reason
- * (owner, 2026-10-18). It is cancelled only once the other side accepts.
+ * (owner, 2026-10-18). It is final: cancelled at once, and the other side
+ * can neither decline it nor deny it back.
  */
 export function DenyButton({
     url,
@@ -91,10 +105,14 @@ export function DenyButton({
                     }
                     description={
                         subject === 'addendum'
-                            ? 'Say why. The other side reads your reason and accepts or declines; once accepted, the extension is cancelled and the project carries on as it is.'
-                            : 'Say why. The other side reads your reason and accepts or declines; once accepted, the agreement is cancelled and both of you are free to start something new.'
+                            ? 'Say why. A denial is final: the extension is cancelled at once, the project cannot be extended again, and the project carries on as it is. This cannot be undone.'
+                            : 'Say why. A denial is final: the agreement is cancelled at once and both of you are free to start something new. This cannot be undone.'
                     }
-                    submitLabel="Send denial"
+                    submitLabel={
+                        subject === 'addendum'
+                            ? 'Deny addendum'
+                            : 'Deny agreement'
+                    }
                     rates={false}
                 />
             )}
@@ -246,7 +264,8 @@ function AskDialog({
 
 /**
  * A request waiting for an answer: who asked, why, and the viewer's way to
- * answer it (accept or decline) or take it back.
+ * answer it (accept or decline) or take it back. A denial only reads: it is
+ * final, so nobody answers it.
  */
 export function ContractRequestBanner({
     request,
@@ -299,9 +318,13 @@ export function ContractRequestBanner({
                 />
                 <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>
-                        {request.canWithdraw
-                            ? `You asked to ${asking(request)}.`
-                            : `The ${request.partyLabel.toLowerCase()}${request.requestedBy ? ` (${request.requestedBy})` : ''} asked to ${asking(request)}.`}
+                        {request.type === 'denial'
+                            ? request.byViewer
+                                ? `You denied ${denied(request)}.`
+                                : `The ${request.partyLabel.toLowerCase()}${request.requestedBy ? ` (${request.requestedBy})` : ''} denied ${denied(request)}.`
+                            : request.canWithdraw
+                              ? `You asked to ${asking(request)}.`
+                              : `The ${request.partyLabel.toLowerCase()}${request.requestedBy ? ` (${request.requestedBy})` : ''} asked to ${asking(request)}.`}
                     </span>
                     <span
                         style={{
@@ -315,43 +338,47 @@ export function ContractRequestBanner({
                     </span>
                     <span style={{ fontSize: 11.5, color: MUTED(55) }}>
                         {request.requestedAt}
-                        {request.canWithdraw
-                            ? ' · waiting for the other side to answer'
-                            : ''}
+                        {request.type === 'denial'
+                            ? ' · this denial is final'
+                            : request.canWithdraw
+                              ? ' · waiting for the other side to answer'
+                              : ''}
                     </span>
                 </div>
             </div>
-            <div
-                style={{
-                    display: 'flex',
-                    gap: 8,
-                    flexWrap: 'wrap',
-                    justifyContent: 'flex-end',
-                }}
-            >
-                {request.canDecide && (
-                    <>
-                        <Btn
-                            variant="ghost"
-                            onClick={() => setDialog('decline')}
-                        >
-                            Decline
+            {(request.canDecide || request.canWithdraw) && (
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 8,
+                        flexWrap: 'wrap',
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    {request.canDecide && (
+                        <>
+                            <Btn
+                                variant="ghost"
+                                onClick={() => setDialog('decline')}
+                            >
+                                Decline
+                            </Btn>
+                            <Btn
+                                variant="primary"
+                                onClick={() => setDialog('accept')}
+                            >
+                                Accept
+                            </Btn>
+                        </>
+                    )}
+                    {request.canWithdraw && (
+                        <Btn variant="ghost" disabled={busy} onClick={withdraw}>
+                            {busy && <Spinner />}
+                            Withdraw request
                         </Btn>
-                        <Btn
-                            variant="primary"
-                            onClick={() => setDialog('accept')}
-                        >
-                            Accept
-                        </Btn>
-                    </>
-                )}
-                {request.canWithdraw && (
-                    <Btn variant="ghost" disabled={busy} onClick={withdraw}>
-                        {busy && <Spinner />}
-                        Withdraw request
-                    </Btn>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {dialog === 'accept' && (
                 <AnswerDialog

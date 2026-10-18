@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\AgreementParty;
 use App\Enums\AgreementStatus;
 use App\Enums\AgreementTemplate;
+use App\Enums\ContractRequestStatus;
+use App\Enums\ContractRequestType;
 use App\Enums\MemorandumSection;
 use App\Enums\TaskStatus;
 use App\Enums\TeamRole;
@@ -196,6 +198,21 @@ class Agreement extends Model
     public function contractRequests(): MorphMany
     {
         return $this->morphMany(ContractRequest::class, 'subject')->latest('id');
+    }
+
+    /**
+     * Whether a project extension on this agreement was denied (owner,
+     * 2026-10-18). A denial is final, so the project cannot be extended again.
+     * Accepted counts too: that is how a denial was carried out before denials
+     * became final.
+     */
+    public function hasDeniedExtension(): bool
+    {
+        return $this->addenda()
+            ->whereHas('contractRequests', fn (Builder $query) => $query
+                ->where('type', ContractRequestType::Denial)
+                ->whereIn('status', [ContractRequestStatus::Denied, ContractRequestStatus::Accepted]))
+            ->exists();
     }
 
     /**

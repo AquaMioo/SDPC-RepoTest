@@ -125,8 +125,9 @@ class AgreementPolicy
     /**
      * Determine whether the user can deny the agreement (owner, 2026-10-18).
      *
-     * Either party, before both have signed, with a reason; it takes the other
-     * side's acceptance to cancel the agreement (AcceptContractRequest).
+     * Either party, before both have signed, with a reason. It is final: the
+     * agreement is cancelled at once (AskToEndContract::deny), and the other
+     * side cannot decline it or deny it back.
      */
     public function deny(User $user, Agreement $agreement): bool
     {

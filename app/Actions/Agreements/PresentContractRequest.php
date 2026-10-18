@@ -10,15 +10,16 @@ use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * A denial or termination request waiting for an answer, shaped for the screen
- * it is answered on: who asked and why, and what this viewer may do about it.
+ * A termination request waiting for an answer, or a denial (final the moment
+ * it was sent), shaped for the screen it is read on: who asked and why, and
+ * what this viewer may do about it.
  */
 class PresentContractRequest
 {
     /**
      * Present the request to the given viewer, or nothing.
      *
-     * @return array{id: int, type: string, subject: string, party: string, partyLabel: string, requestedBy: string|null, reason: string, requestedAt: string|null, canDecide: bool, canWithdraw: bool, needsRating: bool}|null
+     * @return array{id: int, type: string, status: string, subject: string, party: string, partyLabel: string, requestedBy: string|null, reason: string, requestedAt: string|null, byViewer: bool, canDecide: bool, canWithdraw: bool, needsRating: bool}|null
      */
     public function handle(?ContractRequest $request, User $viewer): ?array
     {
@@ -31,12 +32,14 @@ class PresentContractRequest
         return [
             'id' => $request->id,
             'type' => $request->type->value,
+            'status' => $request->status->value,
             'subject' => $request->subject instanceof Addendum ? 'addendum' : 'agreement',
             'party' => $request->party->value,
             'partyLabel' => $request->party->label(),
             'requestedBy' => $request->requester?->name,
             'reason' => $request->reason,
             'requestedAt' => $request->created_at?->format('j M Y, g:i a'),
+            'byViewer' => $request->requested_by === $viewer->id,
             'canDecide' => $canDecide,
             'canWithdraw' => Gate::forUser($viewer)->allows('withdraw', $request),
             /* The client agreeing to a termination the student asked for rates the work. */

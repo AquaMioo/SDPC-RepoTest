@@ -6,6 +6,7 @@ use App\Contracts\PaymentGateway;
 use App\Enums\AddendumPaymentStatus;
 use App\Enums\AddendumStatus;
 use App\Enums\AgreementParty;
+use App\Enums\ContractRequestStatus;
 use App\Enums\TaskStatus;
 use App\Models\Addendum;
 use App\Models\AddendumPayment;
@@ -169,9 +170,12 @@ class PresentAddendum
                 'clientRepresentativeName' => $clientName,
                 'isClientRepresentative' => $client !== null && $client->is($viewer),
             ],
-            /* A denial waiting for the other side's answer, if there is one. */
+            /* The denial that cancelled it, if there is one: final, so both sides only read it. */
             'denial' => $this->presentContractRequest->handle(
-                $addendum->contractRequests()->pending()->with('requester')->first(),
+                $addendum->contractRequests()
+                    ->whereIn('status', [ContractRequestStatus::Denied, ContractRequestStatus::Accepted])
+                    ->with('requester')
+                    ->first(),
                 $viewer,
             ),
             'isOpen' => $addendum->status->isOpen(),

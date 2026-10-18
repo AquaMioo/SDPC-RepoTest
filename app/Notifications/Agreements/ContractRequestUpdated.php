@@ -12,8 +12,9 @@ use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
 /**
- * A denial or a termination request moved: asked (to the side that answers),
- * accepted or declined (to the side that asked), or withdrawn.
+ * A termination request moved: asked (to the side that answers), accepted or
+ * declined (to the side that asked), or withdrawn. Or an MoA or Addendum was
+ * denied, which is final (to both sides).
  */
 class ContractRequestUpdated extends Notification implements ShouldQueue
 {
@@ -22,7 +23,7 @@ class ContractRequestUpdated extends Notification implements ShouldQueue
     /**
      * Create a new notification instance.
      *
-     * @param  'requested'|'accepted'|'declined'|'withdrawn'  $event
+     * @param  'requested'|'accepted'|'declined'|'withdrawn'|'denied'  $event
      */
     public function __construct(
         public ContractRequest $request,
@@ -49,7 +50,7 @@ class ContractRequestUpdated extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject(self::headline($payload))
             ->line(__('Reason given: :reason', ['reason' => $this->request->reason]))
-            ->line(__('Open SDPC to see it and answer.'));
+            ->line($this->event === 'requested' ? __('Open SDPC to see it and answer.') : __('Open SDPC to see it.'));
     }
 
     /**
@@ -91,6 +92,9 @@ class ContractRequestUpdated extends Notification implements ShouldQueue
         $side = ($data['party'] ?? null) === 'client' ? __('The client') : __('The student');
 
         return match ($data['event'] ?? null) {
+            'denied' => ($data['subject'] ?? null) === 'addendum'
+                ? __(':side denied the project extension for :project', ['side' => $side, 'project' => $project])
+                : __(':side denied the Memorandum of Agreement for :project', ['side' => $side, 'project' => $project]),
             'requested' => __(':side asked about :what for :project', ['side' => $side, 'what' => $what, 'project' => $project]),
             'accepted' => __('Your request about :what for :project was accepted', ['what' => $what, 'project' => $project]),
             'declined' => __('Your request about :what for :project was declined', ['what' => $what, 'project' => $project]),

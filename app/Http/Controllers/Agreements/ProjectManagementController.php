@@ -302,19 +302,23 @@ class ProjectManagementController extends Controller
      *
      * The client's "Project extension" button (beside Complete project) works
      * from Addendum::EXTENSION_THRESHOLD% up and while no other extension is
-     * open; the student side reads the open one as a notice.
+     * open, and never again once an extension was denied (it stays on screen,
+     * disabled, saying so); the student side reads the open one as a notice.
      *
      * @return array<string, mixed>
      */
     protected function presentExtension(Agreement $agreement, int $progress, bool $isStudentSide): array
     {
         $open = $agreement->addenda->first(fn (Addendum $addendum): bool => $addendum->status->isOpen());
+        $denied = $agreement->hasDeniedExtension();
 
         return [
             'threshold' => Addendum::EXTENSION_THRESHOLD,
             'progress' => $progress,
+            'denied' => $denied,
             'canRequest' => ! $isStudentSide
                 && $open === null
+                && ! $denied
                 && $progress >= Addendum::EXTENSION_THRESHOLD
                 && Gate::allows('create', [Addendum::class, $agreement]),
             'open' => $open === null ? null : [

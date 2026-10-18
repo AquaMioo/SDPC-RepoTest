@@ -85,7 +85,7 @@ export default function SignatureForm({
 
     return (
         <div style={{ display: 'grid', gap: 12 }}>
-            {/* A denial waiting for an answer (owner, 2026-10-18). */}
+            {/* The denial that cancelled it, final (owner, 2026-10-18). */}
             {agreement.denial && (
                 <ContractRequestBanner
                     request={agreement.denial}
@@ -300,7 +300,7 @@ export default function SignatureForm({
 
                     {leading}
 
-                    {/* Either party may turn it down, with a reason. */}
+                    {/* Either party may turn it down, with a reason; it is final. */}
                     {viewer.canDeny && (
                         <DenyButton
                             url={agreementDenials.url({

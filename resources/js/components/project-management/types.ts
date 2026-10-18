@@ -116,6 +116,8 @@ export type ProjectExtension = {
     /** The least progress, in percent, at which the client may ask. */
     threshold: number;
     progress: number;
+    /** An extension was denied: final, so the button stays disabled for good. */
+    denied: boolean;
     /** The client may press "Project extension" now. */
     canRequest: boolean;
     /** The extension still being signed or paid, if there is one. */

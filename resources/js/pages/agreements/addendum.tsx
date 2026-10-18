@@ -215,7 +215,7 @@ export default function AddendumShow({ addendum }: { addendum: Addendum }) {
                         gap: 16,
                     }}
                 >
-                    {/* A denial waiting for an answer (owner, 2026-10-18). */}
+                    {/* The denial that cancelled it, final (owner, 2026-10-18). */}
                     {addendum.denial && (
                         <ContractRequestBanner
                             request={addendum.denial}
@@ -446,7 +446,7 @@ function SigningPanel({ addendum, args }: { addendum: Addendum; args: Args }) {
 
             {(viewer.canCancel || viewer.canDeny) && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {/* Either party may turn it down, with a reason the other side accepts. */}
+                    {/* Either party may turn it down, with a reason; it is final. */}
                     {viewer.canDeny && (
                         <DenyButton
                             url={addendumDenials.url(args)}

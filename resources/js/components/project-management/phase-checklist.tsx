@@ -474,15 +474,18 @@ export function PhaseChecklist({
                                     !extension.canRequest || requestingExtension
                                 }
                                 title={
-                                    extension.canRequest
-                                        ? 'Extend the project with an addendum: more work, paid through PayMongo.'
-                                        : `Available once the project is at least ${extension.threshold}% complete (now ${extension.progress}%).`
+                                    extension.denied
+                                        ? 'The project extension was denied, so this project cannot be extended again.'
+                                        : extension.canRequest
+                                          ? 'Extend the project with an addendum: more work, paid through PayMongo.'
+                                          : `Available once the project is at least ${extension.threshold}% complete (now ${extension.progress}%).`
                                 }
                                 data-test="project-extension"
                                 onClick={requestExtension}
                             >
                                 <ArrowsOutIcon />
                                 Project extension
+                                {extension.denied && ' · Denied'}
                             </Btn>
                         ))}
                     {/* The client's Complete, bottom right of Turnover. */}
