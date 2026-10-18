@@ -1,4 +1,3 @@
-import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 
 export type AnnouncementImage = {
@@ -17,30 +16,16 @@ function prefersReducedMotion(): boolean {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-const ARROW: React.CSSProperties = {
-    position: 'absolute',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    width: 28,
-    height: 28,
-    borderRadius: '50%',
-    border: 0,
-    display: 'grid',
-    placeItems: 'center',
-    cursor: 'pointer',
-    color: '#fff',
-    background: 'rgba(0, 0, 0, 0.38)',
-};
-
 /**
  * The Announcement's pictures (owner, 2026-10-18), for both dashboards and the
  * admin's preview.
  *
- * One picture is drawn still, with no controls. Two or more slide in from the
- * right every few seconds, with dots and arrows to jump between them; a copy
- * of the first trails the last so the strip keeps moving forward and snaps
- * back unseen. It holds still while pointed at or focused, and for anybody who
- * asked for reduced motion. Each picture opens full size in a new tab.
+ * Nothing in it can be clicked (owner, 2026-10-18): no link, no arrows. One
+ * picture is drawn still. Two or more slide in from the right every few
+ * seconds, with dots that only show which one is up; a copy of the first
+ * trails the last so the strip keeps moving forward and snaps back unseen. It
+ * holds still while pointed at, and for anybody who asked for reduced motion.
+ * Each picture covers the whole announcement box.
  */
 export function AnnouncementCarousel({
     images,
@@ -99,11 +84,6 @@ function Slider({ images }: { images: AnnouncementImage[] }) {
         return () => window.clearTimeout(timer);
     }, [position, count]);
 
-    const go = (index: number) => {
-        setAnimated(!prefersReducedMotion());
-        setPosition((index + count) % count);
-    };
-
     return (
         <div
             data-test="announcement-carousel"
@@ -111,8 +91,6 @@ function Slider({ images }: { images: AnnouncementImage[] }) {
             aria-label="Announcement"
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
-            onFocus={() => setPaused(true)}
-            onBlur={() => setPaused(false)}
             style={{
                 position: 'relative',
                 width: '100%',
@@ -142,24 +120,8 @@ function Slider({ images }: { images: AnnouncementImage[] }) {
                 ))}
             </div>
 
-            <button
-                type="button"
-                aria-label="Previous picture"
-                onClick={() => go(current - 1)}
-                style={{ ...ARROW, left: 8 }}
-            >
-                <CaretLeftIcon />
-            </button>
-            <button
-                type="button"
-                aria-label="Next picture"
-                onClick={() => go(current + 1)}
-                style={{ ...ARROW, right: 8 }}
-            >
-                <CaretRightIcon />
-            </button>
-
             <div
+                aria-hidden
                 style={{
                     position: 'absolute',
                     bottom: 8,
@@ -173,19 +135,12 @@ function Slider({ images }: { images: AnnouncementImage[] }) {
                 }}
             >
                 {images.map((image, index) => (
-                    <button
+                    <span
                         key={image.id}
-                        type="button"
-                        aria-label={`Show picture ${index + 1} of ${count}`}
-                        aria-current={index === current}
-                        onClick={() => go(index)}
                         style={{
                             width: index === current ? 16 : 7,
                             height: 7,
-                            padding: 0,
-                            border: 0,
                             borderRadius: 999,
-                            cursor: 'pointer',
                             background:
                                 index === current
                                     ? '#ffffff'
@@ -199,7 +154,7 @@ function Slider({ images }: { images: AnnouncementImage[] }) {
     );
 }
 
-/** One picture, whole (never cropped), opening full size in a new tab. */
+/** One picture covering the whole box (cropped to fit), not clickable. */
 function Picture({
     image,
     index,
@@ -208,14 +163,11 @@ function Picture({
     index: number;
 }) {
     return (
-        <a
-            href={image.url}
-            target="_blank"
-            rel="noopener noreferrer"
+        <div
             style={{
-                display: 'block',
                 width: '100%',
                 height: '100%',
+                overflow: 'hidden',
                 borderRadius: 'var(--radius-md)',
                 background:
                     'color-mix(in srgb, var(--color-text) 5%, transparent)',
@@ -227,10 +179,10 @@ function Picture({
                 style={{
                     width: '100%',
                     height: '100%',
-                    objectFit: 'contain',
+                    objectFit: 'cover',
                     display: 'block',
                 }}
             />
-        </a>
+        </div>
     );
 }
