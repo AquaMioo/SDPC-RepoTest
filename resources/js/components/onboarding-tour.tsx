@@ -6,7 +6,7 @@ import { Btn } from '@/components/sdpc/btn';
 import { complete as completeOnboarding } from '@/routes/onboarding';
 
 type Step = {
-    /** The data-tour anchor on the header (client-layout.tsx). */
+    /** The data-tour anchor: on the header (client-layout.tsx), or the client dashboard's Post a Job. */
     anchor: string;
     title: string;
     body: string;
@@ -32,10 +32,11 @@ const STEPS: Record<'client' | 'student', Step[]> = {
             title: 'Dashboard',
             body: 'Your overview: the calendar, your project’s progress, the project team and the latest announcement.',
         },
+        /* No Posting nav item (owner, 2026-10-20): the step lights up the dashboard's Post a Job. */
         {
-            anchor: 'nav-posting',
+            anchor: 'post-a-job',
             title: 'Posting',
-            body: 'Your project postings. Post a new project here (one at a time), edit it, and see who applied.',
+            body: 'Post a new project here, one at a time. While a posting holds the slot, the button stays greyed out and names it.',
         },
         {
             anchor: 'nav-recruit',
@@ -75,15 +76,11 @@ const STEPS: Record<'client' | 'student', Step[]> = {
             title: 'Dashboard',
             body: 'Your overview: the project you are building, your calendar and the latest announcement.',
         },
-        {
-            anchor: 'nav-posting',
-            title: 'Posting',
-            body: 'Browse the open project postings and apply to the ones that fit your skills.',
-        },
+        /* No Posting nav item (owner, 2026-10-20): Get Client opens the postings board. */
         {
             anchor: 'nav-get-client',
-            title: 'Get a Client',
-            body: 'Browse the businesses on SDPC and see what each of them is looking for.',
+            title: 'Posting',
+            body: 'Get Client opens the open project postings. Browse them and apply to the ones that fit your skills.',
         },
         {
             anchor: 'nav-project-management',

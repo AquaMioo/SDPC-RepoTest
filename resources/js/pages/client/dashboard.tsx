@@ -92,7 +92,11 @@ export default function ClientDashboard({
                      * collaboration can see why and where to look.
                      */}
                     {canPostProject ? (
-                        <Button asChild variant="outline">
+                        <Button
+                            asChild
+                            variant="outline"
+                            data-tour="post-a-job"
+                        >
                             <Link href={projectsCreate.url(team.slug)}>
                                 <PlusIcon />
                                 Post a Job
@@ -105,6 +109,7 @@ export default function ClientDashboard({
                                     variant="outline"
                                     disabled
                                     data-test="post-a-job-disabled"
+                                    data-tour="post-a-job"
                                 >
                                     <PlusIcon />
                                     Post a Job

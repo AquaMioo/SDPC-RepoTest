@@ -30,10 +30,8 @@ import { dashboard as clientDashboard } from '@/routes/client';
 import { edit as clientProfileEdit } from '@/routes/client-profile';
 import { index as messagesIndex } from '@/routes/messages';
 import { edit as profileEdit } from '@/routes/profile';
-import { index as projectsIndex } from '@/routes/projects';
 import { index as recruitIndex } from '@/routes/recruit';
 import { index as studentBoard } from '@/routes/student/board';
-import { index as studentClients } from '@/routes/student/clients';
 import { edit as studentProfileEdit } from '@/routes/student/profile';
 import { index as teamsIndex } from '@/routes/teams';
 import { index as transactionsIndex } from '@/routes/transactions';
@@ -187,16 +185,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
         isStudent
             ? [
                   { label: 'Dashboard', href: dashboard.url(team.slug) },
-                  /*
-                   * Posting is the board of open postings; Get Client is the
-                   * directory of businesses (owner, 2026-10-18 — Get Client
-                   * used to open the postings board).
-                   */
-                  { label: 'Posting', href: studentBoard.url(team.slug) },
-                  {
-                      label: 'Get Client',
-                      href: studentClients.url(team.slug),
-                  },
+                  { label: 'Get Client', href: studentBoard.url(team.slug) },
                   /*
                    * Was "Workflow". Both sides now land on the same
                    * Project Management screen for a signed build; the
@@ -223,12 +212,6 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
               ]
             : [
                   { label: 'Dashboard', href: clientDashboard.url(team.slug) },
-                  /*
-                   * The business's postings, where Post a project lives, so
-                   * they are never more than one click away (owner,
-                   * 2026-10-18).
-                   */
-                  { label: 'Posting', href: projectsIndex.url(team.slug) },
                   { label: 'Recruit', href: recruitIndex.url(team.slug) },
                   billing,
                   /*
