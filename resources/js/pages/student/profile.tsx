@@ -404,7 +404,7 @@ export default function StudentProfilePage({
                             )}
                         </Card>
 
-                        {/* Under Education, level with Links (owner, 2026-10-09). */}
+                        {/* Under Education, level with Completed Project (owner, 2026-10-20). */}
                         <Card title="Feedback" editable={false}>
                             <FeedbackList reviews={profile.reviews} />
                         </Card>
@@ -456,6 +456,50 @@ export default function StudentProfilePage({
                                         </Tag>
                                     ))}
                                 </div>
+                            )}
+                        </Panel>
+
+                        {/*
+                         * Between Skills and Links (owner, 2026-10-20). Every
+                         * completed build leaves one permanent rating row per
+                         * student, so the reviews are the list of finished
+                         * projects.
+                         */}
+                        <Panel
+                            style={{ padding: 20, gap: 10 }}
+                            className="profile-card"
+                        >
+                            <h5 style={{ margin: 0 }}>Completed Project</h5>
+
+                            {profile.reviews.length === 0 ? (
+                                <Empty>No completed projects yet.</Empty>
+                            ) : (
+                                profile.reviews.map((review) => (
+                                    <div
+                                        key={review.id}
+                                        style={{ display: 'grid', gap: 2 }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: 12.5,
+                                                fontWeight: 500,
+                                            }}
+                                        >
+                                            {review.projectTitle}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: MUTED(55),
+                                            }}
+                                        >
+                                            {review.clientName}
+                                            {review.ratedOn
+                                                ? ` · completed ${review.ratedOn}`
+                                                : ''}
+                                        </span>
+                                    </div>
+                                ))
                             )}
                         </Panel>
 
