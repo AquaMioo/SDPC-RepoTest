@@ -209,11 +209,19 @@ export default function ProjectManagement({
                     {/* No collaboration yet: the way to start one sits up here. */}
                     {agreement === null &&
                         (side === 'client' ? (
-                            <Btn asChild variant="secondary">
-                                <Link href={recruitIndex.url(team.slug)}>
-                                    Hire student
-                                </Link>
-                            </Btn>
+                            <>
+                                {/* Every posting: open, archived, rejected (owner, 2026-10-20). */}
+                                <Btn asChild variant="secondary">
+                                    <Link href={projectsIndex.url(team.slug)}>
+                                        Posting
+                                    </Link>
+                                </Btn>
+                                <Btn asChild variant="secondary">
+                                    <Link href={recruitIndex.url(team.slug)}>
+                                        Hire student
+                                    </Link>
+                                </Btn>
+                            </>
                         ) : (
                             !isLocked && (
                                 <Btn asChild variant="secondary">
