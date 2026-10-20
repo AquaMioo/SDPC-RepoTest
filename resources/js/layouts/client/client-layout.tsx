@@ -60,6 +60,12 @@ type NavItem = {
     href?: string;
     /** Set when the destination belongs to a module that is not built yet. */
     pending?: string;
+    /**
+     * Also lit on any page under href. Agreement needs it: with a standing
+     * agreement its link redirects to /agreements/{id}, so an exact match
+     * never lit it during an active collaboration (owner, 2026-10-20).
+     */
+    nested?: boolean;
 };
 
 /*
@@ -198,7 +204,11 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                   billing === null
                       ? null
                       : { ...billing, label: 'Performance' },
-                  { label: 'Agreement', href: agreementsIndex.url(team.slug) },
+                  {
+                      label: 'Agreement',
+                      href: agreementsIndex.url(team.slug),
+                      nested: true,
+                  },
                   /*
                    * Teams is a destination of its own now rather than a row
                    * under Settings. Last on both navs, after Agreement, so the
@@ -223,7 +233,11 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                       label: 'Project Management',
                       href: projectManagement.url(team.slug),
                   },
-                  { label: 'Agreement', href: agreementsIndex.url(team.slug) },
+                  {
+                      label: 'Agreement',
+                      href: agreementsIndex.url(team.slug),
+                      nested: true,
+                  },
                   { label: 'Team', href: teamsIndex.url() },
               ]
     )
@@ -447,7 +461,10 @@ function NavLink({
         );
     }
 
-    const isCurrent = currentPath.split('?')[0] === item.href.split('?')[0];
+    const path = currentPath.split('?')[0];
+    const href = item.href.split('?')[0];
+    const isCurrent =
+        path === href || (item.nested === true && path.startsWith(`${href}/`));
 
     return (
         <Link
