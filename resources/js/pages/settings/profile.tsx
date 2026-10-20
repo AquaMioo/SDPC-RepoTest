@@ -7,8 +7,6 @@ import type {
     AppealState,
 } from '@/components/account-appeal-card';
 import DeleteUser from '@/components/delete-user';
-import GcashAccountCard from '@/components/gcash-account-card';
-import type { GcashAccount } from '@/components/gcash-account-card';
 import SignInMethodsCard from '@/components/sign-in-methods-card';
 import type { SignInMethods } from '@/components/sign-in-methods-card';
 import { edit } from '@/routes/profile';
@@ -47,7 +45,6 @@ export default function Profile({
     accountStatus,
     appeal,
     hasPassword,
-    gcash,
 }: {
     mustVerifyEmail: boolean;
     status?: string;
@@ -58,8 +55,6 @@ export default function Profile({
     appeal: AppealState | null;
     /** Without one, deleting the account confirms with a mailed code. */
     hasPassword: boolean;
-    /** Clients and students: the GCash account, masked. */
-    gcash?: GcashAccount | null;
 }) {
     const { auth } = usePage<PageProps>().props;
 
@@ -148,8 +143,6 @@ export default function Profile({
             </div>
 
             <SignInMethodsCard methods={signInMethods ?? null} />
-
-            <GcashAccountCard account={gcash ?? null} />
 
             <AccountAppealCard accountStatus={accountStatus} appeal={appeal} />
 

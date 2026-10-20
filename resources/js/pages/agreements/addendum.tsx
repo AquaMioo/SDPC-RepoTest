@@ -43,7 +43,7 @@ import {
 import { store as addendumDenials } from '@/routes/agreements/addenda/denials';
 import { checkout as paymentCheckout } from '@/routes/agreements/addenda/payments';
 import { store as signatureStore } from '@/routes/agreements/addenda/signatures';
-import { edit as profileEdit } from '@/routes/profile';
+import { edit as billingEdit } from '@/routes/billing';
 import type { Addendum, AddendumPayment } from '@/types/agreements';
 
 const MUTED = (pct: number) =>
@@ -187,8 +187,8 @@ export default function AddendumShow({ addendum }: { addendum: Addendum }) {
                             : 'Register your GCash account before signing: '}
                         {(viewer.party === 'student' ||
                             viewer.isClientRepresentative) && (
-                            <Link href={profileEdit.url()} data-inline-link="">
-                                Settings → GCash account
+                            <Link href={billingEdit.url()} data-inline-link="">
+                                Settings → Billing &amp; Payment
                             </Link>
                         )}
                     </WarningNotice>

@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\SaveGcashAccountRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 /**
- * Settings → GCash account, for clients and students.
+ * Settings → Billing & Payment → GCash account, for clients and students
+ * (its own settings page since 2026-10-20, owner; it used to sit on Account).
  *
  * Registered once and imported into every Project Extension Addendum the
  * account signs (SignAddendum keeps a copy with each signature). Private: it
@@ -18,6 +21,21 @@ use Inertia\Inertia;
  */
 class GcashAccountController extends Controller
 {
+    /**
+     * Show Settings → Billing & Payment.
+     */
+    public function edit(Request $request): Response
+    {
+        $user = $request->user();
+
+        abort_unless($user->hasRole(UserRole::Client, UserRole::Student), 403);
+
+        return Inertia::render('settings/billing', [
+            /* Only ever masked, even to its owner. */
+            'gcash' => ['masked' => $user->maskedGcashNumber()],
+        ]);
+    }
+
     /**
      * Register or replace the account's GCash number.
      */

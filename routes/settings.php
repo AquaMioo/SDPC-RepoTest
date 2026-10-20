@@ -54,10 +54,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('profile.destroy.code');
 
     /*
-     * The GCash account a client or student registers once for the Project
-     * Extension Addendum. Private and always shown masked; see
+     * Billing & Payment: the GCash account a client or student registers once
+     * for the Project Extension Addendum. Private and always shown masked; see
      * GcashAccountController.
      */
+    Route::get('settings/billing', [GcashAccountController::class, 'edit'])
+        ->name('billing.edit');
     Route::put('settings/gcash', [GcashAccountController::class, 'update'])
         ->middleware('throttle:12,1')
         ->name('gcash.update');

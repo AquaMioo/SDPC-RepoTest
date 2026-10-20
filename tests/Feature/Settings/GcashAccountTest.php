@@ -10,8 +10,9 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 /**
- * Settings → GCash account: registered once by a client or student for the
- * Project Extension Addendum, stored encrypted and only ever shown masked.
+ * Settings → Billing & Payment → GCash account: registered once by a client or
+ * student for the Project Extension Addendum, stored encrypted and only ever
+ * shown masked.
  */
 class GcashAccountTest extends TestCase
 {
@@ -22,10 +23,10 @@ class GcashAccountTest extends TestCase
         $student = User::factory()->student()->create();
 
         $this->actingAs($student)
-            ->from(route('profile.edit'))
+            ->from(route('billing.edit'))
             ->put(route('gcash.update'), ['gcash_number' => '+63 917-123-4297'])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'));
+            ->assertRedirect(route('billing.edit'));
 
         $this->assertSame('09171234297', $student->refresh()->gcash_number);
         $this->assertSame('09******297', $student->maskedGcashNumber());
@@ -39,9 +40,10 @@ class GcashAccountTest extends TestCase
         $client = User::factory()->client()->create();
         $client->forceFill(['gcash_number' => '09171234297'])->save();
 
-        $response = $this->actingAs($client)->get(route('profile.edit'));
+        $response = $this->actingAs($client)->get(route('billing.edit'));
 
         $response->assertInertia(fn (Assert $page) => $page
+            ->component('settings/billing')
             ->where('gcash.masked', '09******297')
             ->missing('auth.user.gcash_number'));
 
@@ -79,6 +81,23 @@ class GcashAccountTest extends TestCase
         $this->actingAs($admin)
             ->put(route('gcash.update'), ['gcash_number' => '09171234297'])
             ->assertForbidden();
+
+        $this->actingAs($admin)->get(route('billing.edit'))->assertForbidden();
+    }
+
+    public function test_billing_and_payment_holds_it_and_account_settings_no_longer_do(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->actingAs($student)
+            ->get(route('billing.edit'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('settings/billing')
+                ->where('gcash.masked', null));
+
+        $this->actingAs($student)
+            ->get(route('profile.edit'))
+            ->assertInertia(fn (Assert $page) => $page->missing('gcash'));
     }
 
     public function test_masking_keeps_the_first_two_and_last_three_digits(): void

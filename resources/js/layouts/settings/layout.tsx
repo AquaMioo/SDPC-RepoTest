@@ -1,10 +1,16 @@
-import { Link } from '@inertiajs/react';
-import { LockSimpleIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    LockSimpleIcon,
+    SignOutIcon,
+    UserIcon,
+    WalletIcon,
+} from '@phosphor-icons/react';
 import type { ComponentType, PropsWithChildren, ReactNode } from 'react';
 
 import { confirmLogout } from '@/components/logout-confirmation';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { toUrl } from '@/lib/utils';
+import { edit as editBilling } from '@/routes/billing';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
@@ -66,8 +72,17 @@ const navItems: SettingsNavItem[] = [
     { title: 'Security', href: editSecurity(), icon: LockSimpleIcon },
 ];
 
+/* Clients and students only: where the GCash account lives (owner, 2026-10-20). */
+const billingItem: SettingsNavItem = {
+    title: 'Billing & Payment',
+    href: editBilling(),
+    icon: WalletIcon,
+};
+
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
+    const role = usePage<{ auth?: { role?: string | null } }>().props.auth
+        ?.role;
 
     const row = (item: SettingsNavItem): ReactNode => {
         const Icon = item.icon;
@@ -106,6 +121,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 <div style={KICKER}>Settings</div>
 
                 {navItems.map(row)}
+                {(role === 'client' || role === 'student') && row(billingItem)}
 
                 {/*
                  * Teams used to sit here behind its own rule. It is a top-level
